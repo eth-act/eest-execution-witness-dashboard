@@ -17,7 +17,7 @@ fi
 
 _setup_hive_client_file="$HIVE_DIR/clients-local.yaml"
 _setup_hive_local_geth_path="$HIVE_DIR/clients/go-ethereum/go-ethereum"
-_setup_hive_local_geth_arg="./clients/go-ethereum/go-ethereum"
+_setup_hive_local_geth_arg="go-ethereum"
 
 _setup_hive_usage() {
   printf '%s\n' \
