@@ -59,3 +59,15 @@ Actions:
 
 Docker permissions are the main local-only concern: Hive builds and runs client
 containers, so `docker info` should succeed before running the later scripts.
+
+## Fixture Generation
+
+Generate execution witness fixtures with:
+
+```bash
+scripts/fill-fixtures.sh
+```
+
+The script clones or updates `execution-specs` at `EEST_REF`, runs `uv sync`,
+fills `blockchain_test_engine` fixtures into `FIXTURES_DIR`, and fails if
+`fixtures/.meta/index.json` does not include `blockchain_test_engine`.

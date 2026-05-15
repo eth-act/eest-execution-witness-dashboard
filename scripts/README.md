@@ -6,10 +6,11 @@ execution witness fixtures, run Hive, and build the static Hiveview site.
 Implemented scripts:
 
 - `env.sh`: shared defaults and prerequisite checks.
+- `fill-fixtures.sh`: clone or update `execution-specs`, run `uv sync`,
+  generate witness fixtures into `FIXTURES_DIR`, and validate the fixture index.
 
 Planned scripts:
 
-- `fill-fixtures.sh`
 - `run-hive-consume.sh`
 - `build-site.sh`
 
@@ -27,3 +28,11 @@ The same file can be executed directly:
 scripts/env.sh --print
 scripts/env.sh --check
 ```
+
+Generate execution witness fixtures:
+
+```bash
+scripts/fill-fixtures.sh
+```
+
+The generation command targets `blockchain_test_engine`.
