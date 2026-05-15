@@ -18,6 +18,7 @@ fi
 SITE_SMOKE_HOST="${SITE_SMOKE_HOST:-127.0.0.1}"
 SITE_SMOKE_PORT="${SITE_SMOKE_PORT:-8765}"
 SITE_SMOKE_BASE_PATH="${SITE_SMOKE_BASE_PATH:-eest-execution-witness-dashboard}"
+SITE_SMOKE_URL="${SITE_SMOKE_URL:-}"
 SITE_SECRET_SCAN="${SITE_SECRET_SCAN:-1}"
 SITE_SECRET_SCAN_MAX_MATCHES="${SITE_SECRET_SCAN_MAX_MATCHES:-40}"
 SITE_SECRET_SCAN_PATTERN="${SITE_SECRET_SCAN_PATTERN:-authorization:|bearer[[:space:]]+[A-Za-z0-9._~+/-]+=*|api[_-]?key|secret[_-]?key|private[_-]?key|password|passwd|mnemonic|seed phrase|AWS_ACCESS_KEY_ID|AWS_SECRET_ACCESS_KEY|GOOGLE_APPLICATION_CREDENTIALS|RPC[_-]?URL=|https?://[^[:space:]\"'<>]*(infura|alchemy|quicknode|ankr|drpc|llama|blastapi|nodereal|chainstack)[^[:space:]\"'<>]*}"
@@ -39,9 +40,13 @@ _smoke_site_usage() {
     '  SITE_SMOKE_HOST              Host to bind. Default: 127.0.0.1' \
     '  SITE_SMOKE_PORT              Port to bind. Default: 8765' \
     '  SITE_SMOKE_BASE_PATH         Non-root URL path to test. Default: eest-execution-witness-dashboard' \
+    '  SITE_SMOKE_URL               Public URL to test instead of serving SITE_DIR locally.' \
     '  SITE_SECRET_SCAN             Set to 0 to skip public-log secret scan. Default: 1' \
     '  SITE_SECRET_SCAN_PATTERN     Extended grep regex for suspicious public log content.' \
-    '  SITE_SECRET_SCAN_MAX_MATCHES Max matches to print on failure. Default: 40'
+    '  SITE_SECRET_SCAN_MAX_MATCHES Max matches to print on failure. Default: 40' \
+    '' \
+    'Arguments:' \
+    '  --url URL                    Same as SITE_SMOKE_URL.'
 }
 
 _smoke_site_log() {
@@ -114,6 +119,17 @@ _smoke_site_require_positive_int() {
 _smoke_site_parse_args() {
   while [ "$#" -gt 0 ]; do
     case "$1" in
+      --url)
+        shift
+        if [ "$#" -eq 0 ]; then
+          _smoke_site_usage >&2
+          _smoke_site_die "--url requires a value"
+        fi
+        SITE_SMOKE_URL="$1"
+        ;;
+      --url=*)
+        SITE_SMOKE_URL="${1#--url=}"
+        ;;
       --help | -h)
         _smoke_site_usage
         exit 0
@@ -145,6 +161,30 @@ _smoke_site_normalize_base_path() {
   esac
 
   printf '%s\n' "$path"
+}
+
+_smoke_site_normalize_url() {
+  local url
+
+  url="$1"
+  while [ "${url%/}" != "$url" ]; do
+    url="${url%/}"
+  done
+
+  case "$url" in
+    http://* | https://*) ;;
+    *)
+      _smoke_site_die "SITE_SMOKE_URL must start with http:// or https://: $1"
+      ;;
+  esac
+
+  case "$url" in
+    *$'\r'* | *$'\n'* | *' '*)
+      _smoke_site_die "SITE_SMOKE_URL cannot contain whitespace: $1"
+      ;;
+  esac
+
+  printf '%s\n' "$url"
 }
 
 _smoke_site_validate_relative_path() {
@@ -189,17 +229,31 @@ _smoke_site_validate_inputs() {
   fi
 }
 
-_smoke_site_first_listing_file() {
+_smoke_site_first_listing_file_from() {
+  local listing_file
+
+  listing_file="$1"
   jq -r 'select(type == "object" and .fileName != null and .fileName != "") | .fileName' \
-    "$SITE_DIR/listing.jsonl" | sed -n '1p'
+    "$listing_file" | sed -n '1p'
+}
+
+_smoke_site_first_listing_file() {
+  _smoke_site_first_listing_file_from "$SITE_DIR/listing.jsonl"
+}
+
+_smoke_site_first_referenced_result_file_from() {
+  local suite_file_path
+
+  suite_file_path="$1"
+  jq -r '[.simLog, .testDetailsLog, (.testCases[]? | .clientInfo? // {} | to_entries[]? | .value.logFile?)] | map(select(. != null and . != "")) | .[0] // empty' \
+    "$suite_file_path"
 }
 
 _smoke_site_first_referenced_result_file() {
   local suite_file
 
   suite_file="$1"
-  jq -r '[.simLog, .testDetailsLog, (.testCases[]? | .clientInfo? // {} | to_entries[]? | .value.logFile?)] | map(select(. != null and . != "")) | .[0] // empty' \
-    "$SITE_DIR/results/$suite_file"
+  _smoke_site_first_referenced_result_file_from "$SITE_DIR/results/$suite_file"
 }
 
 _smoke_site_check_listing_paths() {
@@ -325,6 +379,47 @@ _smoke_site_head() {
   curl --fail --silent --show-error --location --head --output /dev/null "$url"
 }
 
+_smoke_site_check_remote() {
+  local base_url first_result listing_http referenced_result result_http
+
+  base_url="$(_smoke_site_normalize_url "$SITE_SMOKE_URL")"
+  _smoke_site_tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/hiveview-site-smoke.XXXXXX")"
+  listing_http="$_smoke_site_tmp_dir/listing.jsonl"
+  result_http="$_smoke_site_tmp_dir/result.json"
+
+  _smoke_site_log "Testing deployed site at $base_url/"
+  _smoke_site_fetch "$base_url/" "$_smoke_site_tmp_dir/index.html"
+  _smoke_site_fetch "$base_url/listing.jsonl" "$listing_http"
+  if ! jq -e . "$listing_http" >/dev/null; then
+    _smoke_site_die "listing.jsonl fetched over HTTP is not valid JSON lines: $base_url/listing.jsonl"
+  fi
+
+  first_result="$(_smoke_site_first_listing_file_from "$listing_http")"
+  if [ -z "$first_result" ]; then
+    _smoke_site_die "deployed listing.jsonl does not contain any entries with fileName"
+  fi
+
+  _smoke_site_validate_relative_path "listing fileName" "$first_result"
+  _smoke_site_fetch "$base_url/results/$first_result" "$result_http"
+  if ! jq -e . "$result_http" >/dev/null; then
+    _smoke_site_die "result entry fetched over HTTP is not valid JSON: $base_url/results/$first_result"
+  fi
+  _smoke_site_log "Fetched listing.jsonl and results/$first_result from deployed site"
+
+  _smoke_site_fetch "$base_url/suite.html?suiteid=$first_result" "$_smoke_site_tmp_dir/suite.html"
+  _smoke_site_fetch "$base_url/viewer.html?file=results/$first_result" "$_smoke_site_tmp_dir/viewer.html"
+  _smoke_site_log "Fetched deployed suite and viewer entry pages"
+
+  referenced_result="$(_smoke_site_first_referenced_result_file_from "$result_http")"
+  if [ -n "$referenced_result" ]; then
+    _smoke_site_validate_relative_path "referenced result asset" "$referenced_result"
+    _smoke_site_head "$base_url/results/$referenced_result"
+    _smoke_site_log "Verified deployed referenced result asset results/$referenced_result"
+  fi
+
+  _smoke_site_log "Deployed Pages smoke test passed"
+}
+
 _smoke_site_check_http() {
   local base_url first_result listing_http referenced_result result_http
 
@@ -366,6 +461,11 @@ main() {
   _smoke_site_parse_args "$@"
   _smoke_site_require_cmd curl curl
   _smoke_site_require_cmd jq jq
+  if [ -n "$SITE_SMOKE_URL" ]; then
+    _smoke_site_check_remote
+    return
+  fi
+
   if ! python_cmd="$(_smoke_site_python_cmd)"; then
     _smoke_site_die "missing required tool: Python (python3 or python not found on PATH)"
   fi

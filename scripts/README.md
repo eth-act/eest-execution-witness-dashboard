@@ -116,3 +116,14 @@ HTTP, fails on root-relative paths that would break GitHub Pages project URLs,
 and scans `SITE_DIR/results/` for common secret, credential, and private RPC URL
 patterns. Override the port or project path with `SITE_SMOKE_PORT` and
 `SITE_SMOKE_BASE_PATH`.
+
+The same script can smoke test a deployed GitHub Pages URL without local
+serving:
+
+```bash
+scripts/smoke-site.sh --url https://OWNER.github.io/REPOSITORY/
+```
+
+Remote mode fetches `listing.jsonl`, the first listed result under
+`results/...`, the suite and viewer pages, and one referenced result asset when
+present.

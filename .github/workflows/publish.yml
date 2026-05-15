@@ -1,0 +1,183 @@
+name: Publish execution witness dashboard
+
+on:
+  workflow_dispatch:
+    inputs:
+      eest_repo:
+        description: execution-specs repository URL.
+        required: true
+        default: https://github.com/jsign/execution-specs.git
+      eest_ref:
+        description: execution-specs branch, tag, or commit.
+        required: true
+        default: jsign-zkevm-v0.3.4-hive
+      filler_path:
+        description: execution-specs filler path to generate.
+        required: true
+        default: tests/amsterdam/eip8025_optional_proofs
+      fork:
+        description: EEST fork name to fill.
+        required: true
+        default: Amsterdam
+      hive_repo:
+        description: Hive repository URL.
+        required: true
+        default: https://github.com/ethereum/hive.git
+      hive_ref:
+        description: Hive branch, tag, or commit.
+        required: true
+        default: master
+      geth_repo:
+        description: go-ethereum repository URL.
+        required: true
+        default: https://github.com/jsign/go-ethereum.git
+      geth_ref:
+        description: go-ethereum branch, tag, or commit.
+        required: true
+        default: zkevm-v0.3.4-hive
+      geth_source_mode:
+        description: How Hive should build go-ethereum.
+        required: true
+        type: choice
+        options:
+          - auto
+          - git
+          - local
+        default: auto
+      geth_hive_extra_flags:
+        description: Extra flags injected into Hive's geth.sh.
+        required: false
+        default: --bal.executionmode=sequential
+      hive_parallelism:
+        description: EEST consume parallelism.
+        required: true
+        default: "1"
+      max_site_size_mb:
+        description: Fail before upload if site/ is larger than this many MiB.
+        required: true
+        default: "900"
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build Pages artifact
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    env:
+      ROOT_DIR: ${{ github.workspace }}
+      EEST_REPO: ${{ inputs.eest_repo }}
+      EEST_REF: ${{ inputs.eest_ref }}
+      EEST_DIR: ${{ github.workspace }}/execution-specs
+      FILLER_PATH: ${{ inputs.filler_path }}
+      FORK: ${{ inputs.fork }}
+      HIVE_REPO: ${{ inputs.hive_repo }}
+      HIVE_REF: ${{ inputs.hive_ref }}
+      HIVE_DIR: ${{ github.workspace }}/hive
+      GETH_REPO: ${{ inputs.geth_repo }}
+      GETH_REF: ${{ inputs.geth_ref }}
+      GETH_SRC_DIR: ${{ github.workspace }}/go-ethereum-src
+      GETH_SOURCE_MODE: ${{ inputs.geth_source_mode }}
+      GETH_HIVE_EXTRA_FLAGS: ${{ inputs.geth_hive_extra_flags }}
+      FIXTURES_DIR: ${{ github.workspace }}/fixtures
+      HIVE_RESULTS_DIR: ${{ github.workspace }}/hive/workspace/logs
+      HIVE_SIMULATOR: http://127.0.0.1:3000
+      HIVE_PARALLELISM: ${{ inputs.hive_parallelism }}
+      SITE_DIR: ${{ github.workspace }}/site
+      SITE_MAX_SIZE_MB: ${{ inputs.max_site_size_mb }}
+      SITE_SMOKE_BASE_PATH: ${{ github.event.repository.name }}
+      UV_CACHE_DIR: /tmp/uv-cache
+
+    steps:
+      - name: Checkout dashboard repository
+        uses: actions/checkout@v6
+
+      - name: Install Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: 1.24.x
+          cache: false
+
+      - name: Install Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8
+
+      - name: Install OS prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq rsync
+
+      - name: Check prerequisites and resolved inputs
+        run: |
+          scripts/env.sh --print
+          scripts/env.sh --check
+
+      - name: Generate execution witness fixtures
+        run: scripts/fill-fixtures.sh
+
+      - name: Run Hive and consume fixtures
+        run: scripts/run-hive-consume.sh
+
+      - name: Build static Hiveview site
+        run: scripts/build-site.sh
+
+      - name: Smoke test generated site
+        run: scripts/smoke-site.sh
+
+      - name: Upload debug artifacts
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: hive-debug-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 14
+          if-no-files-found: ignore
+          include-hidden-files: true
+          path: |
+            hive/workspace/logs
+            fixtures/.meta/index.json
+            fixtures/.meta/report_consume.html
+            site/listing.jsonl
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v6
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+  deploy:
+    name: Deploy to GitHub Pages
+    runs-on: ubuntu-latest
+    needs: build
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout dashboard repository
+        uses: actions/checkout@v6
+
+      - name: Deploy Pages artifact
+        id: deployment
+        uses: actions/deploy-pages@v5
+
+      - name: Smoke test deployed Pages site
+        env:
+          SITE_SMOKE_URL: ${{ steps.deployment.outputs.page_url }}
+        run: scripts/smoke-site.sh

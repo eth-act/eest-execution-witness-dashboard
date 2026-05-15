@@ -147,3 +147,31 @@ The smoke test serves `SITE_DIR` under a non-root project path, fetches
 `listing.jsonl` and the first `results/...` entry over HTTP, checks that static
 paths are relative for GitHub Pages project URLs, and scans public result logs
 for common secret or private RPC URL patterns.
+
+## GitHub Pages Publishing
+
+Manual publishing is implemented in
+`.github/workflows/publish.yml` as a `workflow_dispatch` workflow. The workflow
+installs Go, Python, `uv`, `jq`, and `rsync`, then calls the same local scripts:
+
+```text
+scripts/fill-fixtures.sh
+scripts/run-hive-consume.sh
+scripts/build-site.sh
+scripts/smoke-site.sh
+```
+
+The workflow inputs expose the execution-specs, Hive, and go-ethereum repos and
+refs, plus the filler path, fork, geth source mode, consume parallelism, and max
+site size. Failed runs upload debug artifacts containing Hive logs from
+`hive/workspace/logs`.
+
+After the generated site passes the local smoke test, the workflow configures
+GitHub Pages, uploads `site/` as a Pages artifact, deploys it, and runs the
+same smoke script against the deployed `page_url`.
+
+To check a deployed site manually:
+
+```bash
+scripts/smoke-site.sh --url https://OWNER.github.io/REPOSITORY/
+```
