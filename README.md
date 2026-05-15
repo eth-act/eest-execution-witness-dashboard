@@ -1,7 +1,8 @@
 # eest-execution-witness-dashboard
 
 Static dashboard scaffolding for publishing execution witness Hive results with
-Hiveview.
+`ethpandaops/hive-ui`. Hiveview is still used to generate Hive's
+`listing.jsonl` index.
 
 ## Phase 1 Defaults
 
@@ -14,6 +15,10 @@ EEST_REF=jsign-zkevm-v0.3.4-hive
 
 HIVE_REPO=https://github.com/ethereum/hive.git
 HIVE_REF=master
+
+HIVE_UI_REPO=https://github.com/ethpandaops/hive-ui.git
+HIVE_UI_REF=b5441f735366a4f7d13575a020ccd6517d7ecaf3
+HIVE_UI_DISCOVERY_NAME=execution-witness
 
 EL_CLIENTS=go-ethereum,ethrex
 EL_CLIENT_CONFIG=config/el-clients.json
@@ -35,6 +40,7 @@ Generated work directories are ignored by git:
 
 - `execution-specs/`
 - `hive/`
+- `hive-ui/`
 - `go-ethereum-src/`
 - `fixtures/`
 - `site/`
@@ -65,6 +71,7 @@ Actions:
 
 - Docker with the daemon running and usable by the current user without `sudo`.
 - Go `1.24.x`.
+- Node.js `22.x` and npm.
 - Python `3.12`.
 - `uv`, `jq`, `curl`, and `rsync` on `PATH`.
 
@@ -128,27 +135,18 @@ build output into the console while still writing `hive-dev.log`.
 
 ## Static Site Build
 
-After Hive results exist, build the static Hiveview site with:
+After Hive results exist, build the static hive-ui site with:
 
 ```bash
 scripts/build-site.sh
 ```
 
-The script recreates `SITE_DIR`, deploys Hiveview assets, writes
-`site/listing.jsonl`, copies Hive logs and results into `site/results/`, and
-fails if the generated site exceeds `SITE_MAX_SIZE_MB`.
+The script recreates `SITE_DIR`, builds the pinned `HIVE_UI_REF`, writes
+`site/discovery.json`, writes `site/listing.jsonl`, copies Hive logs and
+results into `site/results/`, writes hive-ui license/source notices, and fails
+if the generated site exceeds `SITE_MAX_SIZE_MB`.
 
 ## Local Preview and Smoke Test
-
-Preview the current Hive results with Hiveview's built-in local server:
-
-```bash
-source scripts/env.sh
-cd "$HIVE_DIR"
-go run ./cmd/hiveview -serve -logdir "$HIVE_RESULTS_DIR"
-```
-
-Open `http://127.0.0.1:8080`.
 
 Preview the generated static site with a simple HTTP server:
 
@@ -159,7 +157,8 @@ python3 -m http.server 8081 --bind 127.0.0.1
 ```
 
 Open `http://127.0.0.1:8081/`. Use HTTP rather than `file://` so browser
-requests for `listing.jsonl` and `results/...` are exercised.
+requests for `discovery.json`, `listing.jsonl`, and `results/...` are
+exercised.
 
 Before publishing, run:
 
@@ -168,15 +167,16 @@ scripts/smoke-site.sh
 ```
 
 The smoke test serves `SITE_DIR` under a non-root project path, fetches
-`listing.jsonl` and the first `results/...` entry over HTTP, checks that static
-paths are relative for GitHub Pages project URLs, and scans public result logs
-for common secret or private RPC URL patterns.
+`discovery.json`, `listing.jsonl`, and the first `results/...` entry over HTTP,
+checks that static paths are relative for GitHub Pages project URLs, and scans
+public result logs for common secret or private RPC URL patterns.
 
 ## GitHub Pages Publishing
 
 Manual publishing is implemented in
 `.github/workflows/publish.yml` as a `workflow_dispatch` workflow. The workflow
-installs Go, Python, `uv`, `jq`, and `rsync`, then calls the same local scripts:
+installs Go, Python, Node.js, `uv`, `jq`, and `rsync`, then calls the same local
+scripts:
 
 ```text
 scripts/fill-fixtures.sh
@@ -185,8 +185,8 @@ scripts/build-site.sh
 scripts/smoke-site.sh
 ```
 
-The workflow inputs expose the execution-specs and Hive repos/refs, fixture
-selection, `EL_CLIENTS`, optional descriptor override JSON, consume
+The workflow inputs expose the execution-specs, Hive, and hive-ui repos/refs,
+fixture selection, `EL_CLIENTS`, optional descriptor override JSON, consume
 parallelism, and max site size. Failed runs upload debug artifacts containing
 Hive logs from `hive/workspace/logs`.
 

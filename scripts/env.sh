@@ -105,6 +105,10 @@ FORK="${FORK:-Amsterdam}"
 HIVE_REPO="${HIVE_REPO:-https://github.com/ethereum/hive.git}"
 HIVE_REF="${HIVE_REF:-master}"
 HIVE_DIR="$(_eest_dashboard_root_path "${HIVE_DIR:-hive}")"
+HIVE_UI_REPO="${HIVE_UI_REPO:-https://github.com/ethpandaops/hive-ui.git}"
+HIVE_UI_REF="${HIVE_UI_REF:-b5441f735366a4f7d13575a020ccd6517d7ecaf3}"
+HIVE_UI_DIR="$(_eest_dashboard_root_path "${HIVE_UI_DIR:-hive-ui}")"
+HIVE_UI_DISCOVERY_NAME="${HIVE_UI_DISCOVERY_NAME:-execution-witness}"
 
 EL_CLIENT_CONFIG="$(_eest_dashboard_root_path "${EL_CLIENT_CONFIG:-config/el-clients.json}")"
 EL_CLIENTS="${EL_CLIENTS:-go-ethereum,ethrex}"
@@ -122,6 +126,7 @@ SITE_MAX_SIZE_MB="${SITE_MAX_SIZE_MB:-900}"
 export ROOT_DIR
 export EEST_REPO EEST_REF EEST_DIR
 export HIVE_REPO HIVE_REF HIVE_DIR
+export HIVE_UI_REPO HIVE_UI_REF HIVE_UI_DIR HIVE_UI_DISCOVERY_NAME
 export EL_CLIENT_CONFIG EL_CLIENTS EL_CLIENT_OVERRIDES_JSON
 export FILLER_PATH FORK FIXTURES_DIR HIVE_RESULTS_DIR HIVE_SIMULATOR HIVE_PARALLELISM SITE_DIR SITE_MAX_SIZE_MB
 
@@ -132,6 +137,7 @@ eest_dashboard_print_env() {
     ROOT_DIR \
     EEST_REPO EEST_REF EEST_DIR \
     HIVE_REPO HIVE_REF HIVE_DIR \
+    HIVE_UI_REPO HIVE_UI_REF HIVE_UI_DIR HIVE_UI_DISCOVERY_NAME \
     EL_CLIENT_CONFIG EL_CLIENTS EL_CLIENT_OVERRIDES_JSON \
     FILLER_PATH FORK FIXTURES_DIR HIVE_RESULTS_DIR HIVE_SIMULATOR HIVE_PARALLELISM SITE_DIR SITE_MAX_SIZE_MB
   do
@@ -154,6 +160,8 @@ _eest_dashboard_require_cmd() {
   case "$cmd" in
     docker) version="$(docker --version 2>&1)" ;;
     go) version="$(go version 2>&1)" ;;
+    node) version="$(node --version 2>&1)" ;;
+    npm) version="$(npm --version 2>&1)" ;;
     uv) version="$(uv --version 2>&1)" ;;
     jq) version="$(jq --version 2>&1)" ;;
     curl) version="$(curl --version 2>&1 | sed -n '1p')" ;;
@@ -185,6 +193,8 @@ eest_dashboard_check_prereqs() {
 
   _eest_dashboard_require_cmd docker Docker || missing=1
   _eest_dashboard_require_cmd go Go || missing=1
+  _eest_dashboard_require_cmd node Node.js || missing=1
+  _eest_dashboard_require_cmd npm npm || missing=1
 
   if python_cmd="$(_eest_dashboard_python_cmd)"; then
     printf 'ok: Python: %s\n' "$("$python_cmd" --version 2>&1)"

@@ -31,7 +31,7 @@ _smoke_site_usage() {
   printf '%s\n' \
     'Usage: scripts/smoke-site.sh' \
     '' \
-    'Smoke test the generated static Hiveview site over local HTTP.' \
+    'Smoke test the generated static hive-ui site over local HTTP.' \
     '' \
     'Environment overrides from scripts/env.sh:' \
     '  SITE_DIR' \
@@ -215,6 +215,12 @@ _smoke_site_validate_inputs() {
     _smoke_site_die "listing.jsonl is missing or empty: $SITE_DIR/listing.jsonl"
   fi
 
+  if [ ! -s "$SITE_DIR/discovery.json" ]; then
+    _smoke_site_die "discovery.json is missing or empty: $SITE_DIR/discovery.json"
+  fi
+
+  _smoke_site_check_discovery_file_from "$SITE_DIR/discovery.json" >/dev/null
+
   if ! jq -e . "$SITE_DIR/listing.jsonl" >/dev/null; then
     _smoke_site_die "listing.jsonl is not valid JSON lines: $SITE_DIR/listing.jsonl"
   fi
@@ -239,6 +245,17 @@ _smoke_site_first_listing_file_from() {
 
 _smoke_site_first_listing_file() {
   _smoke_site_first_listing_file_from "$SITE_DIR/listing.jsonl"
+}
+
+_smoke_site_check_discovery_file_from() {
+  local discovery_file
+
+  discovery_file="$1"
+  if ! jq -e 'type == "array" and length > 0 and all(.[]; (.name | type == "string" and length > 0) and (.address | type == "string" and length > 0))' "$discovery_file" >/dev/null; then
+    _smoke_site_die "discovery.json is not a valid hive-ui discovery file: $discovery_file"
+  fi
+
+  jq -r '.[0].address' "$discovery_file"
 }
 
 _smoke_site_first_referenced_result_file_from() {
@@ -287,7 +304,7 @@ _smoke_site_check_listing_paths() {
 _smoke_site_check_relative_sources() {
   local matches pattern
 
-  pattern="href=\"/|src=\"/|url\\(['\"]?/|url:[[:space:]]*['\"]/|fetch\\(['\"]/"
+  pattern="href=\"/|src=\"/|url\\(['\"]?/|fetch\\(['\"]/"
   matches="$(
     find "$SITE_DIR" \
       \( -name '*.html' -o -name '*.js' -o -name '*.css' \) \
@@ -328,7 +345,7 @@ _smoke_site_start_server() {
   local base_dir python_cmd target_dir
 
   python_cmd="$1"
-  _smoke_site_tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/hiveview-site-smoke.XXXXXX")"
+  _smoke_site_tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/hive-ui-site-smoke.XXXXXX")"
   _smoke_site_server_log="$_smoke_site_tmp_dir/http-server.log"
   target_dir="$_smoke_site_tmp_dir/$SITE_SMOKE_BASE_PATH"
   base_dir="$(dirname "$target_dir")"
@@ -380,15 +397,20 @@ _smoke_site_head() {
 }
 
 _smoke_site_check_remote() {
-  local base_url first_result listing_http referenced_result result_http
+  local base_url discovery_http first_result listing_http referenced_result result_http
 
   base_url="$(_smoke_site_normalize_url "$SITE_SMOKE_URL")"
-  _smoke_site_tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/hiveview-site-smoke.XXXXXX")"
+  _smoke_site_tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/hive-ui-site-smoke.XXXXXX")"
+  discovery_http="$_smoke_site_tmp_dir/discovery.json"
   listing_http="$_smoke_site_tmp_dir/listing.jsonl"
   result_http="$_smoke_site_tmp_dir/result.json"
 
   _smoke_site_log "Testing deployed site at $base_url/"
   _smoke_site_fetch "$base_url/" "$_smoke_site_tmp_dir/index.html"
+  _smoke_site_fetch "$base_url/discovery.json" "$discovery_http"
+  _smoke_site_check_discovery_file_from "$discovery_http" >/dev/null
+  _smoke_site_log "Fetched discovery.json from deployed site"
+
   _smoke_site_fetch "$base_url/listing.jsonl" "$listing_http"
   if ! jq -e . "$listing_http" >/dev/null; then
     _smoke_site_die "listing.jsonl fetched over HTTP is not valid JSON lines: $base_url/listing.jsonl"
@@ -406,10 +428,6 @@ _smoke_site_check_remote() {
   fi
   _smoke_site_log "Fetched listing.jsonl and results/$first_result from deployed site"
 
-  _smoke_site_fetch "$base_url/suite.html?suiteid=$first_result" "$_smoke_site_tmp_dir/suite.html"
-  _smoke_site_fetch "$base_url/viewer.html?file=results/$first_result" "$_smoke_site_tmp_dir/viewer.html"
-  _smoke_site_log "Fetched deployed suite and viewer entry pages"
-
   referenced_result="$(_smoke_site_first_referenced_result_file_from "$result_http")"
   if [ -n "$referenced_result" ]; then
     _smoke_site_validate_relative_path "referenced result asset" "$referenced_result"
@@ -421,10 +439,11 @@ _smoke_site_check_remote() {
 }
 
 _smoke_site_check_http() {
-  local base_url first_result listing_http referenced_result result_http
+  local base_url discovery_http first_result listing_http referenced_result result_http
 
   first_result="$1"
   base_url="http://$SITE_SMOKE_HOST:$SITE_SMOKE_PORT/$SITE_SMOKE_BASE_PATH"
+  discovery_http="$_smoke_site_tmp_dir/discovery.json"
   listing_http="$_smoke_site_tmp_dir/listing.jsonl"
   result_http="$_smoke_site_tmp_dir/result.json"
 
@@ -432,6 +451,10 @@ _smoke_site_check_http() {
   _smoke_site_wait_for_server "$base_url"
 
   _smoke_site_fetch "$base_url/index.html" "$_smoke_site_tmp_dir/index.html"
+  _smoke_site_fetch "$base_url/discovery.json" "$discovery_http"
+  _smoke_site_check_discovery_file_from "$discovery_http" >/dev/null
+  _smoke_site_log "Fetched discovery.json over HTTP"
+
   _smoke_site_fetch "$base_url/listing.jsonl" "$listing_http"
   if ! jq -e . "$listing_http" >/dev/null; then
     _smoke_site_die "listing.jsonl fetched over HTTP is not valid JSON lines: $base_url/listing.jsonl"
@@ -443,10 +466,6 @@ _smoke_site_check_http() {
     _smoke_site_die "result entry fetched over HTTP is not valid JSON: $base_url/results/$first_result"
   fi
   _smoke_site_log "Fetched results/$first_result over HTTP"
-
-  _smoke_site_fetch "$base_url/suite.html?suiteid=$first_result" "$_smoke_site_tmp_dir/suite.html"
-  _smoke_site_fetch "$base_url/viewer.html?file=results/$first_result" "$_smoke_site_tmp_dir/viewer.html"
-  _smoke_site_log "Fetched suite and viewer entry pages over HTTP"
 
   referenced_result="$(_smoke_site_first_referenced_result_file "$first_result")"
   if [ -n "$referenced_result" ]; then

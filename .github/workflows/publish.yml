@@ -27,6 +27,14 @@ on:
         description: Hive branch, tag, or commit.
         required: true
         default: master
+      hive_ui_repo:
+        description: hive-ui repository URL.
+        required: true
+        default: https://github.com/ethpandaops/hive-ui.git
+      hive_ui_ref:
+        description: hive-ui branch, tag, or commit.
+        required: true
+        default: b5441f735366a4f7d13575a020ccd6517d7ecaf3
       el_clients:
         description: Comma-separated EL client descriptor ids to run.
         required: true
@@ -67,6 +75,10 @@ jobs:
       HIVE_REPO: ${{ inputs.hive_repo }}
       HIVE_REF: ${{ inputs.hive_ref }}
       HIVE_DIR: ${{ github.workspace }}/hive
+      HIVE_UI_REPO: ${{ inputs.hive_ui_repo }}
+      HIVE_UI_REF: ${{ inputs.hive_ui_ref }}
+      HIVE_UI_DIR: ${{ github.workspace }}/hive-ui
+      HIVE_UI_DISCOVERY_NAME: execution-witness
       EL_CLIENTS: ${{ inputs.el_clients }}
       EL_CLIENT_OVERRIDES_JSON: ${{ inputs.el_client_overrides_json }}
       FIXTURES_DIR: ${{ github.workspace }}/fixtures
@@ -97,6 +109,11 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22.x
+
       - name: Install uv
         uses: astral-sh/setup-uv@v8.1.0
 
@@ -116,7 +133,7 @@ jobs:
       - name: Run Hive and consume fixtures
         run: scripts/run-hive-consume.sh
 
-      - name: Build static Hiveview site
+      - name: Build static hive-ui site
         run: scripts/build-site.sh
 
       - name: Smoke test generated site
@@ -134,6 +151,7 @@ jobs:
             hive/workspace/logs
             fixtures/.meta/index.json
             fixtures/.meta/report_consume.html
+            site/discovery.json
             site/listing.jsonl
 
       - name: Configure GitHub Pages

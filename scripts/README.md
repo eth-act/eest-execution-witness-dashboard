@@ -1,7 +1,7 @@
 # Scripts
 
 This directory is reserved for local and CI automation used to generate the
-execution witness fixtures, run Hive, and build the static Hiveview site.
+execution witness fixtures, run Hive, and build the static hive-ui site.
 
 Implemented scripts:
 
@@ -12,12 +12,12 @@ Implemented scripts:
   `clients-local.yaml` from the selected EL client descriptors.
 - `run-hive-consume.sh`: prepare Hive, start `./hive --dev`, run
   `consume engine-witness`, and preserve Hive logs in `HIVE_RESULTS_DIR`.
-- `build-site.sh`: generate a static Hiveview site in `SITE_DIR`, write
-  `listing.jsonl`, copy Hive logs into `results/`, and enforce
-  `SITE_MAX_SIZE_MB`.
+- `build-site.sh`: generate a static hive-ui site in `SITE_DIR`, write
+  `discovery.json` and `listing.jsonl`, copy Hive logs into `results/`, and
+  enforce `SITE_MAX_SIZE_MB`.
 - `smoke-site.sh`: serve `SITE_DIR` over local HTTP under a non-root project
-  path, verify `listing.jsonl` and `results/...` fetches, check relative paths,
-  and scan public logs for suspicious secret strings.
+  path, verify `discovery.json`, `listing.jsonl`, and `results/...` fetches,
+  check relative paths, and scan public logs for suspicious secret strings.
 
 Load the shared defaults from any working directory:
 
@@ -86,25 +86,16 @@ dashboard of failing tests. Set `HIVE_DOCKER_OUTPUT=build` and
 `HIVE_LOG_TO_STDOUT=1` to stream Docker build output into the console while
 still writing `hive-dev.log`.
 
-Build the static Hiveview site:
+Build the static hive-ui site:
 
 ```bash
 scripts/build-site.sh
 ```
 
-The script cleans `SITE_DIR`, deploys Hiveview assets, generates
-`listing.jsonl`, copies `HIVE_RESULTS_DIR` into `SITE_DIR/results/`, and fails
-if the output is larger than `SITE_MAX_SIZE_MB` (default: `900`).
-
-Preview the current Hive results with Hiveview's built-in local server:
-
-```bash
-source scripts/env.sh
-cd "$HIVE_DIR"
-go run ./cmd/hiveview -serve -logdir "$HIVE_RESULTS_DIR"
-```
-
-Open `http://127.0.0.1:8080`.
+The script cleans `SITE_DIR`, builds the pinned `HIVE_UI_REF`, generates
+`discovery.json` and `listing.jsonl`, copies `HIVE_RESULTS_DIR` into
+`SITE_DIR/results/`, writes hive-ui license/source notices, and fails if the
+output is larger than `SITE_MAX_SIZE_MB` (default: `900`).
 
 Preview the generated static site with a simple HTTP server:
 
@@ -125,11 +116,11 @@ scripts/smoke-site.sh
 
 The smoke test serves `SITE_DIR` at
 `http://127.0.0.1:8765/eest-execution-witness-dashboard/`, verifies that
-`listing.jsonl`, the first suite result, and a referenced result asset load over
-HTTP, fails on root-relative paths that would break GitHub Pages project URLs,
-and scans `SITE_DIR/results/` for common secret, credential, and private RPC URL
-patterns. Override the port or project path with `SITE_SMOKE_PORT` and
-`SITE_SMOKE_BASE_PATH`.
+`discovery.json`, `listing.jsonl`, the first suite result, and a referenced
+result asset load over HTTP, fails on root-relative paths that would break
+GitHub Pages project URLs, and scans `SITE_DIR/results/` for common secret,
+credential, and private RPC URL patterns. Override the port or project path
+with `SITE_SMOKE_PORT` and `SITE_SMOKE_BASE_PATH`.
 
 The same script can smoke test a deployed GitHub Pages URL without local
 serving:
@@ -138,6 +129,5 @@ serving:
 scripts/smoke-site.sh --url https://OWNER.github.io/REPOSITORY/
 ```
 
-Remote mode fetches `listing.jsonl`, the first listed result under
-`results/...`, the suite and viewer pages, and one referenced result asset when
-present.
+Remote mode fetches `discovery.json`, `listing.jsonl`, the first listed result
+under `results/...`, and one referenced result asset when present.
