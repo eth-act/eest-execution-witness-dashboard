@@ -161,6 +161,7 @@ _eest_dashboard_require_cmd() {
     go) version="$(go version 2>&1)" ;;
     uv) version="$(uv --version 2>&1)" ;;
     jq) version="$(jq --version 2>&1)" ;;
+    curl) version="$(curl --version 2>&1 | sed -n '1p')" ;;
     rsync) version="$(rsync --version 2>&1 | sed -n '1p')" ;;
     *) version="$cmd found" ;;
   esac
@@ -199,6 +200,7 @@ eest_dashboard_check_prereqs() {
 
   _eest_dashboard_require_cmd uv uv || missing=1
   _eest_dashboard_require_cmd jq jq || missing=1
+  _eest_dashboard_require_cmd curl curl || missing=1
   _eest_dashboard_require_cmd rsync rsync || missing=1
 
   if command -v docker >/dev/null 2>&1; then

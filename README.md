@@ -59,7 +59,7 @@ Actions:
 - Docker with the daemon running and usable by the current user without `sudo`.
 - Go `1.24.x`.
 - Python `3.12`.
-- `uv`, `jq`, and `rsync` on `PATH`.
+- `uv`, `jq`, `curl`, and `rsync` on `PATH`.
 
 Docker permissions are the main local-only concern: Hive builds and runs client
 containers, so `docker info` should succeed before running the later scripts.
@@ -113,3 +113,37 @@ scripts/build-site.sh
 The script recreates `SITE_DIR`, deploys Hiveview assets, writes
 `site/listing.jsonl`, copies Hive logs and results into `site/results/`, and
 fails if the generated site exceeds `SITE_MAX_SIZE_MB`.
+
+## Local Preview and Smoke Test
+
+Preview the current Hive results with Hiveview's built-in local server:
+
+```bash
+source scripts/env.sh
+cd "$HIVE_DIR"
+go run ./cmd/hiveview -serve -logdir "$HIVE_RESULTS_DIR"
+```
+
+Open `http://127.0.0.1:8080`.
+
+Preview the generated static site with a simple HTTP server:
+
+```bash
+source scripts/env.sh
+cd "$SITE_DIR"
+python3 -m http.server 8081 --bind 127.0.0.1
+```
+
+Open `http://127.0.0.1:8081/`. Use HTTP rather than `file://` so browser
+requests for `listing.jsonl` and `results/...` are exercised.
+
+Before publishing, run:
+
+```bash
+scripts/smoke-site.sh
+```
+
+The smoke test serves `SITE_DIR` under a non-root project path, fetches
+`listing.jsonl` and the first `results/...` entry over HTTP, checks that static
+paths are relative for GitHub Pages project URLs, and scans public result logs
+for common secret or private RPC URL patterns.

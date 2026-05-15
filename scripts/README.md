@@ -15,6 +15,9 @@ Implemented scripts:
 - `build-site.sh`: generate a static Hiveview site in `SITE_DIR`, write
   `listing.jsonl`, copy Hive logs into `results/`, and enforce
   `SITE_MAX_SIZE_MB`.
+- `smoke-site.sh`: serve `SITE_DIR` over local HTTP under a non-root project
+  path, verify `listing.jsonl` and `results/...` fetches, check relative paths,
+  and scan public logs for suspicious secret strings.
 
 Load the shared defaults from any working directory:
 
@@ -78,3 +81,38 @@ scripts/build-site.sh
 The script cleans `SITE_DIR`, deploys Hiveview assets, generates
 `listing.jsonl`, copies `HIVE_RESULTS_DIR` into `SITE_DIR/results/`, and fails
 if the output is larger than `SITE_MAX_SIZE_MB` (default: `900`).
+
+Preview the current Hive results with Hiveview's built-in local server:
+
+```bash
+source scripts/env.sh
+cd "$HIVE_DIR"
+go run ./cmd/hiveview -serve -logdir "$HIVE_RESULTS_DIR"
+```
+
+Open `http://127.0.0.1:8080`.
+
+Preview the generated static site with a simple HTTP server:
+
+```bash
+source scripts/env.sh
+cd "$SITE_DIR"
+python3 -m http.server 8081 --bind 127.0.0.1
+```
+
+Open `http://127.0.0.1:8081/`. Use HTTP, not `file://`, so browser requests
+for `listing.jsonl` and `results/...` behave like the published site.
+
+Smoke test the generated site before publishing:
+
+```bash
+scripts/smoke-site.sh
+```
+
+The smoke test serves `SITE_DIR` at
+`http://127.0.0.1:8765/eest-execution-witness-dashboard/`, verifies that
+`listing.jsonl`, the first suite result, and a referenced result asset load over
+HTTP, fails on root-relative paths that would break GitHub Pages project URLs,
+and scans `SITE_DIR/results/` for common secret, credential, and private RPC URL
+patterns. Override the port or project path with `SITE_SMOKE_PORT` and
+`SITE_SMOKE_BASE_PATH`.
