@@ -24,6 +24,7 @@ EL_CLIENTS=go-ethereum,ethrex
 EL_CLIENT_CONFIG=config/el-clients.json
 EL_CLIENT_OVERRIDES_JSON={}
 HIVE_PARALLELISM=1
+HIVE_CLIENT_RESULTS_DIR=hive/workspace/client-results
 SITE_MAX_SIZE_MB=900
 ```
 
@@ -98,10 +99,10 @@ Prepare Hive and generate `hive/clients-local.yaml`:
 scripts/setup-hive.sh
 ```
 
-The default `EL_CLIENTS=go-ethereum,ethrex` renders both execution clients into
-one Hive client file, so one `consume engine-witness` session runs every
-fixture against both ELs. Use `EL_CLIENTS=go-ethereum` or
-`EL_CLIENTS=ethrex` to run a subset.
+The default `EL_CLIENTS=go-ethereum,ethrex` selects both execution clients, but
+the dashboard now runs each selected EL independently. This produces one Hive
+result entry per EL client, matching the shape expected by hive-ui's grouping
+views. Use `EL_CLIENTS=go-ethereum` or `EL_CLIENTS=ethrex` to run a subset.
 
 `EL_CLIENT_OVERRIDES_JSON` can override descriptor fields without editing the
 tracked config, for example:
@@ -126,12 +127,15 @@ scripts/run-hive-consume.sh
 `HIVE_PARALLELISM=1` keeps consume sequential. Set it to a higher integer to
 let EEST pass `-n <N>` to pytest-xdist.
 
-Hive logs are preserved in `HIVE_RESULTS_DIR`; on failure, the script prints the
-tail of `hive-dev.log` for startup or client-build debugging. Set
+Per-client Hive results are staged in `HIVE_CLIENT_RESULTS_DIR` and merged into
+`HIVE_RESULTS_DIR` after every selected EL produces at least one top-level
+result JSON. The merged result set fails validation if any result entry contains
+more than one client. On failure, the worker prints the tail of the relevant
+`hive-dev-<client>.log` for startup or client-build debugging. Set
 `HIVE_CONSUME_ALLOW_FAILURE=1` to continue after `consume engine-witness`
 returns non-zero so downstream steps can publish the failure dashboard.
 Set `HIVE_DOCKER_OUTPUT=build` and `HIVE_LOG_TO_STDOUT=1` to stream Docker
-build output into the console while still writing `hive-dev.log`.
+build output into the console while still writing `hive-dev-<client>.log`.
 
 ## Static Site Build
 
@@ -142,9 +146,10 @@ scripts/build-site.sh
 ```
 
 The script recreates `SITE_DIR`, builds the pinned `HIVE_UI_REF`, writes
-`site/discovery.json`, writes `site/listing.jsonl`, copies Hive logs and
-results into `site/results/`, writes hive-ui license/source notices, and fails
-if the generated site exceeds `SITE_MAX_SIZE_MB`.
+`site/discovery.json`, writes `site/listing.jsonl`, copies merged Hive logs and
+results into `site/results/`, writes hive-ui license/source notices, fails if
+any listing entry has more than one client, and fails if the generated site
+exceeds `SITE_MAX_SIZE_MB`.
 
 ## Local Preview and Smoke Test
 
@@ -175,20 +180,26 @@ public result logs for common secret or private RPC URL patterns.
 
 Manual publishing is implemented in
 `.github/workflows/publish.yml` as a `workflow_dispatch` workflow. The workflow
-installs Go, Python, Node.js, `uv`, `jq`, and `rsync`, then calls the same local
-scripts:
+generates fixtures once, fans out a GitHub Actions matrix with one consume job
+per selected EL client, merges the per-client Hive result artifacts, and then
+builds the same static site:
 
 ```text
 scripts/fill-fixtures.sh
-scripts/run-hive-consume.sh
+scripts/setup-eest.sh
+scripts/run-hive-consume-client.sh CLIENT_ID
+scripts/merge-hive-results.sh
 scripts/build-site.sh
 scripts/smoke-site.sh
 ```
 
 The workflow inputs expose the execution-specs, Hive, and hive-ui repos/refs,
 fixture selection, `EL_CLIENTS`, optional descriptor override JSON, consume
-parallelism, and max site size. Failed runs upload debug artifacts containing
-Hive logs from `hive/workspace/logs`.
+parallelism, and max site size. In CI, `EL_CLIENTS` is still a comma-separated
+selection, but each selected EL runs in its own matrix job. Missing per-client
+result JSON is treated as an infrastructure failure; ordinary failing tests can
+still publish when `HIVE_CONSUME_ALLOW_FAILURE=1`. Failed runs upload debug
+artifacts containing per-client Hive logs and staged results.
 
 After the generated site passes the local smoke test, the workflow configures
 GitHub Pages, uploads `site/` as a Pages artifact, deploys it, and runs the

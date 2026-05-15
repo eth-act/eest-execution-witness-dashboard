@@ -6,12 +6,19 @@ execution witness fixtures, run Hive, and build the static hive-ui site.
 Implemented scripts:
 
 - `env.sh`: shared defaults and prerequisite checks.
+- `setup-eest.sh`: clone or update `execution-specs` and run `uv sync`.
 - `fill-fixtures.sh`: clone or update `execution-specs`, run `uv sync`,
   generate witness fixtures into `FIXTURES_DIR`, and validate the fixture index.
 - `setup-hive.sh`: clone or update Hive, build `./hive`, and generate
   `clients-local.yaml` from the selected EL client descriptors.
-- `run-hive-consume.sh`: prepare Hive, start `./hive --dev`, run
-  `consume engine-witness`, and preserve Hive logs in `HIVE_RESULTS_DIR`.
+- `list-el-clients.sh`: resolve selected EL descriptors and emit table, JSON,
+  ids, or a GitHub Actions matrix.
+- `run-hive-consume-client.sh`: run one selected EL client against
+  `consume engine-witness` into an isolated result directory.
+- `run-hive-consume.sh`: prepare Hive, run the single-client worker once per
+  selected EL, and merge per-client results into `HIVE_RESULTS_DIR`.
+- `merge-hive-results.sh`: validate and merge isolated per-client Hive result
+  directories without overwriting conflicting files.
 - `build-site.sh`: generate a static hive-ui site in `SITE_DIR`, write
   `discovery.json` and `listing.jsonl`, copy Hive logs into `results/`, and
   enforce `SITE_MAX_SIZE_MB`.
@@ -42,15 +49,25 @@ scripts/fill-fixtures.sh
 
 The generation command targets `blockchain_test_engine`.
 
+Prepare `execution-specs` without regenerating fixtures:
+
+```bash
+scripts/setup-eest.sh
+```
+
+This is used by CI consume jobs after they download the shared fixtures
+artifact.
+
 Prepare Hive and generate `clients-local.yaml`:
 
 ```bash
 scripts/setup-hive.sh
 ```
 
-By default, `EL_CLIENTS=go-ethereum,ethrex` renders both clients from
-`config/el-clients.json` into one Hive client file. Use a comma-separated
-subset to run fewer clients:
+By default, `EL_CLIENTS=go-ethereum,ethrex` selects both clients from
+`config/el-clients.json`. The consume orchestration runs selected clients
+independently so the final dashboard has one listing entry per EL. Use a
+comma-separated subset to run fewer clients:
 
 ```bash
 EL_CLIENTS=ethrex scripts/setup-hive.sh
@@ -69,7 +86,7 @@ the default Hive extra flags patch:
 EL_CLIENT_OVERRIDES_JSON='{"go-ethereum":{"hive_extra_flags":""}}' scripts/setup-hive.sh
 ```
 
-Run Hive and consume the generated fixtures:
+Run Hive and consume the generated fixtures once per selected EL:
 
 ```bash
 scripts/run-hive-consume.sh
@@ -78,13 +95,14 @@ scripts/run-hive-consume.sh
 `HIVE_PARALLELISM=1` keeps consume sequential. Set it to a higher integer to
 run multiple consume tests at once through pytest-xdist.
 
-This script cleans `HIVE_RESULTS_DIR`, writes Hive stdout/stderr to
-`$HIVE_RESULTS_DIR/hive-dev.log`, and prints the tail of that log when startup
-or consume fails. Set `HIVE_CONSUME_ALLOW_FAILURE=1` to keep going after
+This script cleans `HIVE_CLIENT_RESULTS_DIR`, writes each worker's Hive
+stdout/stderr to `hive-dev-<client>.log`, requires every selected EL to produce
+at least one top-level result JSON, then merges everything into
+`HIVE_RESULTS_DIR`. Set `HIVE_CONSUME_ALLOW_FAILURE=1` to keep going after
 `consume engine-witness` exits non-zero, which is useful when publishing a
 dashboard of failing tests. Set `HIVE_DOCKER_OUTPUT=build` and
 `HIVE_LOG_TO_STDOUT=1` to stream Docker build output into the console while
-still writing `hive-dev.log`.
+still writing the per-client Hive log.
 
 Build the static hive-ui site:
 
@@ -93,9 +111,10 @@ scripts/build-site.sh
 ```
 
 The script cleans `SITE_DIR`, builds the pinned `HIVE_UI_REF`, generates
-`discovery.json` and `listing.jsonl`, copies `HIVE_RESULTS_DIR` into
-`SITE_DIR/results/`, writes hive-ui license/source notices, and fails if the
-output is larger than `SITE_MAX_SIZE_MB` (default: `900`).
+`discovery.json` and `listing.jsonl`, copies merged `HIVE_RESULTS_DIR` into
+`SITE_DIR/results/`, writes hive-ui license/source notices, fails if any
+listing entry contains more than one client, and fails if the output is larger
+than `SITE_MAX_SIZE_MB` (default: `900`).
 
 Preview the generated static site with a simple HTTP server:
 

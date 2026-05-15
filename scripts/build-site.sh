@@ -23,7 +23,7 @@ _build_site_usage() {
   printf '%s\n' \
     'Usage: scripts/build-site.sh' \
     '' \
-    'Build a static hive-ui site from HIVE_RESULTS_DIR.' \
+    'Build a static hive-ui site from per-client Hive results in HIVE_RESULTS_DIR.' \
     '' \
     'Environment overrides from scripts/env.sh:' \
     '  HIVE_DIR, HIVE_RESULTS_DIR, HIVE_UI_REPO, HIVE_UI_REF, HIVE_UI_DIR' \
@@ -344,6 +344,15 @@ _build_site_write_discovery() {
     '[{name: $name, address: $address}]' > "$SITE_DIR/discovery.json"
 }
 
+_build_site_validate_single_client_listing() {
+  if ! jq -s -e '
+    length > 0
+    and all(.[]; (.clients | type == "array" and length == 1))
+  ' "$SITE_DIR/listing.jsonl" >/dev/null; then
+    _build_site_die "listing.jsonl must contain only per-client result entries with exactly one client"
+  fi
+}
+
 _build_site_validate_output() {
   local first_copied_result first_listing_result max_size_kb site_size_kb site_size_mb
 
@@ -370,6 +379,7 @@ _build_site_validate_output() {
   if ! jq -e . "$SITE_DIR/listing.jsonl" >/dev/null; then
     _build_site_die "listing.jsonl is not valid JSON lines: $SITE_DIR/listing.jsonl"
   fi
+  _build_site_validate_single_client_listing
 
   first_listing_result="$(jq -r 'select(.fileName != null) | .fileName' "$SITE_DIR/listing.jsonl" | sed -n '1p')"
   if [ -n "$first_listing_result" ] && [ ! -f "$SITE_DIR/results/$first_listing_result" ]; then

@@ -73,33 +73,6 @@ _fill_fixtures_parse_args() {
   done
 }
 
-_fill_fixtures_prepare_execution_specs() {
-  _fill_fixtures_log "Preparing execution-specs checkout at $EEST_DIR"
-
-  if [ -d "$EEST_DIR" ]; then
-    if ! git -C "$EEST_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-      _fill_fixtures_die "EEST_DIR exists but is not a git checkout: $EEST_DIR"
-    fi
-
-    if git -C "$EEST_DIR" remote get-url origin >/dev/null 2>&1; then
-      git -C "$EEST_DIR" remote set-url origin "$EEST_REPO"
-    else
-      git -C "$EEST_DIR" remote add origin "$EEST_REPO"
-    fi
-  else
-    mkdir -p "$(dirname "$EEST_DIR")"
-    git clone "$EEST_REPO" "$EEST_DIR"
-  fi
-
-  git -C "$EEST_DIR" fetch --prune origin "$EEST_REF"
-  git -C "$EEST_DIR" checkout --detach FETCH_HEAD
-}
-
-_fill_fixtures_sync_execution_specs() {
-  _fill_fixtures_log "Running uv sync"
-  (cd "$EEST_DIR" && uv sync)
-}
-
 _fill_fixtures_generate() {
   local -a fill_args
 
@@ -155,12 +128,10 @@ _fill_fixtures_validate() {
 
 main() {
   _fill_fixtures_parse_args "$@"
-  _fill_fixtures_require_cmd git Git
   _fill_fixtures_require_cmd uv uv
   _fill_fixtures_require_cmd jq jq
 
-  _fill_fixtures_prepare_execution_specs
-  _fill_fixtures_sync_execution_specs
+  "$_fill_fixtures_script_dir/setup-eest.sh"
   _fill_fixtures_generate
   _fill_fixtures_validate
 }

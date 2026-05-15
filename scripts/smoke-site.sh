@@ -224,6 +224,7 @@ _smoke_site_validate_inputs() {
   if ! jq -e . "$SITE_DIR/listing.jsonl" >/dev/null; then
     _smoke_site_die "listing.jsonl is not valid JSON lines: $SITE_DIR/listing.jsonl"
   fi
+  _smoke_site_check_single_client_listing_file_from "$SITE_DIR/listing.jsonl"
 
   if [ ! -d "$SITE_DIR/results" ]; then
     _smoke_site_die "results directory is missing: $SITE_DIR/results"
@@ -241,6 +242,18 @@ _smoke_site_first_listing_file_from() {
   listing_file="$1"
   jq -r 'select(type == "object" and .fileName != null and .fileName != "") | .fileName' \
     "$listing_file" | sed -n '1p'
+}
+
+_smoke_site_check_single_client_listing_file_from() {
+  local listing_file
+
+  listing_file="$1"
+  if ! jq -s -e '
+    length > 0
+    and all(.[]; (.clients | type == "array" and length == 1))
+  ' "$listing_file" >/dev/null; then
+    _smoke_site_die "listing.jsonl must contain only per-client result entries with exactly one client"
+  fi
 }
 
 _smoke_site_first_listing_file() {
@@ -415,6 +428,7 @@ _smoke_site_check_remote() {
   if ! jq -e . "$listing_http" >/dev/null; then
     _smoke_site_die "listing.jsonl fetched over HTTP is not valid JSON lines: $base_url/listing.jsonl"
   fi
+  _smoke_site_check_single_client_listing_file_from "$listing_http"
 
   first_result="$(_smoke_site_first_listing_file_from "$listing_http")"
   if [ -z "$first_result" ]; then
@@ -459,6 +473,7 @@ _smoke_site_check_http() {
   if ! jq -e . "$listing_http" >/dev/null; then
     _smoke_site_die "listing.jsonl fetched over HTTP is not valid JSON lines: $base_url/listing.jsonl"
   fi
+  _smoke_site_check_single_client_listing_file_from "$listing_http"
   _smoke_site_log "Fetched listing.jsonl over HTTP"
 
   _smoke_site_fetch "$base_url/results/$first_result" "$result_http"

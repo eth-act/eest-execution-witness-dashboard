@@ -14,6 +14,8 @@ fi
 
 # shellcheck source=scripts/env.sh
 . "$_setup_hive_script_dir/env.sh"
+# shellcheck source=scripts/lib/el-clients.sh
+. "$_setup_hive_script_dir/lib/el-clients.sh"
 
 _setup_hive_client_file="$HIVE_DIR/clients-local.yaml"
 
@@ -208,112 +210,14 @@ _setup_hive_patch_geth_flags() {
   fi
 }
 
-_setup_hive_descriptor_field() {
-  local descriptor filter
-
-  descriptor="$1"
-  filter="$2"
-  jq -r "$filter // empty" <<< "$descriptor"
-}
-
-_setup_hive_resolve_client_descriptors() {
-  local resolved
-
-  if [ ! -f "$EL_CLIENT_CONFIG" ]; then
-    _setup_hive_die "EL client descriptor file does not exist: $EL_CLIENT_CONFIG"
-  fi
-
-  if ! resolved="$(
-    jq -c \
-      --arg selected "$EL_CLIENTS" \
-      --arg overrides_raw "$EL_CLIENT_OVERRIDES_JSON" '
-        def trim: gsub("^\\s+|\\s+$"; "");
-        def parsed_overrides:
-          if ($overrides_raw | trim) == "" then
-            {}
-          else
-            ($overrides_raw | fromjson)
-          end;
-        def override_for($id; $overrides):
-          if ($overrides | type) != "object" then
-            error("EL_CLIENT_OVERRIDES_JSON must be a JSON object")
-          elif ($overrides | has("clients")) then
-            ($overrides.clients[$id] // {})
-          else
-            ($overrides[$id] // {})
-          end;
-
-        ($selected | split(",") | map(trim) | map(select(length > 0))) as $ids
-        | if ($ids | length) == 0 then
-            error("EL_CLIENTS must select at least one client")
-          else
-            .
-          end
-        | if ($ids | length) != ($ids | unique | length) then
-            error("EL_CLIENTS contains duplicate client ids")
-          else
-            .
-          end
-        | parsed_overrides as $overrides
-        | [
-            $ids[] as $id
-            | (.clients[$id] // error("unknown EL client id: \($id)")) as $base
-            | override_for($id; $overrides) as $override
-            | (
-                $base
-                + $override
-                + {
-                  id: $id,
-                  _override_repo: ($override | has("repo")),
-                  _override_github: ($override | has("github"))
-                }
-              )
-          ]
-      ' "$EL_CLIENT_CONFIG"
-  )"; then
-    _setup_hive_die "failed to resolve EL client descriptors"
-  fi
-
-  printf '%s\n' "$resolved"
-}
-
-_setup_hive_client_nametag() {
-  local descriptor
-
-  descriptor="$1"
-  _setup_hive_descriptor_field "$descriptor" '.nametag'
-}
-
-_setup_hive_full_client_name() {
-  local descriptor hive_client nametag
-
-  descriptor="$1"
-  hive_client="$(_setup_hive_descriptor_field "$descriptor" '.hive_client')"
-  nametag="$(_setup_hive_client_nametag "$descriptor")"
-
-  if [ -n "$nametag" ]; then
-    printf '%s_%s\n' "$hive_client" "$nametag"
-  else
-    printf '%s\n' "$hive_client"
-  fi
-}
-
-_setup_hive_dockerfile_ext() {
-  local descriptor dockerfile
-
-  descriptor="$1"
-  dockerfile="$(_setup_hive_descriptor_field "$descriptor" '.dockerfile')"
-  printf '%s\n' "${dockerfile:-git}"
-}
-
 _setup_hive_validate_hive_client() {
   local descriptor dockerfile_ext dockerfile_path hive_client id transport
 
   descriptor="$1"
-  id="$(_setup_hive_descriptor_field "$descriptor" '.id')"
-  hive_client="$(_setup_hive_descriptor_field "$descriptor" '.hive_client')"
-  dockerfile_ext="$(_setup_hive_dockerfile_ext "$descriptor")"
-  transport="$(_setup_hive_descriptor_field "$descriptor" '.transport')"
+  id="$(eest_el_clients_descriptor_field "$descriptor" '.id')"
+  hive_client="$(eest_el_clients_descriptor_field "$descriptor" '.hive_client')"
+  dockerfile_ext="$(eest_el_clients_dockerfile_ext "$descriptor")"
+  transport="$(eest_el_clients_descriptor_field "$descriptor" '.transport')"
 
   if [ -z "$hive_client" ]; then
     _setup_hive_die "EL client descriptor $id is missing hive_client"
@@ -348,17 +252,17 @@ _setup_hive_apply_descriptor_setup() {
   local descriptor extra_flags managed_patch
 
   descriptor="$1"
-  managed_patch="$(_setup_hive_descriptor_field "$descriptor" '.managed_patch')"
+  managed_patch="$(eest_el_clients_descriptor_field "$descriptor" '.managed_patch')"
 
   case "$managed_patch" in
     '')
       ;;
     geth-extra-flags)
-      extra_flags="$(_setup_hive_descriptor_field "$descriptor" '.hive_extra_flags')"
+      extra_flags="$(eest_el_clients_descriptor_field "$descriptor" '.hive_extra_flags')"
       _setup_hive_patch_geth_flags "$extra_flags"
       ;;
     *)
-      _setup_hive_die "unsupported managed_patch for $(_setup_hive_descriptor_field "$descriptor" '.id'): $managed_patch"
+      _setup_hive_die "unsupported managed_patch for $(eest_el_clients_descriptor_field "$descriptor" '.id'): $managed_patch"
       ;;
   esac
 }
@@ -369,9 +273,9 @@ _setup_hive_append_client_yaml() {
   descriptor="$1"
   target="$2"
 
-  hive_client="$(_setup_hive_descriptor_field "$descriptor" '.hive_client')"
-  dockerfile_ext="$(_setup_hive_dockerfile_ext "$descriptor")"
-  nametag="$(_setup_hive_client_nametag "$descriptor")"
+  hive_client="$(eest_el_clients_descriptor_field "$descriptor" '.hive_client')"
+  dockerfile_ext="$(eest_el_clients_dockerfile_ext "$descriptor")"
+  nametag="$(eest_el_clients_client_nametag "$descriptor")"
 
   {
     printf -- '- client: '
@@ -393,16 +297,16 @@ _setup_hive_append_client_yaml() {
     printf '%s\n' '  build_args:'
   } >> "$target"
 
-  repo="$(_setup_hive_descriptor_field "$descriptor" '.repo')"
-  github="$(_setup_hive_descriptor_field "$descriptor" '.github')"
-  if [ "$(_setup_hive_descriptor_field "$descriptor" '._override_repo')" = true ] &&
-    [ "$(_setup_hive_descriptor_field "$descriptor" '._override_github')" != true ]; then
+  repo="$(eest_el_clients_descriptor_field "$descriptor" '.repo')"
+  github="$(eest_el_clients_descriptor_field "$descriptor" '.github')"
+  if [ "$(eest_el_clients_descriptor_field "$descriptor" '._override_repo')" = true ] &&
+    [ "$(eest_el_clients_descriptor_field "$descriptor" '._override_github')" != true ]; then
     github="$(_eest_dashboard_github_slug "$repo" 2>/dev/null || printf '%s\n' "$github")"
   fi
   tmp_build_args="${target}.build-args.$$"
   jq -c \
     --arg github "$github" \
-    --arg ref "$(_setup_hive_descriptor_field "$descriptor" '.ref')" '
+    --arg ref "$(eest_el_clients_descriptor_field "$descriptor" '.ref')" '
       ((.build_args // {})
         + (if $github != "" then {github: $github} else {} end)
         + (if $ref != "" then {tag: $ref} else {} end))
@@ -438,11 +342,13 @@ _setup_hive_configure_clients() {
   local descriptor full_name resolved
   local -A seen_clients=()
 
-  resolved="$(_setup_hive_resolve_client_descriptors)"
+  if ! resolved="$(eest_el_clients_resolve_descriptors)"; then
+    _setup_hive_die "failed to resolve EL client descriptors"
+  fi
 
   while IFS= read -r descriptor; do
     _setup_hive_validate_hive_client "$descriptor"
-    full_name="$(_setup_hive_full_client_name "$descriptor")"
+    full_name="$(eest_el_clients_full_client_name "$descriptor")"
 
     if [ -n "${seen_clients[$full_name]:-}" ]; then
       _setup_hive_die "duplicate Hive client name after descriptor resolution: $full_name"

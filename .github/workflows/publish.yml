@@ -36,7 +36,7 @@ on:
         required: true
         default: b5441f735366a4f7d13575a020ccd6517d7ecaf3
       el_clients:
-        description: Comma-separated EL client descriptor ids to run.
+        description: Comma-separated EL client descriptor ids to run independently.
         required: true
         default: go-ethereum,ethrex
       el_client_overrides_json:
@@ -57,10 +57,169 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  prepare:
+    name: Prepare fixtures and client matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    outputs:
+      client_matrix: ${{ steps.clients.outputs.matrix }}
+    env:
+      ROOT_DIR: ${{ github.workspace }}
+      EEST_REPO: ${{ inputs.eest_repo }}
+      EEST_REF: ${{ inputs.eest_ref }}
+      EEST_DIR: ${{ github.workspace }}/execution-specs
+      FILLER_PATH: ${{ inputs.filler_path }}
+      FORK: ${{ inputs.fork }}
+      EL_CLIENTS: ${{ inputs.el_clients }}
+      EL_CLIENT_OVERRIDES_JSON: ${{ inputs.el_client_overrides_json }}
+      FIXTURES_DIR: ${{ github.workspace }}/fixtures
+      UV_CACHE_DIR: /tmp/uv-cache
+
+    steps:
+      - name: Checkout dashboard repository
+        uses: actions/checkout@v6
+
+      - name: Install Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8.1.0
+
+      - name: Install OS prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Resolve selected EL clients
+        id: clients
+        run: |
+          scripts/env.sh --print
+          scripts/list-el-clients.sh
+          matrix="$(scripts/list-el-clients.sh --github-matrix)"
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
+      - name: Generate execution witness fixtures
+        run: scripts/fill-fixtures.sh
+
+      - name: Pack fixtures artifact
+        run: tar -czf fixtures.tar.gz -C fixtures .
+
+      - name: Upload fixtures artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: execution-witness-fixtures
+          retention-days: 1
+          if-no-files-found: error
+          path: fixtures.tar.gz
+
+  consume:
+    name: Consume ${{ matrix.hive_client }}
+    runs-on: ubuntu-latest
+    needs: prepare
+    timeout-minutes: 360
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.prepare.outputs.client_matrix) }}
+    env:
+      ROOT_DIR: ${{ github.workspace }}
+      EEST_REPO: ${{ inputs.eest_repo }}
+      EEST_REF: ${{ inputs.eest_ref }}
+      EEST_DIR: ${{ github.workspace }}/execution-specs
+      FILLER_PATH: ${{ inputs.filler_path }}
+      FORK: ${{ inputs.fork }}
+      HIVE_REPO: ${{ inputs.hive_repo }}
+      HIVE_REF: ${{ inputs.hive_ref }}
+      HIVE_DIR: ${{ github.workspace }}/hive
+      EL_CLIENTS: ${{ matrix.id }}
+      EL_CLIENT_OVERRIDES_JSON: ${{ inputs.el_client_overrides_json }}
+      FIXTURES_DIR: ${{ github.workspace }}/fixtures
+      HIVE_RESULTS_DIR: ${{ github.workspace }}/hive/workspace/logs
+      HIVE_CLIENT_RESULTS_DIR: ${{ github.workspace }}/hive/workspace/client-results
+      HIVE_CONSUME_RESULT_DIR: ${{ github.workspace }}/hive/workspace/client-results/${{ matrix.id }}
+      HIVE_SIMULATOR: http://127.0.0.1:3000
+      HIVE_PARALLELISM: ${{ inputs.hive_parallelism }}
+      HIVE_READY_ATTEMPTS: "600"
+      HIVE_CONSUME_ALLOW_FAILURE: "1"
+      HIVE_DOCKER_OUTPUT: build
+      HIVE_LOG_TO_STDOUT: "1"
+      UV_CACHE_DIR: /tmp/uv-cache
+
+    steps:
+      - name: Checkout dashboard repository
+        uses: actions/checkout@v6
+
+      - name: Install Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: 1.24.x
+          cache: false
+
+      - name: Install Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8.1.0
+
+      - name: Install OS prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Download fixtures artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: execution-witness-fixtures
+          path: .
+
+      - name: Extract fixtures artifact
+        run: |
+          mkdir -p fixtures
+          tar -xzf fixtures.tar.gz -C fixtures
+
+      - name: Prepare execution-specs checkout
+        run: scripts/setup-eest.sh
+
+      - name: Run Hive and consume fixtures for ${{ matrix.hive_client }}
+        run: scripts/run-hive-consume-client.sh "${{ matrix.id }}"
+
+      - name: Upload per-client Hive results
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifact }}
+          retention-days: 1
+          if-no-files-found: error
+          include-hidden-files: true
+          path: ${{ env.HIVE_CONSUME_RESULT_DIR }}
+
+      - name: Upload consume debug artifacts
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: hive-debug-${{ matrix.id }}-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 14
+          if-no-files-found: ignore
+          include-hidden-files: true
+          path: |
+            hive/workspace/client-results/${{ matrix.id }}
+            hive/workspace/logs
+            fixtures/.meta/index.json
+            fixtures/.meta/report_consume.html
+
   build:
     name: Build Pages artifact
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    needs:
+      - prepare
+      - consume
+    timeout-minutes: 120
     permissions:
       contents: read
       pages: write
@@ -83,12 +242,10 @@ jobs:
       EL_CLIENT_OVERRIDES_JSON: ${{ inputs.el_client_overrides_json }}
       FIXTURES_DIR: ${{ github.workspace }}/fixtures
       HIVE_RESULTS_DIR: ${{ github.workspace }}/hive/workspace/logs
+      HIVE_CLIENT_RESULTS_DIR: ${{ github.workspace }}/hive/workspace/client-results
+      HIVE_RESULTS_SOURCE_DIR: ${{ github.workspace }}/hive/workspace/client-results
       HIVE_SIMULATOR: http://127.0.0.1:3000
       HIVE_PARALLELISM: ${{ inputs.hive_parallelism }}
-      HIVE_READY_ATTEMPTS: "600"
-      HIVE_CONSUME_ALLOW_FAILURE: "1"
-      HIVE_DOCKER_OUTPUT: build
-      HIVE_LOG_TO_STDOUT: "1"
       SITE_DIR: ${{ github.workspace }}/site
       SITE_MAX_SIZE_MB: ${{ inputs.max_site_size_mb }}
       SITE_SMOKE_BASE_PATH: ${{ github.event.repository.name }}
@@ -114,24 +271,22 @@ jobs:
         with:
           node-version: 22.x
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v8.1.0
-
       - name: Install OS prerequisites
         run: |
           sudo apt-get update
           sudo apt-get install -y jq rsync
 
-      - name: Check prerequisites and resolved inputs
-        run: |
-          scripts/env.sh --print
-          scripts/env.sh --check
+      - name: Download per-client Hive results
+        uses: actions/download-artifact@v7
+        with:
+          pattern: hive-results-*
+          path: ${{ env.HIVE_CLIENT_RESULTS_DIR }}
 
-      - name: Generate execution witness fixtures
-        run: scripts/fill-fixtures.sh
+      - name: Prepare Hive checkout for hiveview
+        run: scripts/setup-hive.sh
 
-      - name: Run Hive and consume fixtures
-        run: scripts/run-hive-consume.sh
+      - name: Merge per-client Hive results
+        run: scripts/merge-hive-results.sh
 
       - name: Build static hive-ui site
         run: scripts/build-site.sh
@@ -143,14 +298,13 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: hive-debug-${{ github.run_id }}-${{ github.run_attempt }}
+          name: hive-debug-build-${{ github.run_id }}-${{ github.run_attempt }}
           retention-days: 14
           if-no-files-found: ignore
           include-hidden-files: true
           path: |
+            hive/workspace/client-results
             hive/workspace/logs
-            fixtures/.meta/index.json
-            fixtures/.meta/report_consume.html
             site/discovery.json
             site/listing.jsonl
 
