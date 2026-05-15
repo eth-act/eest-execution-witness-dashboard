@@ -19,6 +19,7 @@ GETH_REPO=https://github.com/jsign/go-ethereum.git
 GETH_GITHUB=jsign/go-ethereum
 GETH_REF=zkevm-v0.3.4-hive
 GETH_SOURCE_MODE=git
+GETH_HIVE_EXTRA_FLAGS=--bal.executionmode=sequential
 ```
 
 Generated work directories are ignored by git:
@@ -85,6 +86,8 @@ The default `GETH_SOURCE_MODE=git` uses Hive `Dockerfile.git` with
 `GETH_GITHUB` and `GETH_REF`. Use `GETH_SOURCE_MODE=local` to clone
 `GETH_REPO` at an exact commit or ref into `GETH_SRC_DIR`, copy it into
 `hive/clients/go-ethereum/go-ethereum`, and use Hive `Dockerfile.local`.
+`GETH_HIVE_EXTRA_FLAGS` is injected into Hive's `geth.sh`; set it empty to
+remove the managed patch.
 
 After fixtures exist, run Hive and consume them with:
 

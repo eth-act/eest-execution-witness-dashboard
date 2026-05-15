@@ -113,6 +113,9 @@ fi
 GETH_REF="${GETH_REF:-zkevm-v0.3.4-hive}"
 GETH_SRC_DIR="$(_eest_dashboard_root_path "${GETH_SRC_DIR:-go-ethereum-src}")"
 GETH_SOURCE_MODE="${GETH_SOURCE_MODE:-git}"
+if [ -z "${GETH_HIVE_EXTRA_FLAGS+x}" ]; then
+  GETH_HIVE_EXTRA_FLAGS="--bal.executionmode=sequential"
+fi
 
 FIXTURES_DIR="$(_eest_dashboard_root_path "${FIXTURES_DIR:-fixtures}")"
 HIVE_RESULTS_DIR="$(_eest_dashboard_root_path "${HIVE_RESULTS_DIR:-$HIVE_DIR/workspace/logs}")"
@@ -122,7 +125,7 @@ SITE_DIR="$(_eest_dashboard_root_path "${SITE_DIR:-site}")"
 export ROOT_DIR
 export EEST_REPO EEST_REF EEST_DIR
 export HIVE_REPO HIVE_REF HIVE_DIR
-export GETH_REPO GETH_GITHUB GETH_REF GETH_SRC_DIR GETH_SOURCE_MODE
+export GETH_REPO GETH_GITHUB GETH_REF GETH_SRC_DIR GETH_SOURCE_MODE GETH_HIVE_EXTRA_FLAGS
 export FILLER_PATH FORK FIXTURES_DIR HIVE_RESULTS_DIR HIVE_SIMULATOR SITE_DIR
 
 eest_dashboard_print_env() {
@@ -132,7 +135,7 @@ eest_dashboard_print_env() {
     ROOT_DIR \
     EEST_REPO EEST_REF EEST_DIR \
     HIVE_REPO HIVE_REF HIVE_DIR \
-    GETH_REPO GETH_GITHUB GETH_REF GETH_SRC_DIR GETH_SOURCE_MODE \
+    GETH_REPO GETH_GITHUB GETH_REF GETH_SRC_DIR GETH_SOURCE_MODE GETH_HIVE_EXTRA_FLAGS \
     FILLER_PATH FORK FIXTURES_DIR HIVE_RESULTS_DIR HIVE_SIMULATOR SITE_DIR
   do
     eval "value=\${$name}"

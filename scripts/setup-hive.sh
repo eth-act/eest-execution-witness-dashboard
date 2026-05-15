@@ -28,10 +28,14 @@ _setup_hive_usage() {
     'Environment overrides from scripts/env.sh:' \
     '  HIVE_REPO, HIVE_REF, HIVE_DIR' \
     '  GETH_REPO, GETH_GITHUB, GETH_REF, GETH_SRC_DIR, GETH_SOURCE_MODE' \
+    '  GETH_HIVE_EXTRA_FLAGS' \
     '' \
     'GETH_SOURCE_MODE values:' \
     '  git      Use Hive clients/go-ethereum/Dockerfile.git. Default.' \
-    '  local    Clone GETH_REPO at GETH_REF, copy it under Hive, and use Dockerfile.local.'
+    '  local    Clone GETH_REPO at GETH_REF, copy it under Hive, and use Dockerfile.local.' \
+    '' \
+    'GETH_HIVE_EXTRA_FLAGS is injected into Hive clients/go-ethereum/geth.sh.' \
+    'Default: --bal.executionmode=sequential. Set it empty to remove the managed patch.'
 }
 
 _setup_hive_log() {
@@ -115,6 +119,81 @@ _setup_hive_build_hive() {
   fi
 }
 
+_setup_hive_validate_extra_flags() {
+  case "$GETH_HIVE_EXTRA_FLAGS" in
+    *$'\n'* | *'"'* | *'$'* | *'`'* | *'\\'*)
+      _setup_hive_die 'GETH_HIVE_EXTRA_FLAGS cannot contain newline, ", $, `, or \ characters'
+      ;;
+  esac
+}
+
+_setup_hive_patch_geth_flags() {
+  local begin geth_script tmp
+
+  geth_script="$HIVE_DIR/clients/go-ethereum/geth.sh"
+  begin='# eest-dashboard: begin managed geth extra flags'
+  tmp="${geth_script}.tmp.$$"
+
+  if [ ! -f "$geth_script" ]; then
+    _setup_hive_die "Hive go-ethereum startup script does not exist: $geth_script"
+  fi
+
+  if ! grep -Fq 'FLAGS="--state.scheme=path"' "$geth_script"; then
+    _setup_hive_die "unable to find initial FLAGS assignment in $geth_script"
+  fi
+
+  _setup_hive_validate_extra_flags
+  cp "$geth_script" "$tmp"
+
+  if ! awk \
+    -v begin="$begin" \
+    -v end='# eest-dashboard: end managed geth extra flags' \
+    -v extra="$GETH_HIVE_EXTRA_FLAGS" '
+      $0 == begin {
+        skip = 1
+        next
+      }
+
+      skip && $0 == end {
+        skip = 0
+        next
+      }
+
+      skip {
+        next
+      }
+
+      {
+        print
+        if (!inserted && $0 == "FLAGS=\"--state.scheme=path\"") {
+          if (extra != "") {
+            print begin
+            print "FLAGS=\"$FLAGS " extra "\""
+            print end
+          }
+          inserted = 1
+        }
+      }
+
+      END {
+        if (!inserted) {
+          exit 1
+        }
+      }
+    ' "$geth_script" > "$tmp"; then
+    rm -f "$tmp"
+    _setup_hive_die "failed to patch $geth_script"
+  fi
+
+  mv "$tmp" "$geth_script"
+
+  if [ -n "$GETH_HIVE_EXTRA_FLAGS" ]; then
+    _setup_hive_log "Injected geth extra flags: $GETH_HIVE_EXTRA_FLAGS"
+  else
+    _setup_hive_log "Removed managed geth extra flags patch"
+  fi
+}
+
 _setup_hive_write_git_client_file() {
   local tmp
 
@@ -186,6 +265,7 @@ main() {
   _setup_hive_require_cmd go Go
 
   _setup_hive_prepare_git_checkout Hive "$HIVE_REPO" "$HIVE_REF" "$HIVE_DIR"
+  _setup_hive_patch_geth_flags
   _setup_hive_build_hive
   _setup_hive_configure_client
 
