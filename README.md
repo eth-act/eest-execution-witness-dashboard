@@ -18,6 +18,7 @@ HIVE_REF=master
 GETH_REPO=https://github.com/jsign/go-ethereum.git
 GETH_GITHUB=jsign/go-ethereum
 GETH_REF=zkevm-v0.3.4-hive
+GETH_SOURCE_MODE=git
 ```
 
 Generated work directories are ignored by git:
@@ -71,3 +72,25 @@ scripts/fill-fixtures.sh
 The script clones or updates `execution-specs` at `EEST_REF`, runs `uv sync`,
 fills `blockchain_test_engine` fixtures into `FIXTURES_DIR`, and fails if
 `fixtures/.meta/index.json` does not include `blockchain_test_engine`.
+
+## Hive Consume
+
+Prepare Hive and generate `hive/clients-local.yaml`:
+
+```bash
+scripts/setup-hive.sh
+```
+
+The default `GETH_SOURCE_MODE=git` uses Hive `Dockerfile.git` with
+`GETH_GITHUB` and `GETH_REF`. Use `GETH_SOURCE_MODE=local` to clone
+`GETH_REPO` at an exact commit or ref into `GETH_SRC_DIR`, copy it into
+`hive/clients/go-ethereum/go-ethereum`, and use Hive `Dockerfile.local`.
+
+After fixtures exist, run Hive and consume them with:
+
+```bash
+scripts/run-hive-consume.sh
+```
+
+Hive logs are preserved in `HIVE_RESULTS_DIR`; on failure, the script prints the
+tail of `hive-dev.log` for startup or client-build debugging.

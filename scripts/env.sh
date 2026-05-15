@@ -60,6 +60,42 @@ _eest_dashboard_root_path() {
   esac
 }
 
+_eest_dashboard_github_slug() {
+  local owner repo repo_name slug
+
+  repo="$1"
+  case "$repo" in
+    https://github.com/*)
+      slug="${repo#https://github.com/}"
+      ;;
+    git@github.com:*)
+      slug="${repo#git@github.com:}"
+      ;;
+    github.com:*)
+      slug="${repo#github.com:}"
+      ;;
+    github.com/*)
+      slug="${repo#github.com/}"
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+
+  slug="${slug%%#*}"
+  slug="${slug%%\?*}"
+  owner="${slug%%/*}"
+  repo_name="${slug#*/}"
+  repo_name="${repo_name%%/*}"
+  repo_name="${repo_name%.git}"
+
+  if [ -z "$owner" ] || [ -z "$repo_name" ] || [ "$owner" = "$repo_name" ]; then
+    return 1
+  fi
+
+  printf '%s/%s\n' "$owner" "$repo_name"
+}
+
 EEST_REPO="${EEST_REPO:-https://github.com/jsign/execution-specs.git}"
 EEST_REF="${EEST_REF:-jsign-zkevm-v0.3.4-hive}"
 EEST_DIR="$(_eest_dashboard_root_path "${EEST_DIR:-execution-specs}")"
@@ -71,19 +107,23 @@ HIVE_REF="${HIVE_REF:-master}"
 HIVE_DIR="$(_eest_dashboard_root_path "${HIVE_DIR:-hive}")"
 
 GETH_REPO="${GETH_REPO:-https://github.com/jsign/go-ethereum.git}"
-GETH_GITHUB="${GETH_GITHUB:-jsign/go-ethereum}"
+if [ -z "${GETH_GITHUB+x}" ]; then
+  GETH_GITHUB="$(_eest_dashboard_github_slug "$GETH_REPO" 2>/dev/null || printf '%s\n' jsign/go-ethereum)"
+fi
 GETH_REF="${GETH_REF:-zkevm-v0.3.4-hive}"
 GETH_SRC_DIR="$(_eest_dashboard_root_path "${GETH_SRC_DIR:-go-ethereum-src}")"
+GETH_SOURCE_MODE="${GETH_SOURCE_MODE:-git}"
 
 FIXTURES_DIR="$(_eest_dashboard_root_path "${FIXTURES_DIR:-fixtures}")"
 HIVE_RESULTS_DIR="$(_eest_dashboard_root_path "${HIVE_RESULTS_DIR:-$HIVE_DIR/workspace/logs}")"
+HIVE_SIMULATOR="${HIVE_SIMULATOR:-http://127.0.0.1:3000}"
 SITE_DIR="$(_eest_dashboard_root_path "${SITE_DIR:-site}")"
 
 export ROOT_DIR
 export EEST_REPO EEST_REF EEST_DIR
 export HIVE_REPO HIVE_REF HIVE_DIR
-export GETH_REPO GETH_GITHUB GETH_REF GETH_SRC_DIR
-export FILLER_PATH FORK FIXTURES_DIR HIVE_RESULTS_DIR SITE_DIR
+export GETH_REPO GETH_GITHUB GETH_REF GETH_SRC_DIR GETH_SOURCE_MODE
+export FILLER_PATH FORK FIXTURES_DIR HIVE_RESULTS_DIR HIVE_SIMULATOR SITE_DIR
 
 eest_dashboard_print_env() {
   local name value
@@ -92,8 +132,8 @@ eest_dashboard_print_env() {
     ROOT_DIR \
     EEST_REPO EEST_REF EEST_DIR \
     HIVE_REPO HIVE_REF HIVE_DIR \
-    GETH_REPO GETH_GITHUB GETH_REF GETH_SRC_DIR \
-    FILLER_PATH FORK FIXTURES_DIR HIVE_RESULTS_DIR SITE_DIR
+    GETH_REPO GETH_GITHUB GETH_REF GETH_SRC_DIR GETH_SOURCE_MODE \
+    FILLER_PATH FORK FIXTURES_DIR HIVE_RESULTS_DIR HIVE_SIMULATOR SITE_DIR
   do
     eval "value=\${$name}"
     printf '%s=%s\n' "$name" "$value"
