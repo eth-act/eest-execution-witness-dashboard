@@ -12,10 +12,9 @@ Implemented scripts:
   `clients-local.yaml` for either remote git or local geth source mode.
 - `run-hive-consume.sh`: prepare Hive, start `./hive --dev`, run
   `consume engine-witness`, and preserve Hive logs in `HIVE_RESULTS_DIR`.
-
-Planned scripts:
-
-- `build-site.sh`
+- `build-site.sh`: generate a static Hiveview site in `SITE_DIR`, write
+  `listing.jsonl`, copy Hive logs into `results/`, and enforce
+  `SITE_MAX_SIZE_MB`.
 
 Load the shared defaults from any working directory:
 
@@ -69,3 +68,13 @@ run multiple consume tests at once through pytest-xdist.
 This script cleans `HIVE_RESULTS_DIR`, writes Hive stdout/stderr to
 `$HIVE_RESULTS_DIR/hive-dev.log`, and prints the tail of that log when startup
 or consume fails.
+
+Build the static Hiveview site:
+
+```bash
+scripts/build-site.sh
+```
+
+The script cleans `SITE_DIR`, deploys Hiveview assets, generates
+`listing.jsonl`, copies `HIVE_RESULTS_DIR` into `SITE_DIR/results/`, and fails
+if the output is larger than `SITE_MAX_SIZE_MB` (default: `900`).

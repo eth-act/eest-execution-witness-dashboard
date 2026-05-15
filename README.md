@@ -21,6 +21,7 @@ GETH_REF=zkevm-v0.3.4-hive
 GETH_SOURCE_MODE=auto
 GETH_HIVE_EXTRA_FLAGS=--bal.executionmode=sequential
 HIVE_PARALLELISM=1
+SITE_MAX_SIZE_MB=900
 ```
 
 Generated work directories are ignored by git:
@@ -100,3 +101,15 @@ let EEST pass `-n <N>` to pytest-xdist.
 
 Hive logs are preserved in `HIVE_RESULTS_DIR`; on failure, the script prints the
 tail of `hive-dev.log` for startup or client-build debugging.
+
+## Static Site Build
+
+After Hive results exist, build the static Hiveview site with:
+
+```bash
+scripts/build-site.sh
+```
+
+The script recreates `SITE_DIR`, deploys Hiveview assets, writes
+`site/listing.jsonl`, copies Hive logs and results into `site/results/`, and
+fails if the generated site exceeds `SITE_MAX_SIZE_MB`.
