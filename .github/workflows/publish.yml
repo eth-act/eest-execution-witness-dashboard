@@ -51,7 +51,7 @@ on:
       hive_parallelism:
         description: EEST consume parallelism.
         required: true
-        default: "1"
+        default: "8"
       max_site_size_mb:
         description: Fail before upload if site/ is larger than this many MiB.
         required: true
