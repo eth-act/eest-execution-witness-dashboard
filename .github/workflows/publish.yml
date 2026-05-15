@@ -27,27 +27,14 @@ on:
         description: Hive branch, tag, or commit.
         required: true
         default: master
-      geth_repo:
-        description: go-ethereum repository URL.
+      el_clients:
+        description: Comma-separated EL client descriptor ids to run.
         required: true
-        default: https://github.com/jsign/go-ethereum.git
-      geth_ref:
-        description: go-ethereum branch, tag, or commit.
-        required: true
-        default: zkevm-v0.3.4-hive
-      geth_source_mode:
-        description: How Hive should build go-ethereum.
-        required: true
-        type: choice
-        options:
-          - auto
-          - git
-          - local
-        default: auto
-      geth_hive_extra_flags:
-        description: Extra flags injected into Hive's geth.sh.
+        default: go-ethereum,ethrex
+      el_client_overrides_json:
+        description: 'JSON descriptor overrides, e.g. {"ethrex":{"ref":"branch"}}.'
         required: false
-        default: --bal.executionmode=sequential
+        default: "{}"
       hive_parallelism:
         description: EEST consume parallelism.
         required: true
@@ -80,11 +67,8 @@ jobs:
       HIVE_REPO: ${{ inputs.hive_repo }}
       HIVE_REF: ${{ inputs.hive_ref }}
       HIVE_DIR: ${{ github.workspace }}/hive
-      GETH_REPO: ${{ inputs.geth_repo }}
-      GETH_REF: ${{ inputs.geth_ref }}
-      GETH_SRC_DIR: ${{ github.workspace }}/go-ethereum-src
-      GETH_SOURCE_MODE: ${{ inputs.geth_source_mode }}
-      GETH_HIVE_EXTRA_FLAGS: ${{ inputs.geth_hive_extra_flags }}
+      EL_CLIENTS: ${{ inputs.el_clients }}
+      EL_CLIENT_OVERRIDES_JSON: ${{ inputs.el_client_overrides_json }}
       FIXTURES_DIR: ${{ github.workspace }}/fixtures
       HIVE_RESULTS_DIR: ${{ github.workspace }}/hive/workspace/logs
       HIVE_SIMULATOR: http://127.0.0.1:3000

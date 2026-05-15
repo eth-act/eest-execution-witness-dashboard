@@ -129,7 +129,7 @@ _build_site_guard_clean_dir() {
   dir="$2"
 
   case "$dir" in
-    '' | / | /tmp | /tmp/ | "$ROOT_DIR" | "$HIVE_DIR" | "$EEST_DIR" | "$GETH_SRC_DIR" | "$FIXTURES_DIR" | "$HIVE_RESULTS_DIR")
+    '' | / | /tmp | /tmp/ | "$ROOT_DIR" | "$HIVE_DIR" | "$EEST_DIR" | "$FIXTURES_DIR" | "$HIVE_RESULTS_DIR")
       _build_site_die "refusing to clean unsafe $label: $dir"
       ;;
   esac
@@ -151,7 +151,6 @@ _build_site_validate_inputs() {
   ROOT_DIR="$(_build_site_normalize_path "$ROOT_DIR")"
   HIVE_DIR="$(_build_site_normalize_path "$HIVE_DIR")"
   EEST_DIR="$(_build_site_normalize_path "$EEST_DIR")"
-  GETH_SRC_DIR="$(_build_site_normalize_path "$GETH_SRC_DIR")"
   FIXTURES_DIR="$(_build_site_normalize_path "$FIXTURES_DIR")"
   HIVE_RESULTS_DIR="$(_build_site_normalize_path "$HIVE_RESULTS_DIR")"
   SITE_DIR="$(_build_site_normalize_path "$SITE_DIR")"

@@ -16,7 +16,7 @@ fi
 . "$_run_hive_consume_script_dir/env.sh"
 
 UV_CACHE_DIR="${UV_CACHE_DIR:-/tmp/uv-cache}"
-HIVE_READY_ATTEMPTS="${HIVE_READY_ATTEMPTS:-90}"
+HIVE_READY_ATTEMPTS="${HIVE_READY_ATTEMPTS:-600}"
 HIVE_READY_SLEEP="${HIVE_READY_SLEEP:-2}"
 HIVE_LOG_TAIL_LINES="${HIVE_LOG_TAIL_LINES:-400}"
 HIVE_CONSUME_ALLOW_FAILURE="${HIVE_CONSUME_ALLOW_FAILURE:-0}"
@@ -39,15 +39,15 @@ _run_hive_consume_usage() {
     'Environment overrides from scripts/env.sh:' \
     '  EEST_DIR, HIVE_DIR, FIXTURES_DIR, HIVE_RESULTS_DIR, HIVE_SIMULATOR' \
     '  HIVE_PARALLELISM' \
-    '  HIVE_REPO, HIVE_REF, GETH_REPO, GETH_GITHUB, GETH_REF, GETH_SOURCE_MODE' \
+    '  HIVE_REPO, HIVE_REF, EL_CLIENTS, EL_CLIENT_OVERRIDES_JSON' \
     '' \
     'Additional overrides:' \
     '  RUN_HIVE_SETUP             Set to 0 to skip scripts/setup-hive.sh. Default: 1' \
-    '  HIVE_READY_ATTEMPTS        Number of readiness attempts. Default: 90' \
+    '  HIVE_READY_ATTEMPTS        Number of readiness attempts. Default: 600' \
     '  HIVE_READY_SLEEP           Seconds between readiness attempts. Default: 2' \
     '  HIVE_CONSUME_ALLOW_FAILURE Continue after consume exits non-zero. Default: 0' \
     '  HIVE_DOCKER_OUTPUT         Docker output relay mode: all, build, or none. Default: all' \
-    '  HIVE_LOG_TO_STDOUT         Tee Hive stdout/stderr to stdout. Default: 0' \
+    '  HIVE_LOG_TO_STDOUT         Tee Hive stdout/stderr to stdout. Default: 1' \
     '  HIVE_LOG_FILE              Hive stdout/stderr log path. Default: HIVE_RESULTS_DIR/hive-dev.log' \
     '  HIVE_LOG_TAIL_LINES        Lines printed from Hive log on failure. Default: 400'
 }
@@ -111,7 +111,7 @@ _run_hive_consume_guard_clean_dir() {
   dir="$2"
 
   case "$dir" in
-    '' | / | /tmp | /tmp/ | "$ROOT_DIR" | "$HIVE_DIR" | "$EEST_DIR" | "$GETH_SRC_DIR" | "$FIXTURES_DIR" | "$SITE_DIR")
+    '' | / | /tmp | /tmp/ | "$ROOT_DIR" | "$HIVE_DIR" | "$EEST_DIR" | "$FIXTURES_DIR" | "$SITE_DIR")
       _run_hive_consume_die "refusing to clean unsafe $label: $dir"
       ;;
   esac

@@ -15,14 +15,21 @@ EEST_REF=jsign-zkevm-v0.3.4-hive
 HIVE_REPO=https://github.com/ethereum/hive.git
 HIVE_REF=master
 
-GETH_REPO=https://github.com/jsign/go-ethereum.git
-GETH_GITHUB=jsign/go-ethereum
-GETH_REF=zkevm-v0.3.4-hive
-GETH_SOURCE_MODE=auto
-GETH_HIVE_EXTRA_FLAGS=--bal.executionmode=sequential
+EL_CLIENTS=go-ethereum,ethrex
+EL_CLIENT_CONFIG=config/el-clients.json
+EL_CLIENT_OVERRIDES_JSON={}
 HIVE_PARALLELISM=1
 SITE_MAX_SIZE_MB=900
 ```
+
+Default EL descriptors:
+
+- `go-ethereum`: `https://github.com/jsign/go-ethereum.git` at
+  `zkevm-v0.3.4-hive`, with `--bal.executionmode=sequential` injected into
+  Hive's `geth.sh`.
+- `ethrex`: `https://github.com/jsign/ethrex.git` at
+  `jsign-engine-newpayload-with-witness-v5`, built through Hive's
+  `clients/ethrex/Dockerfile.git`.
 
 Generated work directories are ignored by git:
 
@@ -84,11 +91,24 @@ Prepare Hive and generate `hive/clients-local.yaml`:
 scripts/setup-hive.sh
 ```
 
-The default `GETH_SOURCE_MODE=auto` uses Hive `Dockerfile.git` for branch/tag
-refs and switches to `Dockerfile.local` for full commit SHAs. Use
-`GETH_SOURCE_MODE=local` to force the local checkout path for any ref.
-`GETH_HIVE_EXTRA_FLAGS` is injected into Hive's `geth.sh`; set it empty to
-remove the managed patch.
+The default `EL_CLIENTS=go-ethereum,ethrex` renders both execution clients into
+one Hive client file, so one `consume engine-witness` session runs every
+fixture against both ELs. Use `EL_CLIENTS=go-ethereum` or
+`EL_CLIENTS=ethrex` to run a subset.
+
+`EL_CLIENT_OVERRIDES_JSON` can override descriptor fields without editing the
+tracked config, for example:
+
+```bash
+EL_CLIENT_OVERRIDES_JSON='{"ethrex":{"ref":"other-branch"}}' scripts/setup-hive.sh
+```
+
+The same override mechanism can also adjust go-ethereum settings, including
+the Hive extra flags patch:
+
+```bash
+EL_CLIENT_OVERRIDES_JSON='{"go-ethereum":{"hive_extra_flags":""}}' scripts/setup-hive.sh
+```
 
 After fixtures exist, run Hive and consume them with:
 
@@ -165,10 +185,10 @@ scripts/build-site.sh
 scripts/smoke-site.sh
 ```
 
-The workflow inputs expose the execution-specs, Hive, and go-ethereum repos and
-refs, plus the filler path, fork, geth source mode, consume parallelism, and max
-site size. Failed runs upload debug artifacts containing Hive logs from
-`hive/workspace/logs`.
+The workflow inputs expose the execution-specs and Hive repos/refs, fixture
+selection, `EL_CLIENTS`, optional descriptor override JSON, consume
+parallelism, and max site size. Failed runs upload debug artifacts containing
+Hive logs from `hive/workspace/logs`.
 
 After the generated site passes the local smoke test, the workflow configures
 GitHub Pages, uploads `site/` as a Pages artifact, deploys it, and runs the

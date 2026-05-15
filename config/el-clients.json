@@ -1,0 +1,24 @@
+{
+  "clients": {
+    "go-ethereum": {
+      "hive_client": "go-ethereum",
+      "dockerfile": "git",
+      "nametag": "newpayloadwithwitness",
+      "repo": "https://github.com/jsign/go-ethereum.git",
+      "github": "jsign/go-ethereum",
+      "ref": "zkevm-v0.3.4-hive",
+      "hive_extra_flags": "--bal.executionmode=sequential",
+      "managed_patch": "geth-extra-flags",
+      "transport": "json-rpc-rlp"
+    },
+    "ethrex": {
+      "hive_client": "ethrex",
+      "dockerfile": "git",
+      "nametag": "jsign-engine-newpayload-with-witness-v5",
+      "repo": "https://github.com/jsign/ethrex.git",
+      "github": "jsign/ethrex",
+      "ref": "jsign-engine-newpayload-with-witness-v5",
+      "transport": "json-rpc-rlp"
+    }
+  }
+}

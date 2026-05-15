@@ -106,15 +106,10 @@ HIVE_REPO="${HIVE_REPO:-https://github.com/ethereum/hive.git}"
 HIVE_REF="${HIVE_REF:-master}"
 HIVE_DIR="$(_eest_dashboard_root_path "${HIVE_DIR:-hive}")"
 
-GETH_REPO="${GETH_REPO:-https://github.com/jsign/go-ethereum.git}"
-if [ -z "${GETH_GITHUB+x}" ]; then
-  GETH_GITHUB="$(_eest_dashboard_github_slug "$GETH_REPO" 2>/dev/null || printf '%s\n' jsign/go-ethereum)"
-fi
-GETH_REF="${GETH_REF:-zkevm-v0.3.4-hive}"
-GETH_SRC_DIR="$(_eest_dashboard_root_path "${GETH_SRC_DIR:-go-ethereum-src}")"
-GETH_SOURCE_MODE="${GETH_SOURCE_MODE:-auto}"
-if [ -z "${GETH_HIVE_EXTRA_FLAGS+x}" ]; then
-  GETH_HIVE_EXTRA_FLAGS="--bal.executionmode=sequential"
+EL_CLIENT_CONFIG="$(_eest_dashboard_root_path "${EL_CLIENT_CONFIG:-config/el-clients.json}")"
+EL_CLIENTS="${EL_CLIENTS:-go-ethereum,ethrex}"
+if [ -z "${EL_CLIENT_OVERRIDES_JSON+x}" ] || [ -z "$EL_CLIENT_OVERRIDES_JSON" ]; then
+  EL_CLIENT_OVERRIDES_JSON="{}"
 fi
 
 FIXTURES_DIR="$(_eest_dashboard_root_path "${FIXTURES_DIR:-fixtures}")"
@@ -127,7 +122,7 @@ SITE_MAX_SIZE_MB="${SITE_MAX_SIZE_MB:-900}"
 export ROOT_DIR
 export EEST_REPO EEST_REF EEST_DIR
 export HIVE_REPO HIVE_REF HIVE_DIR
-export GETH_REPO GETH_GITHUB GETH_REF GETH_SRC_DIR GETH_SOURCE_MODE GETH_HIVE_EXTRA_FLAGS
+export EL_CLIENT_CONFIG EL_CLIENTS EL_CLIENT_OVERRIDES_JSON
 export FILLER_PATH FORK FIXTURES_DIR HIVE_RESULTS_DIR HIVE_SIMULATOR HIVE_PARALLELISM SITE_DIR SITE_MAX_SIZE_MB
 
 eest_dashboard_print_env() {
@@ -137,7 +132,7 @@ eest_dashboard_print_env() {
     ROOT_DIR \
     EEST_REPO EEST_REF EEST_DIR \
     HIVE_REPO HIVE_REF HIVE_DIR \
-    GETH_REPO GETH_GITHUB GETH_REF GETH_SRC_DIR GETH_SOURCE_MODE GETH_HIVE_EXTRA_FLAGS \
+    EL_CLIENT_CONFIG EL_CLIENTS EL_CLIENT_OVERRIDES_JSON \
     FILLER_PATH FORK FIXTURES_DIR HIVE_RESULTS_DIR HIVE_SIMULATOR HIVE_PARALLELISM SITE_DIR SITE_MAX_SIZE_MB
   do
     eval "value=\${$name}"

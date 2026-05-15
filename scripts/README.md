@@ -9,7 +9,7 @@ Implemented scripts:
 - `fill-fixtures.sh`: clone or update `execution-specs`, run `uv sync`,
   generate witness fixtures into `FIXTURES_DIR`, and validate the fixture index.
 - `setup-hive.sh`: clone or update Hive, build `./hive`, and generate
-  `clients-local.yaml` for either remote git or local geth source mode.
+  `clients-local.yaml` from the selected EL client descriptors.
 - `run-hive-consume.sh`: prepare Hive, start `./hive --dev`, run
   `consume engine-witness`, and preserve Hive logs in `HIVE_RESULTS_DIR`.
 - `build-site.sh`: generate a static Hiveview site in `SITE_DIR`, write
@@ -48,15 +48,25 @@ Prepare Hive and generate `clients-local.yaml`:
 scripts/setup-hive.sh
 ```
 
-By default, `GETH_SOURCE_MODE=auto` uses Hive `Dockerfile.git` for branch/tag
-refs and switches to `Dockerfile.local` for full commit SHAs. Setup also
-injects `GETH_HIVE_EXTRA_FLAGS` into Hive's `clients/go-ethereum/geth.sh`. The
-default extra flag is `--bal.executionmode=sequential`; set
-`GETH_HIVE_EXTRA_FLAGS=` to disable the managed patch. To force the local
-checkout path for any ref:
+By default, `EL_CLIENTS=go-ethereum,ethrex` renders both clients from
+`config/el-clients.json` into one Hive client file. Use a comma-separated
+subset to run fewer clients:
 
 ```bash
-GETH_SOURCE_MODE=local GETH_REF=<commit-or-ref> scripts/setup-hive.sh
+EL_CLIENTS=ethrex scripts/setup-hive.sh
+```
+
+Use `EL_CLIENT_OVERRIDES_JSON` for temporary repo/ref changes:
+
+```bash
+EL_CLIENT_OVERRIDES_JSON='{"ethrex":{"ref":"other-branch"}}' scripts/setup-hive.sh
+```
+
+The same override mechanism applies to go-ethereum. For example, this disables
+the default Hive extra flags patch:
+
+```bash
+EL_CLIENT_OVERRIDES_JSON='{"go-ethereum":{"hive_extra_flags":""}}' scripts/setup-hive.sh
 ```
 
 Run Hive and consume the generated fixtures:
