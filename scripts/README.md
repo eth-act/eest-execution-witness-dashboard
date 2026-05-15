@@ -63,6 +63,9 @@ Run Hive and consume the generated fixtures:
 scripts/run-hive-consume.sh
 ```
 
+`HIVE_PARALLELISM=1` keeps consume sequential. Set it to a higher integer to
+run multiple consume tests at once through pytest-xdist.
+
 This script cleans `HIVE_RESULTS_DIR`, writes Hive stdout/stderr to
 `$HIVE_RESULTS_DIR/hive-dev.log`, and prints the tail of that log when startup
 or consume fails.

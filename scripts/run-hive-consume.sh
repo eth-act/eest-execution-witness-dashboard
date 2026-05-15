@@ -21,7 +21,7 @@ HIVE_READY_SLEEP="${HIVE_READY_SLEEP:-2}"
 HIVE_LOG_TAIL_LINES="${HIVE_LOG_TAIL_LINES:-400}"
 RUN_HIVE_SETUP="${RUN_HIVE_SETUP:-1}"
 HIVE_LOG_FILE="${HIVE_LOG_FILE:-$HIVE_RESULTS_DIR/hive-dev.log}"
-export UV_CACHE_DIR HIVE_SIMULATOR
+export UV_CACHE_DIR HIVE_SIMULATOR HIVE_PARALLELISM
 
 _run_hive_consume_hive_pid=""
 _run_hive_consume_started=0
@@ -35,6 +35,7 @@ _run_hive_consume_usage() {
     '' \
     'Environment overrides from scripts/env.sh:' \
     '  EEST_DIR, HIVE_DIR, FIXTURES_DIR, HIVE_RESULTS_DIR, HIVE_SIMULATOR' \
+    '  HIVE_PARALLELISM' \
     '  HIVE_REPO, HIVE_REF, GETH_REPO, GETH_GITHUB, GETH_REF, GETH_SOURCE_MODE' \
     '' \
     'Additional overrides:' \
@@ -173,6 +174,7 @@ _run_hive_consume_validate_inputs() {
   _run_hive_consume_require_positive_int HIVE_READY_ATTEMPTS "$HIVE_READY_ATTEMPTS"
   _run_hive_consume_require_positive_int HIVE_READY_SLEEP "$HIVE_READY_SLEEP"
   _run_hive_consume_require_positive_int HIVE_LOG_TAIL_LINES "$HIVE_LOG_TAIL_LINES"
+  _run_hive_consume_require_positive_int HIVE_PARALLELISM "$HIVE_PARALLELISM"
 
   if [ ! -d "$EEST_DIR" ]; then
     _run_hive_consume_die "execution-specs checkout does not exist; run scripts/fill-fixtures.sh first: $EEST_DIR"

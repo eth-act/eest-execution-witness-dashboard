@@ -20,6 +20,7 @@ GETH_GITHUB=jsign/go-ethereum
 GETH_REF=zkevm-v0.3.4-hive
 GETH_SOURCE_MODE=git
 GETH_HIVE_EXTRA_FLAGS=--bal.executionmode=sequential
+HIVE_PARALLELISM=1
 ```
 
 Generated work directories are ignored by git:
@@ -94,6 +95,9 @@ After fixtures exist, run Hive and consume them with:
 ```bash
 scripts/run-hive-consume.sh
 ```
+
+`HIVE_PARALLELISM=1` keeps consume sequential. Set it to a higher integer to
+let EEST pass `-n <N>` to pytest-xdist.
 
 Hive logs are preserved in `HIVE_RESULTS_DIR`; on failure, the script prints the
 tail of `hive-dev.log` for startup or client-build debugging.
