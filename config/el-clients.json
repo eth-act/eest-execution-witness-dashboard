@@ -3,7 +3,7 @@
     "go-ethereum": {
       "hive_client": "go-ethereum",
       "dockerfile": "git",
-      "nametag": "newpayloadwithwitness",
+      "nametag": "rlp-engineapi",
       "repo": "https://github.com/jsign/go-ethereum.git",
       "github": "jsign/go-ethereum",
       "ref": "zkevm-v0.3.4-hive",
@@ -14,7 +14,7 @@
     "ethrex": {
       "hive_client": "ethrex",
       "dockerfile": "git",
-      "nametag": "jsign-engine-newpayload-with-witness-v5",
+      "nametag": "rlp-engineapi",
       "repo": "https://github.com/jsign/ethrex.git",
       "github": "jsign/ethrex",
       "ref": "jsign-engine-newpayload-with-witness-v5",
