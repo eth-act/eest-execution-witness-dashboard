@@ -28,6 +28,25 @@ Generated work directories are ignored by git:
 - `fixtures/`
 - `site/`
 
+## Shared Environment
+
+The shared defaults live in `scripts/env.sh`. They are resolved from the
+dashboard repository root, so commands can safely `cd` into cloned
+`execution-specs` or `hive` directories without moving generated outputs.
+
+```bash
+source scripts/env.sh
+eest_dashboard_print_env
+eest_dashboard_check_prereqs
+```
+
+The file can also be run directly:
+
+```bash
+scripts/env.sh --print
+scripts/env.sh --check
+```
+
 ## Local Prerequisites
 
 Local runs are expected to use the same tool versions planned for GitHub
