@@ -170,6 +170,15 @@ After the generated site passes the local smoke test, the workflow configures
 GitHub Pages, uploads `site/` as a Pages artifact, deploys it, and runs the
 same smoke script against the deployed `page_url`.
 
+The expected repository Pages URL is:
+
+```text
+https://eth-act.github.io/eest-execution-witness-dashboard/
+```
+
+The workflow's `page_url` output is the source of truth after deployment,
+especially if the repository is later configured with a custom domain.
+
 To check a deployed site manually:
 
 ```bash
