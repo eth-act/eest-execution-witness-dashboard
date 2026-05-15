@@ -89,6 +89,10 @@ jobs:
       HIVE_RESULTS_DIR: ${{ github.workspace }}/hive/workspace/logs
       HIVE_SIMULATOR: http://127.0.0.1:3000
       HIVE_PARALLELISM: ${{ inputs.hive_parallelism }}
+      HIVE_READY_ATTEMPTS: "600"
+      HIVE_CONSUME_ALLOW_FAILURE: "1"
+      HIVE_DOCKER_OUTPUT: build
+      HIVE_LOG_TO_STDOUT: "1"
       SITE_DIR: ${{ github.workspace }}/site
       SITE_MAX_SIZE_MB: ${{ inputs.max_site_size_mb }}
       SITE_SMOKE_BASE_PATH: ${{ github.event.repository.name }}

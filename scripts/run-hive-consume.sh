@@ -19,6 +19,9 @@ UV_CACHE_DIR="${UV_CACHE_DIR:-/tmp/uv-cache}"
 HIVE_READY_ATTEMPTS="${HIVE_READY_ATTEMPTS:-90}"
 HIVE_READY_SLEEP="${HIVE_READY_SLEEP:-2}"
 HIVE_LOG_TAIL_LINES="${HIVE_LOG_TAIL_LINES:-400}"
+HIVE_CONSUME_ALLOW_FAILURE="${HIVE_CONSUME_ALLOW_FAILURE:-0}"
+HIVE_DOCKER_OUTPUT="${HIVE_DOCKER_OUTPUT:-all}"
+HIVE_LOG_TO_STDOUT="${HIVE_LOG_TO_STDOUT:-1}"
 RUN_HIVE_SETUP="${RUN_HIVE_SETUP:-1}"
 HIVE_LOG_FILE="${HIVE_LOG_FILE:-$HIVE_RESULTS_DIR/hive-dev.log}"
 export UV_CACHE_DIR HIVE_SIMULATOR HIVE_PARALLELISM
@@ -42,6 +45,9 @@ _run_hive_consume_usage() {
     '  RUN_HIVE_SETUP             Set to 0 to skip scripts/setup-hive.sh. Default: 1' \
     '  HIVE_READY_ATTEMPTS        Number of readiness attempts. Default: 90' \
     '  HIVE_READY_SLEEP           Seconds between readiness attempts. Default: 2' \
+    '  HIVE_CONSUME_ALLOW_FAILURE Continue after consume exits non-zero. Default: 0' \
+    '  HIVE_DOCKER_OUTPUT         Docker output relay mode: all, build, or none. Default: all' \
+    '  HIVE_LOG_TO_STDOUT         Tee Hive stdout/stderr to stdout. Default: 0' \
     '  HIVE_LOG_FILE              Hive stdout/stderr log path. Default: HIVE_RESULTS_DIR/hive-dev.log' \
     '  HIVE_LOG_TAIL_LINES        Lines printed from Hive log on failure. Default: 400'
 }
@@ -224,15 +230,48 @@ _run_hive_consume_reset_results_dir() {
 }
 
 _run_hive_consume_start_hive() {
+  local -a hive_args
+
   _run_hive_consume_log "Starting Hive dev server"
 
-  (
-    cd "$HIVE_DIR"
-    ./hive --dev \
-      --client-file clients-local.yaml \
-      --docker.output \
-      --results-root "$HIVE_RESULTS_DIR"
-  ) > "$HIVE_LOG_FILE" 2>&1 &
+  hive_args=(
+    ./hive
+    --dev
+    --client-file clients-local.yaml
+    --results-root "$HIVE_RESULTS_DIR"
+  )
+
+  case "$HIVE_DOCKER_OUTPUT" in
+    all | 1 | true | yes)
+      hive_args+=(--docker.output)
+      ;;
+    build | build-only | buildoutput)
+      hive_args+=(--docker.buildoutput)
+      ;;
+    none | 0 | false | no)
+      ;;
+    *)
+      _run_hive_consume_die "unsupported HIVE_DOCKER_OUTPUT: $HIVE_DOCKER_OUTPUT (expected all, build, or none)"
+      ;;
+  esac
+
+  case "$HIVE_LOG_TO_STDOUT" in
+    1 | true | yes)
+      (
+        cd "$HIVE_DIR"
+        "${hive_args[@]}" > >(tee "$HIVE_LOG_FILE") 2>&1
+      ) &
+      ;;
+    0 | false | no)
+      (
+        cd "$HIVE_DIR"
+        "${hive_args[@]}"
+      ) > "$HIVE_LOG_FILE" 2>&1 &
+      ;;
+    *)
+      _run_hive_consume_die "unsupported HIVE_LOG_TO_STDOUT: $HIVE_LOG_TO_STDOUT (expected 1 or 0)"
+      ;;
+  esac
 
   _run_hive_consume_hive_pid="$!"
   _run_hive_consume_started=1
@@ -267,8 +306,11 @@ _run_hive_consume_wait_for_hive() {
 }
 
 _run_hive_consume_run_consume() {
+  local status
+
   _run_hive_consume_log "Running execution-specs consume engine-witness"
 
+  set +e
   (
     cd "$EEST_DIR"
     uv run consume engine-witness \
@@ -276,6 +318,21 @@ _run_hive_consume_run_consume() {
       -s \
       --timing-data
   )
+  status=$?
+  set -e
+
+  if [ "$status" -eq 0 ]; then
+    return 0
+  fi
+
+  case "$HIVE_CONSUME_ALLOW_FAILURE" in
+    1 | true | yes)
+      _run_hive_consume_log "consume exited with status $status; continuing because HIVE_CONSUME_ALLOW_FAILURE=$HIVE_CONSUME_ALLOW_FAILURE"
+      return 0
+      ;;
+  esac
+
+  return "$status"
 }
 
 main() {

@@ -100,7 +100,11 @@ scripts/run-hive-consume.sh
 let EEST pass `-n <N>` to pytest-xdist.
 
 Hive logs are preserved in `HIVE_RESULTS_DIR`; on failure, the script prints the
-tail of `hive-dev.log` for startup or client-build debugging.
+tail of `hive-dev.log` for startup or client-build debugging. Set
+`HIVE_CONSUME_ALLOW_FAILURE=1` to continue after `consume engine-witness`
+returns non-zero so downstream steps can publish the failure dashboard.
+Set `HIVE_DOCKER_OUTPUT=build` and `HIVE_LOG_TO_STDOUT=1` to stream Docker
+build output into the console while still writing `hive-dev.log`.
 
 ## Static Site Build
 

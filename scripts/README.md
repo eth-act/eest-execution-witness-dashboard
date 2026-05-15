@@ -70,7 +70,11 @@ run multiple consume tests at once through pytest-xdist.
 
 This script cleans `HIVE_RESULTS_DIR`, writes Hive stdout/stderr to
 `$HIVE_RESULTS_DIR/hive-dev.log`, and prints the tail of that log when startup
-or consume fails.
+or consume fails. Set `HIVE_CONSUME_ALLOW_FAILURE=1` to keep going after
+`consume engine-witness` exits non-zero, which is useful when publishing a
+dashboard of failing tests. Set `HIVE_DOCKER_OUTPUT=build` and
+`HIVE_LOG_TO_STDOUT=1` to stream Docker build output into the console while
+still writing `hive-dev.log`.
 
 Build the static Hiveview site:
 
