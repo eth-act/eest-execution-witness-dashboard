@@ -63,6 +63,8 @@ _eest_dashboard_root_path() {
 EEST_REPO="${EEST_REPO:-https://github.com/jsign/execution-specs.git}"
 EEST_REF="${EEST_REF:-jsign-zkevm-v0.3.4-hive}"
 EEST_DIR="$(_eest_dashboard_root_path "${EEST_DIR:-execution-specs}")"
+FILLER_PATH="${FILLER_PATH:-tests/amsterdam/eip8025_optional_proofs}"
+FORK="${FORK:-Amsterdam}"
 
 HIVE_REPO="${HIVE_REPO:-https://github.com/ethereum/hive.git}"
 HIVE_REF="${HIVE_REF:-master}"
@@ -73,8 +75,6 @@ GETH_GITHUB="${GETH_GITHUB:-jsign/go-ethereum}"
 GETH_REF="${GETH_REF:-zkevm-v0.3.4-hive}"
 GETH_SRC_DIR="$(_eest_dashboard_root_path "${GETH_SRC_DIR:-go-ethereum-src}")"
 
-FILLER_PATH="${FILLER_PATH:-tests/amsterdam/eip8025_optional_proofs}"
-FORK="${FORK:-Amsterdam}"
 FIXTURES_DIR="$(_eest_dashboard_root_path "${FIXTURES_DIR:-fixtures}")"
 HIVE_RESULTS_DIR="$(_eest_dashboard_root_path "${HIVE_RESULTS_DIR:-$HIVE_DIR/workspace/logs}")"
 SITE_DIR="$(_eest_dashboard_root_path "${SITE_DIR:-site}")"
