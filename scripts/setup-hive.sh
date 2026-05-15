@@ -31,7 +31,8 @@ _setup_hive_usage() {
     '  GETH_HIVE_EXTRA_FLAGS' \
     '' \
     'GETH_SOURCE_MODE values:' \
-    '  git      Use Hive clients/go-ethereum/Dockerfile.git. Default.' \
+    '  auto     Use git mode for branch/tag refs and local mode for full commit SHAs. Default.' \
+    '  git      Use Hive clients/go-ethereum/Dockerfile.git.' \
     '  local    Clone GETH_REPO at GETH_REF, copy it under Hive, and use Dockerfile.local.' \
     '' \
     'GETH_HIVE_EXTRA_FLAGS is injected into Hive clients/go-ethereum/geth.sh.' \
@@ -81,6 +82,10 @@ _setup_hive_yaml_quote() {
   printf "'%s'" "$value"
 }
 
+_setup_hive_ref_is_full_sha() {
+  [[ "$1" =~ ^[0-9a-fA-F]{40}$ ]]
+}
+
 _setup_hive_prepare_git_checkout() {
   local checkout_dir label ref repo
 
@@ -106,8 +111,13 @@ _setup_hive_prepare_git_checkout() {
     git clone "$repo" "$checkout_dir"
   fi
 
-  git -C "$checkout_dir" fetch --prune origin "$ref"
-  git -C "$checkout_dir" checkout --detach FETCH_HEAD
+  if _setup_hive_ref_is_full_sha "$ref"; then
+    git -C "$checkout_dir" fetch --prune origin
+    git -C "$checkout_dir" checkout --detach "$ref"
+  else
+    git -C "$checkout_dir" fetch --prune origin "$ref"
+    git -C "$checkout_dir" checkout --detach FETCH_HEAD
+  fi
 }
 
 _setup_hive_build_hive() {
@@ -244,17 +254,40 @@ _setup_hive_write_local_client_file() {
   mv "$tmp" "$_setup_hive_client_file"
 }
 
-_setup_hive_configure_client() {
+_setup_hive_resolved_geth_source_mode() {
   case "$GETH_SOURCE_MODE" in
+    auto)
+      if _setup_hive_ref_is_full_sha "$GETH_REF"; then
+        printf '%s\n' local
+      else
+        printf '%s\n' git
+      fi
+      ;;
+    git | local)
+      printf '%s\n' "$GETH_SOURCE_MODE"
+      ;;
+    *)
+      _setup_hive_die "unsupported GETH_SOURCE_MODE: $GETH_SOURCE_MODE (expected auto, git, or local)"
+      ;;
+  esac
+}
+
+_setup_hive_configure_client() {
+  local source_mode
+
+  source_mode="$(_setup_hive_resolved_geth_source_mode)"
+
+  if [ "$source_mode" != "$GETH_SOURCE_MODE" ]; then
+    _setup_hive_log "Resolved GETH_SOURCE_MODE=$GETH_SOURCE_MODE to $source_mode for GETH_REF=$GETH_REF"
+  fi
+
+  case "$source_mode" in
     git)
       _setup_hive_write_git_client_file
       ;;
     local)
       _setup_hive_prepare_local_geth
       _setup_hive_write_local_client_file
-      ;;
-    *)
-      _setup_hive_die "unsupported GETH_SOURCE_MODE: $GETH_SOURCE_MODE (expected git or local)"
       ;;
   esac
 }

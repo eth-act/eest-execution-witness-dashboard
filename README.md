@@ -18,7 +18,7 @@ HIVE_REF=master
 GETH_REPO=https://github.com/jsign/go-ethereum.git
 GETH_GITHUB=jsign/go-ethereum
 GETH_REF=zkevm-v0.3.4-hive
-GETH_SOURCE_MODE=git
+GETH_SOURCE_MODE=auto
 GETH_HIVE_EXTRA_FLAGS=--bal.executionmode=sequential
 HIVE_PARALLELISM=1
 ```
@@ -83,10 +83,9 @@ Prepare Hive and generate `hive/clients-local.yaml`:
 scripts/setup-hive.sh
 ```
 
-The default `GETH_SOURCE_MODE=git` uses Hive `Dockerfile.git` with
-`GETH_GITHUB` and `GETH_REF`. Use `GETH_SOURCE_MODE=local` to clone
-`GETH_REPO` at an exact commit or ref into `GETH_SRC_DIR`, copy it into
-`hive/clients/go-ethereum/go-ethereum`, and use Hive `Dockerfile.local`.
+The default `GETH_SOURCE_MODE=auto` uses Hive `Dockerfile.git` for branch/tag
+refs and switches to `Dockerfile.local` for full commit SHAs. Use
+`GETH_SOURCE_MODE=local` to force the local checkout path for any ref.
 `GETH_HIVE_EXTRA_FLAGS` is injected into Hive's `geth.sh`; set it empty to
 remove the managed patch.
 

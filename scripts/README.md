@@ -46,12 +46,12 @@ Prepare Hive and generate `clients-local.yaml`:
 scripts/setup-hive.sh
 ```
 
-By default, setup uses Hive `Dockerfile.git` with `GETH_GITHUB` and
-`GETH_REF`, and injects `GETH_HIVE_EXTRA_FLAGS` into Hive's
-`clients/go-ethereum/geth.sh`. The default extra flag is
-`--bal.executionmode=sequential`; set `GETH_HIVE_EXTRA_FLAGS=` to disable the
-managed patch. To build from an exact local checkout, select local mode without
-changing the run command:
+By default, `GETH_SOURCE_MODE=auto` uses Hive `Dockerfile.git` for branch/tag
+refs and switches to `Dockerfile.local` for full commit SHAs. Setup also
+injects `GETH_HIVE_EXTRA_FLAGS` into Hive's `clients/go-ethereum/geth.sh`. The
+default extra flag is `--bal.executionmode=sequential`; set
+`GETH_HIVE_EXTRA_FLAGS=` to disable the managed patch. To force the local
+checkout path for any ref:
 
 ```bash
 GETH_SOURCE_MODE=local GETH_REF=<commit-or-ref> scripts/setup-hive.sh

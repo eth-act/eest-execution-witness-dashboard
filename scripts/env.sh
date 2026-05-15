@@ -112,7 +112,7 @@ if [ -z "${GETH_GITHUB+x}" ]; then
 fi
 GETH_REF="${GETH_REF:-zkevm-v0.3.4-hive}"
 GETH_SRC_DIR="$(_eest_dashboard_root_path "${GETH_SRC_DIR:-go-ethereum-src}")"
-GETH_SOURCE_MODE="${GETH_SOURCE_MODE:-git}"
+GETH_SOURCE_MODE="${GETH_SOURCE_MODE:-auto}"
 if [ -z "${GETH_HIVE_EXTRA_FLAGS+x}" ]; then
   GETH_HIVE_EXTRA_FLAGS="--bal.executionmode=sequential"
 fi
