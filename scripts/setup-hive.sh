@@ -88,6 +88,18 @@ _setup_hive_ref_is_full_sha() {
   [[ "$1" =~ ^[0-9a-fA-F]{40}$ ]]
 }
 
+_setup_hive_is_checkout_root() {
+  local checkout_dir top
+
+  checkout_dir="$(_setup_hive_abs_dir "$1")"
+  if [ -z "$checkout_dir" ]; then
+    return 1
+  fi
+
+  top="$(git -C "$checkout_dir" rev-parse --show-toplevel 2>/dev/null)" || return 1
+  [ "$top" = "$checkout_dir" ]
+}
+
 _setup_hive_prepare_git_checkout() {
   local checkout_dir label ref repo
 
@@ -99,8 +111,8 @@ _setup_hive_prepare_git_checkout() {
   _setup_hive_log "Preparing $label checkout at $checkout_dir"
 
   if [ -d "$checkout_dir" ]; then
-    if ! git -C "$checkout_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-      _setup_hive_die "$label directory exists but is not a git checkout: $checkout_dir"
+    if ! _setup_hive_is_checkout_root "$checkout_dir"; then
+      _setup_hive_die "$label directory exists but is not a git checkout root: $checkout_dir"
     fi
 
     if git -C "$checkout_dir" remote get-url origin >/dev/null 2>&1; then
