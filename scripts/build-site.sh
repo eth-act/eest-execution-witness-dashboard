@@ -184,6 +184,46 @@ _build_site_guard_hive_ui_dir() {
   esac
 }
 
+_build_site_path_contains() {
+  local child parent
+
+  parent="${1%/}"
+  child="${2%/}"
+
+  case "$child" in
+    "$parent"/*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+_build_site_first_suite_json() {
+  find "$1" -maxdepth 1 -type f -name '*.json' \
+    ! -name 'hive.json' \
+    ! -name 'errorReport.json' \
+    ! -name 'containerErrorReport.json' \
+    ! -name '.*' \
+    -print -quit
+}
+
+_build_site_assert_listable_results() {
+  local dir first_result phase
+
+  phase="$1"
+  dir="$2"
+
+  if [ ! -d "$dir" ]; then
+    _build_site_die "Hive results directory disappeared $phase: $dir"
+  fi
+
+  if ! first_result="$(_build_site_first_suite_json "$dir")"; then
+    _build_site_die "unable to scan Hive results directory $phase: $dir"
+  fi
+
+  if [ -z "$first_result" ]; then
+    _build_site_die "Hive results directory has no top-level suite JSON for hiveview $phase: $dir"
+  fi
+}
+
 _build_site_prepare_git_checkout() {
   local checkout_dir label ref repo
 
@@ -228,8 +268,6 @@ _build_site_prepare_git_checkout() {
 }
 
 _build_site_validate_inputs() {
-  local first_result
-
   _build_site_require_positive_int HIVEVIEW_LIST_LIMIT "$HIVEVIEW_LIST_LIMIT"
   _build_site_require_positive_int SITE_MAX_SIZE_MB "$SITE_MAX_SIZE_MB"
   _build_site_validate_discovery_name
@@ -244,6 +282,14 @@ _build_site_validate_inputs() {
   _build_site_hive_ui_patch="$ROOT_DIR/patches/hive-ui-relative-paths.patch"
   _build_site_guard_hive_ui_dir
 
+  if _build_site_path_contains "$SITE_DIR" "$HIVE_RESULTS_DIR"; then
+    _build_site_die "HIVE_RESULTS_DIR must not be inside SITE_DIR because the site reset would delete it: $HIVE_RESULTS_DIR"
+  fi
+
+  if _build_site_path_contains "$HIVE_RESULTS_DIR" "$SITE_DIR"; then
+    _build_site_die "SITE_DIR must not be inside HIVE_RESULTS_DIR because result copying would mix generated site files into Hive results: $SITE_DIR"
+  fi
+
   if [ ! -f "$_build_site_hive_ui_patch" ]; then
     _build_site_die "hive-ui Pages patch does not exist: $_build_site_hive_ui_patch"
   fi
@@ -256,10 +302,7 @@ _build_site_validate_inputs() {
     _build_site_die "Hive results directory does not exist; run scripts/run-hive-consume.sh first: $HIVE_RESULTS_DIR"
   fi
 
-  first_result="$(find "$HIVE_RESULTS_DIR" -type f -print -quit)"
-  if [ -z "$first_result" ]; then
-    _build_site_die "Hive results directory is empty: $HIVE_RESULTS_DIR"
-  fi
+  _build_site_assert_listable_results 'during input validation' "$HIVE_RESULTS_DIR"
 }
 
 _build_site_reset_site_dir() {
@@ -311,15 +354,33 @@ _build_site_build_hive_ui_assets() {
 }
 
 _build_site_generate_listing() {
+  local listing_source tmp
+
+  listing_source="$SITE_DIR/results"
+  tmp="$SITE_DIR/listing.jsonl.tmp"
+
   _build_site_log "Generating listing.jsonl"
-  (
+  _build_site_assert_listable_results 'before listing generation' "$listing_source"
+
+  if ! (
     cd "$HIVE_DIR"
-    go run ./cmd/hiveview -listing -limit "$HIVEVIEW_LIST_LIMIT" -logdir "$HIVE_RESULTS_DIR"
-  ) > "$SITE_DIR/listing.jsonl"
+    go run ./cmd/hiveview -listing -limit "$HIVEVIEW_LIST_LIMIT" -logdir "$listing_source"
+  ) | tee "$tmp" >/dev/null; then
+    rm -f "$tmp"
+    _build_site_die "hiveview failed to generate listing.jsonl from $listing_source"
+  fi
+
+  if [ ! -s "$tmp" ]; then
+    rm -f "$tmp"
+    _build_site_die "hiveview generated an empty listing.jsonl from $listing_source"
+  fi
+
+  mv "$tmp" "$SITE_DIR/listing.jsonl"
 }
 
 _build_site_copy_results() {
   _build_site_log "Copying Hive results into static site"
+  _build_site_assert_listable_results 'before copying into static site' "$HIVE_RESULTS_DIR"
   mkdir -p "$SITE_DIR/results"
   rsync -a --delete "$HIVE_RESULTS_DIR"/ "$SITE_DIR/results"/
 }
@@ -412,8 +473,8 @@ main() {
   _build_site_reset_site_dir
   _build_site_prepare_git_checkout hive-ui "$HIVE_UI_REPO" "$HIVE_UI_REF" "$HIVE_UI_DIR"
   _build_site_build_hive_ui_assets
-  _build_site_generate_listing
   _build_site_copy_results
+  _build_site_generate_listing
   _build_site_write_hive_ui_notices
   _build_site_write_discovery
   _build_site_validate_output
