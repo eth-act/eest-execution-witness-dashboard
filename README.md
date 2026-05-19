@@ -10,8 +10,8 @@ The first implementation pass uses public branch refs rather than immutable
 SHAs or tags. These refs were checked with `git ls-remote` on 2026-05-15:
 
 ```bash
-EEST_REPO=https://github.com/jsign/execution-specs.git
-EEST_REF=jsign-zkevm-v0.3.4-hive
+EEST_REPO=https://github.com/ethereum/execution-specs.git
+EEST_REF=projects/zkevm-releases
 
 HIVE_REPO=https://github.com/ethereum/hive.git
 HIVE_REF=master

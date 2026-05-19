@@ -6,11 +6,11 @@ on:
       eest_repo:
         description: execution-specs repository URL.
         required: true
-        default: https://github.com/jsign/execution-specs.git
+        default: https://github.com/ethereum/execution-specs.git
       eest_ref:
         description: execution-specs branch, tag, or commit.
         required: true
-        default: jsign-zkevm-v0.3.4-hive
+        default: projects/zkevm-releases
       filler_path:
         description: execution-specs filler path to generate.
         required: true

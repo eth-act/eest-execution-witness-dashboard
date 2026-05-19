@@ -96,8 +96,8 @@ _eest_dashboard_github_slug() {
   printf '%s/%s\n' "$owner" "$repo_name"
 }
 
-EEST_REPO="${EEST_REPO:-https://github.com/jsign/execution-specs.git}"
-EEST_REF="${EEST_REF:-jsign-zkevm-v0.3.4-hive}"
+EEST_REPO="${EEST_REPO:-https://github.com/ethereum/execution-specs.git}"
+EEST_REF="${EEST_REF:-projects/zkevm-releases}"
 EEST_DIR="$(_eest_dashboard_root_path "${EEST_DIR:-execution-specs}")"
 FILLER_PATH="${FILLER_PATH:-tests/amsterdam/eip8025_optional_proofs}"
 FORK="${FORK:-Amsterdam}"
