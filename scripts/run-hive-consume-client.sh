@@ -21,7 +21,7 @@ UV_CACHE_DIR="${UV_CACHE_DIR:-/tmp/uv-cache}"
 HIVE_READY_ATTEMPTS="${HIVE_READY_ATTEMPTS:-600}"
 HIVE_READY_SLEEP="${HIVE_READY_SLEEP:-2}"
 HIVE_LOG_TAIL_LINES="${HIVE_LOG_TAIL_LINES:-400}"
-HIVE_CONSUME_ALLOW_FAILURE="${HIVE_CONSUME_ALLOW_FAILURE:-0}"
+HIVE_CONSUME_ALLOW_FAILURE="${HIVE_CONSUME_ALLOW_FAILURE:-1}"
 HIVE_DOCKER_OUTPUT="${HIVE_DOCKER_OUTPUT:-all}"
 HIVE_LOG_TO_STDOUT="${HIVE_LOG_TO_STDOUT:-1}"
 RUN_HIVE_SETUP="${RUN_HIVE_SETUP:-1}"
@@ -50,7 +50,7 @@ _run_hive_client_usage() {
     '  RUN_HIVE_SETUP             Set to 0 to skip scripts/setup-hive.sh. Default: 1' \
     '  HIVE_READY_ATTEMPTS        Number of readiness attempts. Default: 600' \
     '  HIVE_READY_SLEEP           Seconds between readiness attempts. Default: 2' \
-    '  HIVE_CONSUME_ALLOW_FAILURE Continue after consume exits non-zero. Default: 0' \
+    '  HIVE_CONSUME_ALLOW_FAILURE Continue after consume exits non-zero. Default: 1' \
     '  HIVE_DOCKER_OUTPUT         Docker output relay mode: all, build, or none. Default: all' \
     '  HIVE_LOG_TO_STDOUT         Tee Hive stdout/stderr to stdout. Default: 1' \
     '  HIVE_LOG_FILE              Hive stdout/stderr log path. Default: result dir hive-dev-CLIENT_ID.log' \

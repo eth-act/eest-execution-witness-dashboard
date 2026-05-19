@@ -24,6 +24,7 @@ EL_CLIENTS=go-ethereum,ethrex
 EL_CLIENT_CONFIG=config/el-clients.json
 EL_CLIENT_OVERRIDES_JSON={}
 HIVE_PARALLELISM=1
+HIVE_CONSUME_ALLOW_FAILURE=1
 HIVE_CLIENT_RESULTS_DIR=hive/workspace/client-results
 SITE_MAX_SIZE_MB=900
 ```
@@ -131,9 +132,10 @@ Per-client Hive results are staged in `HIVE_CLIENT_RESULTS_DIR` and merged into
 `HIVE_RESULTS_DIR` after every selected EL produces at least one top-level
 result JSON. The merged result set fails validation if any result entry contains
 more than one client. On failure, the worker prints the tail of the relevant
-`hive-dev-<client>.log` for startup or client-build debugging. Set
-`HIVE_CONSUME_ALLOW_FAILURE=1` to continue after `consume engine-witness`
-returns non-zero so downstream steps can publish the failure dashboard.
+`hive-dev-<client>.log` for startup or client-build debugging. By default,
+`HIVE_CONSUME_ALLOW_FAILURE=1` continues after `consume engine-witness` returns
+non-zero so downstream steps can publish the failure dashboard. Set it to `0`
+when you want a failing consume run to stop before merge/build.
 Set `HIVE_DOCKER_OUTPUT=build` and `HIVE_LOG_TO_STDOUT=1` to stream Docker
 build output into the console while still writing `hive-dev-<client>.log`.
 

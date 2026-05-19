@@ -98,9 +98,10 @@ run multiple consume tests at once through pytest-xdist.
 This script cleans `HIVE_CLIENT_RESULTS_DIR`, writes each worker's Hive
 stdout/stderr to `hive-dev-<client>.log`, requires every selected EL to produce
 at least one top-level result JSON, then merges everything into
-`HIVE_RESULTS_DIR`. Set `HIVE_CONSUME_ALLOW_FAILURE=1` to keep going after
-`consume engine-witness` exits non-zero, which is useful when publishing a
-dashboard of failing tests. Set `HIVE_DOCKER_OUTPUT=build` and
+`HIVE_RESULTS_DIR`. By default, `HIVE_CONSUME_ALLOW_FAILURE=1` keeps going
+after `consume engine-witness` exits non-zero, which is useful when publishing a
+dashboard of failing tests. Set it to `0` to stop before merge/build on consume
+failure. Set `HIVE_DOCKER_OUTPUT=build` and
 `HIVE_LOG_TO_STDOUT=1` to stream Docker build output into the console while
 still writing the per-client Hive log.
 
