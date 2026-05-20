@@ -139,6 +139,34 @@ when you want a failing consume run to stop before merge/build.
 Set `HIVE_DOCKER_OUTPUT=build` and `HIVE_LOG_TO_STDOUT=1` to stream Docker
 build output into the console while still writing `hive-dev-<client>.log`.
 
+## zkEVM Metrics Conversion
+
+Convert `zkevm-benchmark-workload` output into Hive-compatible result files:
+
+```bash
+python3 scripts/convert-zkevm-metrics-to-hive-results.py \
+  --input /data/code-data/zkevm-benchmark-workload/zkevm-metrics \
+  --output hive/workspace/zkevm-converted-results \
+  --clean-output
+```
+
+To publish both normal Hive runs and converted zkEVM metrics in one site,
+merge the already-Hive-shaped result directories into a staging directory:
+
+```bash
+scripts/merge-hive-result-dirs.sh \
+  --output hive/workspace/combined-results \
+  --clean-output \
+  hive/workspace/logs \
+  hive/workspace/zkevm-converted-results
+```
+
+Then build from the merged result directory:
+
+```bash
+HIVE_RESULTS_DIR=hive/workspace/combined-results scripts/build-site.sh
+```
+
 ## Static Site Build
 
 After Hive results exist, build the static hive-ui site with:

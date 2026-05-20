@@ -19,6 +19,11 @@ Implemented scripts:
   selected EL, and merge per-client results into `HIVE_RESULTS_DIR`.
 - `merge-hive-results.sh`: validate and merge isolated per-client Hive result
   directories without overwriting conflicting files.
+- `merge-hive-result-dirs.sh`: merge directories that already contain
+  Hive-shaped result JSON/log files, such as normal Hive logs plus converted
+  zkEVM metrics.
+- `convert-zkevm-metrics-to-hive-results.py`: convert `zkevm-benchmark-workload`
+  `zkevm-metrics/` output into Hive-compatible result files.
 - `build-site.sh`: generate a static hive-ui site in `SITE_DIR`, write
   `discovery.json` and `listing.jsonl`, copy Hive logs into `results/`, and
   enforce `SITE_MAX_SIZE_MB`.
@@ -104,6 +109,42 @@ dashboard of failing tests. Set it to `0` to stop before merge/build on consume
 failure. Set `HIVE_DOCKER_OUTPUT=build` and
 `HIVE_LOG_TO_STDOUT=1` to stream Docker build output into the console while
 still writing the per-client Hive log.
+
+Convert `zkevm-benchmark-workload` metrics into Hive-compatible results:
+
+```bash
+python3 scripts/convert-zkevm-metrics-to-hive-results.py \
+  --input /data/code-data/zkevm-benchmark-workload/zkevm-metrics \
+  --output hive/workspace/zkevm-converted-results \
+  --clean-output
+```
+
+This writes one result JSON per execution-client/zkVM combination and a
+generated details log for each result. To build a HiveUI site from only those
+converted results:
+
+```bash
+HIVE_RESULTS_DIR=hive/workspace/zkevm-converted-results scripts/build-site.sh
+```
+
+Merge normal Hive results with converted zkEVM metrics:
+
+```bash
+scripts/merge-hive-result-dirs.sh \
+  --output hive/workspace/combined-results \
+  --clean-output \
+  hive/workspace/logs \
+  hive/workspace/zkevm-converted-results
+```
+
+This script is for directories that are already in Hive result format. It
+requires each source to contain at least one top-level suite JSON, rejects
+invalid or multi-client result JSON by default, and refuses to overwrite
+conflicting files. Build a site from the merged output with:
+
+```bash
+HIVE_RESULTS_DIR=hive/workspace/combined-results scripts/build-site.sh
+```
 
 Build the static hive-ui site:
 
