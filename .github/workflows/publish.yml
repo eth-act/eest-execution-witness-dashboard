@@ -47,6 +47,10 @@ on:
         description: EEST consume parallelism.
         required: true
         default: "8"
+      zkevm_benchmark_workload_output_url:
+        description: Optional .tar.gz URL for zkevm-benchmark-workload output. Use none to skip.
+        required: false
+        default: "none"
       max_site_size_mb:
         description: Fail before upload if site/ is larger than this many MiB.
         required: true
@@ -244,6 +248,11 @@ jobs:
       HIVE_RESULTS_DIR: ${{ github.workspace }}/hive/workspace/logs
       HIVE_CLIENT_RESULTS_DIR: ${{ github.workspace }}/hive/workspace/client-results
       HIVE_RESULTS_SOURCE_DIR: ${{ github.workspace }}/hive/workspace/client-results
+      HIVE_COMBINED_RESULTS_DIR: ${{ github.workspace }}/hive/workspace/combined-results
+      ZKEVM_BENCHMARK_WORKLOAD_OUTPUT_URL: ${{ inputs.zkevm_benchmark_workload_output_url }}
+      ZKEVM_BENCHMARK_WORKLOAD_ARCHIVE: ${{ github.workspace }}/hive/workspace/zkevm-benchmark-workload-output.tar.gz
+      ZKEVM_BENCHMARK_WORKLOAD_EXTRACT_DIR: ${{ github.workspace }}/hive/workspace/zkevm-benchmark-workload-output
+      ZKEVM_CONVERTED_RESULTS_DIR: ${{ github.workspace }}/hive/workspace/zkevm-converted-results
       HIVE_SIMULATOR: http://127.0.0.1:3000
       HIVE_PARALLELISM: ${{ inputs.hive_parallelism }}
       SITE_DIR: ${{ github.workspace }}/site
@@ -274,7 +283,7 @@ jobs:
       - name: Install OS prerequisites
         run: |
           sudo apt-get update
-          sudo apt-get install -y jq rsync
+          sudo apt-get install -y curl jq rsync
 
       - name: Prepare Hive checkout for hiveview
         run: scripts/setup-hive.sh
@@ -288,8 +297,132 @@ jobs:
       - name: Merge per-client Hive results
         run: scripts/merge-hive-results.sh
 
+      - name: Download and convert zkEVM benchmark metrics
+        run: |
+          set -Eeuo pipefail
+
+          url="${ZKEVM_BENCHMARK_WORKLOAD_OUTPUT_URL:-none}"
+          case "$(printf '%s' "$url" | tr '[:upper:]' '[:lower:]')" in
+            '' | none | null)
+              echo "No zkEVM benchmark workload output URL provided; skipping conversion."
+              exit 0
+              ;;
+          esac
+
+          rm -rf "$ZKEVM_BENCHMARK_WORKLOAD_EXTRACT_DIR"
+          mkdir -p "$ZKEVM_BENCHMARK_WORKLOAD_EXTRACT_DIR"
+
+          curl --fail --show-error --location \
+            --output "$ZKEVM_BENCHMARK_WORKLOAD_ARCHIVE" \
+            "$url"
+          tar -xzf "$ZKEVM_BENCHMARK_WORKLOAD_ARCHIVE" \
+            -C "$ZKEVM_BENCHMARK_WORKLOAD_EXTRACT_DIR"
+
+          metrics_dir=""
+          if [ -d "$ZKEVM_BENCHMARK_WORKLOAD_EXTRACT_DIR/zkevm-metrics" ]; then
+            metrics_dir="$ZKEVM_BENCHMARK_WORKLOAD_EXTRACT_DIR/zkevm-metrics"
+          else
+            metrics_dir="$(
+              find "$ZKEVM_BENCHMARK_WORKLOAD_EXTRACT_DIR" \
+                -type d \
+                -name zkevm-metrics \
+                -print \
+                -quit
+            )"
+          fi
+
+          if [ -z "$metrics_dir" ]; then
+            metric_file="$(
+              find "$ZKEVM_BENCHMARK_WORKLOAD_EXTRACT_DIR" \
+                -mindepth 3 \
+                -maxdepth 3 \
+                -type f \
+                -name '*.json' \
+                ! -name hardware.json \
+                -print \
+                -quit
+            )"
+            if [ -n "$metric_file" ]; then
+              metrics_dir="$ZKEVM_BENCHMARK_WORKLOAD_EXTRACT_DIR"
+            fi
+          fi
+
+          if [ -z "$metrics_dir" ]; then
+            top_level_dir_count="$(
+              find "$ZKEVM_BENCHMARK_WORKLOAD_EXTRACT_DIR" \
+                -mindepth 1 \
+                -maxdepth 1 \
+                -type d \
+                -print |
+              wc -l
+            )"
+            if [ "$top_level_dir_count" -eq 1 ]; then
+              only_top_level_dir="$(
+                find "$ZKEVM_BENCHMARK_WORKLOAD_EXTRACT_DIR" \
+                  -mindepth 1 \
+                  -maxdepth 1 \
+                  -type d \
+                  -print \
+                  -quit
+              )"
+              metric_file="$(
+                find "$only_top_level_dir" \
+                  -mindepth 3 \
+                  -maxdepth 3 \
+                  -type f \
+                  -name '*.json' \
+                  ! -name hardware.json \
+                  -print \
+                  -quit
+              )"
+              if [ -n "$metric_file" ]; then
+                metrics_dir="$only_top_level_dir"
+              fi
+            fi
+          fi
+
+          if [ -z "$metrics_dir" ]; then
+            echo "Unable to find zkevm-metrics in downloaded archive." >&2
+            echo "Expected zkevm-metrics/<execution-client>/<zkvm>/*.json." >&2
+            exit 1
+          fi
+
+          python3 scripts/convert-zkevm-metrics-to-hive-results.py \
+            --input "$metrics_dir" \
+            --output "$ZKEVM_CONVERTED_RESULTS_DIR" \
+            --clean-output
+
+      - name: Merge Hive and zkEVM results
+        run: |
+          set -Eeuo pipefail
+
+          url="${ZKEVM_BENCHMARK_WORKLOAD_OUTPUT_URL:-none}"
+          case "$(printf '%s' "$url" | tr '[:upper:]' '[:lower:]')" in
+            '' | none | null)
+              echo "No zkEVM converted results to merge."
+              exit 0
+              ;;
+          esac
+
+          scripts/merge-hive-result-dirs.sh \
+            --output "$HIVE_COMBINED_RESULTS_DIR" \
+            --clean-output \
+            "$HIVE_RESULTS_DIR" \
+            "$ZKEVM_CONVERTED_RESULTS_DIR"
+
       - name: Build static hive-ui site
-        run: scripts/build-site.sh
+        run: |
+          set -Eeuo pipefail
+
+          url="${ZKEVM_BENCHMARK_WORKLOAD_OUTPUT_URL:-none}"
+          case "$(printf '%s' "$url" | tr '[:upper:]' '[:lower:]')" in
+            '' | none | null)
+              scripts/build-site.sh
+              ;;
+            *)
+              HIVE_RESULTS_DIR="$HIVE_COMBINED_RESULTS_DIR" scripts/build-site.sh
+              ;;
+          esac
 
       - name: Smoke test generated site
         run: scripts/smoke-site.sh
@@ -305,6 +438,8 @@ jobs:
           path: |
             hive/workspace/client-results
             hive/workspace/logs
+            hive/workspace/combined-results
+            hive/workspace/zkevm-converted-results
             site/discovery.json
             site/listing.jsonl
 

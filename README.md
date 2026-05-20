@@ -225,11 +225,15 @@ scripts/smoke-site.sh
 
 The workflow inputs expose the execution-specs, Hive, and hive-ui repos/refs,
 fixture selection, `EL_CLIENTS`, optional descriptor override JSON, consume
-parallelism, and max site size. In CI, `EL_CLIENTS` is still a comma-separated
-selection, but each selected EL runs in its own matrix job. Missing per-client
-result JSON is treated as an infrastructure failure; ordinary failing tests can
-still publish when `HIVE_CONSUME_ALLOW_FAILURE=1`. Failed runs upload debug
-artifacts containing per-client Hive logs and staged results.
+parallelism, an optional `zkevm_benchmark_workload_output_url` `.tar.gz`, and
+max site size. When the zkEVM URL is not `none`, the workflow downloads it,
+converts the benchmark metrics into Hive-compatible results, merges those with
+the normal Hive consume results, and builds the site from the combined result
+directory. In CI, `EL_CLIENTS` is still a comma-separated selection, but each
+selected EL runs in its own matrix job. Missing per-client result JSON is treated
+as an infrastructure failure; ordinary failing tests can still publish when
+`HIVE_CONSUME_ALLOW_FAILURE=1`. Failed runs upload debug artifacts containing
+per-client Hive logs and staged results.
 
 After the generated site passes the local smoke test, the workflow configures
 GitHub Pages, uploads `site/` as a Pages artifact, deploys it, and runs the
