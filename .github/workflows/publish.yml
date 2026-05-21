@@ -50,7 +50,7 @@ on:
       hive_parallelism:
         description: EEST consume parallelism.
         required: true
-        default: "4"
+        default: "10"
       zkevm_benchmark_workload_output_url:
         description: Optional .tar.gz URL for zkevm-benchmark-workload output. Use none to skip.
         required: false
