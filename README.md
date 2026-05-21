@@ -157,8 +157,10 @@ more than one client. On failure, the worker prints the tail of the relevant
 `HIVE_CONSUME_ALLOW_FAILURE=1` continues after `consume engine-witness` returns
 non-zero so downstream steps can publish the failure dashboard. Set it to `0`
 when you want a failing consume run to stop before merge/build.
-Set `HIVE_DOCKER_OUTPUT=build` and `HIVE_LOG_TO_STDOUT=1` to stream Docker
-build output into the console while still writing `hive-dev-<client>.log`.
+By default, `HIVE_DOCKER_OUTPUT=build` keeps Hive Docker output limited to
+build logs and `HIVE_LOG_TO_STDOUT=0` writes Hive stdout/stderr only to
+`hive-dev-<client>.log`. Set `HIVE_LOG_TO_STDOUT=1` to stream the same log to
+the console.
 
 ## zkEVM Metrics Conversion
 

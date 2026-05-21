@@ -130,7 +130,7 @@ jobs:
 
   consume:
     name: Consume ${{ matrix.hive_client }}
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted-ghr, size-xl-x64]
     needs: prepare
     timeout-minutes: 360
     permissions:

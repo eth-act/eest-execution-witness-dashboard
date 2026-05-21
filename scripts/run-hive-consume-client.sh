@@ -52,8 +52,8 @@ _run_hive_client_usage() {
     '  HIVE_READY_ATTEMPTS        Number of readiness attempts. Default: 600' \
     '  HIVE_READY_SLEEP           Seconds between readiness attempts. Default: 2' \
     '  HIVE_CONSUME_ALLOW_FAILURE Continue after consume exits non-zero. Default: 1' \
-    '  HIVE_DOCKER_OUTPUT         Docker output relay mode: all, build, or none. Default: all' \
-    '  HIVE_LOG_TO_STDOUT         Tee Hive stdout/stderr to stdout. Default: 1' \
+    '  HIVE_DOCKER_OUTPUT         Docker output relay mode: all, build, or none. Default: build' \
+    '  HIVE_LOG_TO_STDOUT         Tee Hive stdout/stderr to stdout. Default: 0' \
     '  HIVE_PRUNE_SKIPPED         Remove pytest-skipped Hive cases from results. Default: 1' \
     '  HIVE_LOG_FILE              Hive stdout/stderr log path. Default: result dir hive-dev-CLIENT_ID.log' \
     '  HIVE_LOG_TAIL_LINES        Lines printed from Hive log on failure. Default: 400'
