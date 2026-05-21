@@ -99,18 +99,15 @@ With the default empty `EEST_RELEASE_TAG`, the script clones or updates
 `fixtures/.meta/index.json` does not include `blockchain_test_engine`.
 
 To use pre-filled EEST release fixtures, set `EEST_RELEASE_TAG` to the exact
-release tag and clear `EEST_REPO` and `EEST_REF`:
+release tag:
 
 ```bash
-EEST_RELEASE_TAG='tests-zkevm@v0.4.2' \
-EEST_REPO= \
-EEST_REF= \
-scripts/prepare-fixtures.sh
+EEST_RELEASE_TAG='tests-zkevm@v0.4.2' scripts/prepare-fixtures.sh
 ```
 
 Release mode checks out `ethereum/execution-specs` at `EEST_RELEASE_TAG` for
-the matching `consume` CLI, then downloads and extracts the single `.tar.gz`
-asset attached to that exact GitHub release.
+the matching `consume` CLI, ignores `EEST_REPO` and `EEST_REF`, then downloads
+and extracts the single `.tar.gz` asset attached to that exact GitHub release.
 
 ## Hive Consume
 
@@ -251,8 +248,8 @@ hive-ui repos/refs, fixture selection, `EL_CLIENTS`, optional descriptor
 override JSON, consume parallelism, an optional
 `zkevm_benchmark_workload_output_url` `.tar.gz`, and max site size. Fill mode
 uses the default empty `eest_release_tag` plus `eest_repo`/`eest_ref`. Release
-mode uses a tag such as `tests-zkevm@v0.4.2`; clear `eest_repo` and
-`eest_ref` in the workflow form so CI can skip fixture filling.
+mode uses a tag such as `tests-zkevm@v0.4.2`; when that tag is set, CI ignores
+`eest_repo` and `eest_ref` so it can skip fixture filling.
 When the zkEVM URL is not `none`,
 the workflow downloads it, converts the benchmark metrics into Hive-compatible
 results, merges those with the normal Hive consume results, and builds the site

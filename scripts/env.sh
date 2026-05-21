@@ -105,6 +105,12 @@ fi
 if [ -z "${EEST_REF+x}" ]; then
   EEST_REF="projects/zkevm-releases"
 fi
+if [ -n "$EEST_RELEASE_TAG" ]; then
+  # workflow_dispatch text inputs with defaults can arrive populated even when
+  # users clear them in the UI. Release mode is selected solely by the tag.
+  EEST_REPO=""
+  EEST_REF=""
+fi
 EEST_DIR="$(_eest_dashboard_root_path "${EEST_DIR:-execution-specs}")"
 FILLER_PATH="${FILLER_PATH:-tests/amsterdam/eip8025_optional_proofs}"
 FORK="${FORK:-Amsterdam}"
@@ -167,19 +173,13 @@ eest_dashboard_eest_source_mode() {
 
 eest_dashboard_validate_eest_source() {
   if [ -n "$EEST_RELEASE_TAG" ]; then
-    if [ -n "$EEST_REPO" ] || [ -n "$EEST_REF" ]; then
-      printf '%s\n' \
-        'error: EEST_RELEASE_TAG is set, so EEST_REPO and EEST_REF must both be empty.' \
-        '       Clear eest_repo and eest_ref when using a pre-filled EEST release.' >&2
-      return 1
-    fi
     return 0
   fi
 
   if [ -z "$EEST_REPO" ] || [ -z "$EEST_REF" ]; then
     printf '%s\n' \
       'error: EEST_RELEASE_TAG is empty, so EEST_REPO and EEST_REF must both be set.' \
-      '       Set eest_repo/eest_ref for fill mode, or set eest_release_tag and clear both.' >&2
+      '       Set eest_repo/eest_ref for fill mode, or set eest_release_tag for release mode.' >&2
     return 1
   fi
 

@@ -63,17 +63,14 @@ The generation command targets `blockchain_test_engine`.
 Prepare pre-filled release fixtures instead of filling locally:
 
 ```bash
-EEST_RELEASE_TAG='tests-zkevm@v0.4.2' \
-EEST_REPO= \
-EEST_REF= \
-scripts/prepare-fixtures.sh
+EEST_RELEASE_TAG='tests-zkevm@v0.4.2' scripts/prepare-fixtures.sh
 ```
 
-When `EEST_RELEASE_TAG` is set, `EEST_REPO` and `EEST_REF` must both be empty.
-The script uses the exact tag supplied by `EEST_RELEASE_TAG`: it checks out
-`ethereum/execution-specs` at that tag for the matching `consume` CLI,
-downloads the single `.tar.gz` asset attached to that GitHub release, extracts
-it into `FIXTURES_DIR`, and validates the downloaded fixtures.
+When `EEST_RELEASE_TAG` is set, the script ignores `EEST_REPO` and `EEST_REF`.
+It uses the exact tag supplied by `EEST_RELEASE_TAG`: it checks out
+`ethereum/execution-specs` at that tag for the matching `consume` CLI, downloads
+the single `.tar.gz` asset attached to that GitHub release, extracts it into
+`FIXTURES_DIR`, and validates the downloaded fixtures.
 
 Prepare `execution-specs` without regenerating fixtures:
 

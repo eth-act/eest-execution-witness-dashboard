@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       eest_release_tag:
-        description: Optional pre-filled EEST release tag, e.g. tests-zkevm@v0.4.2. Clear eest_repo/eest_ref when set.
+        description: Optional pre-filled EEST release tag, e.g. tests-zkevm@v0.4.2. When set, eest_repo/eest_ref are ignored.
         required: false
         default: ""
       eest_repo:
