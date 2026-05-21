@@ -6,7 +6,7 @@
       "nametag": "rlp-engineapi",
       "repo": "https://github.com/jsign/go-ethereum.git",
       "github": "jsign/go-ethereum",
-      "ref": "zkevm-v0.3.4-hive",
+      "ref": "jsign-bal-devnet-7-zkevm",
       "hive_extra_flags": "--bal.executionmode=sequential",
       "managed_patch": "geth-extra-flags",
       "transport": "json-rpc-rlp"
