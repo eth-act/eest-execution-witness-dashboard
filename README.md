@@ -10,6 +10,7 @@ The first implementation pass uses public branch refs rather than immutable
 SHAs or tags. These refs were checked with `git ls-remote` on 2026-05-21:
 
 ```bash
+EEST_RELEASE_TAG=
 EEST_REPO=https://github.com/ethereum/execution-specs.git
 EEST_REF=projects/zkevm-releases
 
@@ -67,6 +68,7 @@ The file can also be run directly:
 ```bash
 scripts/env.sh --print
 scripts/env.sh --check
+scripts/env.sh --validate-eest-source
 ```
 
 ## Local Prerequisites
@@ -85,15 +87,30 @@ containers, so `docker info` should succeed before running the later scripts.
 
 ## Fixture Generation
 
-Generate execution witness fixtures with:
+Prepare execution witness fixtures with:
 
 ```bash
-scripts/fill-fixtures.sh
+scripts/prepare-fixtures.sh
 ```
 
-The script clones or updates `execution-specs` at `EEST_REF`, runs `uv sync`,
-fills `blockchain_test_engine` fixtures into `FIXTURES_DIR`, and fails if
+With the default empty `EEST_RELEASE_TAG`, the script clones or updates
+`execution-specs` at `EEST_REF`, runs `uv sync`, fills
+`blockchain_test_engine` fixtures into `FIXTURES_DIR`, and fails if
 `fixtures/.meta/index.json` does not include `blockchain_test_engine`.
+
+To use pre-filled EEST release fixtures, set `EEST_RELEASE_TAG` to the exact
+release tag and clear `EEST_REPO` and `EEST_REF`:
+
+```bash
+EEST_RELEASE_TAG='tests-zkevm@v0.4.2' \
+EEST_REPO= \
+EEST_REF= \
+scripts/prepare-fixtures.sh
+```
+
+Release mode checks out `ethereum/execution-specs` at `EEST_RELEASE_TAG` for
+the matching `consume` CLI, then downloads and extracts the single `.tar.gz`
+asset attached to that exact GitHub release.
 
 ## Hive Consume
 
@@ -219,7 +236,7 @@ per selected EL client, merges the per-client Hive result artifacts, and then
 builds the same static site:
 
 ```text
-scripts/fill-fixtures.sh
+scripts/prepare-fixtures.sh
 scripts/setup-eest.sh
 scripts/run-hive-consume-client.sh CLIENT_ID
 scripts/merge-hive-results.sh
@@ -227,17 +244,22 @@ scripts/build-site.sh
 scripts/smoke-site.sh
 ```
 
-The workflow inputs expose the execution-specs, Hive, and hive-ui repos/refs,
-fixture selection, `EL_CLIENTS`, optional descriptor override JSON, consume
-parallelism, an optional `zkevm_benchmark_workload_output_url` `.tar.gz`, and
-max site size. When the zkEVM URL is not `none`, the workflow downloads it,
-converts the benchmark metrics into Hive-compatible results, merges those with
-the normal Hive consume results, and builds the site from the combined result
-directory. In CI, `EL_CLIENTS` is still a comma-separated selection, but each
-selected EL runs in its own matrix job. Missing per-client result JSON is treated
-as an infrastructure failure; ordinary failing tests can still publish when
-`HIVE_CONSUME_ALLOW_FAILURE=1`. Failed runs upload debug artifacts containing
-per-client Hive logs and staged results.
+The workflow inputs expose `eest_release_tag`, the execution-specs, Hive, and
+hive-ui repos/refs, fixture selection, `EL_CLIENTS`, optional descriptor
+override JSON, consume parallelism, an optional
+`zkevm_benchmark_workload_output_url` `.tar.gz`, and max site size. Fill mode
+uses the default empty `eest_release_tag` plus `eest_repo`/`eest_ref`. Release
+mode uses a tag such as `tests-zkevm@v0.4.2`; clear `eest_repo` and
+`eest_ref` in the workflow form so CI can skip fixture filling.
+When the zkEVM URL is not `none`,
+the workflow downloads it, converts the benchmark metrics into Hive-compatible
+results, merges those with the normal Hive consume results, and builds the site
+from the combined result directory. In CI, `EL_CLIENTS` is still a
+comma-separated selection, but each selected EL runs in its own matrix job.
+Missing per-client result JSON is treated as an infrastructure failure;
+ordinary failing tests can still publish when `HIVE_CONSUME_ALLOW_FAILURE=1`.
+Failed runs upload debug artifacts containing per-client Hive logs and staged
+results.
 
 After the generated site passes the local smoke test, the workflow configures
 GitHub Pages, uploads `site/` as a Pages artifact, deploys it, and runs the

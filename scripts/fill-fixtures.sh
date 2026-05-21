@@ -87,53 +87,23 @@ _fill_fixtures_generate() {
   (cd "$EEST_DIR" && uv "${fill_args[@]}")
 }
 
-_fill_fixtures_validate() {
-  local engine_dir first_fixture index_path
+_fill_fixtures_validate_source() {
+  eest_dashboard_validate_eest_source
 
-  index_path="$FIXTURES_DIR/.meta/index.json"
-  engine_dir="$FIXTURES_DIR/blockchain_tests_engine"
-
-  _fill_fixtures_log "Validating fixture index"
-
-  if [ ! -f "$index_path" ]; then
-    _fill_fixtures_die "fixture index was not created: $index_path"
+  if [ "$(eest_dashboard_eest_source_mode)" != fill ]; then
+    _fill_fixtures_die 'EEST_RELEASE_TAG is set; use scripts/prepare-fixtures.sh for release-mode fixture downloads'
   fi
-
-  if ! jq -e --arg format "$_fill_fixtures_format" '
-    .fixture_formats as $formats
-    | if ($formats | type) == "array" then
-        any($formats[]; . == $format)
-      elif ($formats | type) == "object" then
-        ($formats | has($format))
-      else
-        false
-      end
-  ' "$index_path" >/dev/null; then
-    printf 'fixture_formats in %s:\n' "$index_path" >&2
-    jq '.fixture_formats' "$index_path" >&2 || true
-    _fill_fixtures_die "fixture index does not include $_fill_fixtures_format"
-  fi
-
-  if [ ! -d "$engine_dir" ]; then
-    _fill_fixtures_die "engine fixture directory was not created: $engine_dir"
-  fi
-
-  first_fixture="$(find "$engine_dir" -type f -print -quit)"
-  if [ -z "$first_fixture" ]; then
-    _fill_fixtures_die "engine fixture directory is empty: $engine_dir"
-  fi
-
-  _fill_fixtures_log "Fixture validation passed"
 }
 
 main() {
   _fill_fixtures_parse_args "$@"
   _fill_fixtures_require_cmd uv uv
   _fill_fixtures_require_cmd jq jq
+  _fill_fixtures_validate_source
 
   "$_fill_fixtures_script_dir/setup-eest.sh"
   _fill_fixtures_generate
-  _fill_fixtures_validate
+  "$_fill_fixtures_script_dir/validate-fixtures.sh"
 }
 
 main "$@"

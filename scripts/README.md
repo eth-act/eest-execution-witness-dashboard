@@ -7,8 +7,13 @@ Implemented scripts:
 
 - `env.sh`: shared defaults and prerequisite checks.
 - `setup-eest.sh`: clone or update `execution-specs` and run `uv sync`.
+  Release mode checks out `EEST_RELEASE_TAG`.
+- `prepare-fixtures.sh`: choose fill mode or release mode and prepare
+  validated fixtures in `FIXTURES_DIR`.
 - `fill-fixtures.sh`: clone or update `execution-specs`, run `uv sync`,
   generate witness fixtures into `FIXTURES_DIR`, and validate the fixture index.
+- `validate-fixtures.sh`: validate an existing fixture directory contains
+  `blockchain_test_engine` fixtures.
 - `setup-hive.sh`: clone or update Hive, build `./hive`, and generate
   `clients-local.yaml` from the selected EL client descriptors.
 - `list-el-clients.sh`: resolve selected EL descriptors and emit table, JSON,
@@ -44,15 +49,31 @@ The same file can be executed directly:
 ```bash
 scripts/env.sh --print
 scripts/env.sh --check
+scripts/env.sh --validate-eest-source
 ```
 
-Generate execution witness fixtures:
+Prepare execution witness fixtures in the default fill mode:
 
 ```bash
-scripts/fill-fixtures.sh
+scripts/prepare-fixtures.sh
 ```
 
 The generation command targets `blockchain_test_engine`.
+
+Prepare pre-filled release fixtures instead of filling locally:
+
+```bash
+EEST_RELEASE_TAG='tests-zkevm@v0.4.2' \
+EEST_REPO= \
+EEST_REF= \
+scripts/prepare-fixtures.sh
+```
+
+When `EEST_RELEASE_TAG` is set, `EEST_REPO` and `EEST_REF` must both be empty.
+The script uses the exact tag supplied by `EEST_RELEASE_TAG`: it checks out
+`ethereum/execution-specs` at that tag for the matching `consume` CLI,
+downloads the single `.tar.gz` asset attached to that GitHub release, extracts
+it into `FIXTURES_DIR`, and validates the downloaded fixtures.
 
 Prepare `execution-specs` without regenerating fixtures:
 
@@ -61,7 +82,8 @@ scripts/setup-eest.sh
 ```
 
 This is used by CI consume jobs after they download the shared fixtures
-artifact.
+artifact. In release mode, the checkout ref is exactly `EEST_RELEASE_TAG`, for
+example `tests-zkevm@v0.4.2`.
 
 Prepare Hive and generate `clients-local.yaml`:
 

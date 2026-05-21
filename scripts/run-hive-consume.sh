@@ -136,11 +136,11 @@ _run_hive_consume_guard_clean_dir() {
 
 _run_hive_consume_validate_inputs() {
   if [ ! -d "$EEST_DIR" ]; then
-    _run_hive_consume_die "execution-specs checkout does not exist; run scripts/fill-fixtures.sh first: $EEST_DIR"
+    _run_hive_consume_die "execution-specs checkout does not exist; run scripts/prepare-fixtures.sh first: $EEST_DIR"
   fi
 
   if [ ! -f "$FIXTURES_DIR/.meta/index.json" ]; then
-    _run_hive_consume_die "fixture index does not exist; run scripts/fill-fixtures.sh first: $FIXTURES_DIR/.meta/index.json"
+    _run_hive_consume_die "fixture index does not exist; run scripts/prepare-fixtures.sh first: $FIXTURES_DIR/.meta/index.json"
   fi
 }
 

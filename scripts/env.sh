@@ -96,8 +96,15 @@ _eest_dashboard_github_slug() {
   printf '%s/%s\n' "$owner" "$repo_name"
 }
 
-EEST_REPO="${EEST_REPO:-https://github.com/ethereum/execution-specs.git}"
-EEST_REF="${EEST_REF:-projects/zkevm-releases}"
+if [ -z "${EEST_RELEASE_TAG+x}" ]; then
+  EEST_RELEASE_TAG=""
+fi
+if [ -z "${EEST_REPO+x}" ]; then
+  EEST_REPO="https://github.com/ethereum/execution-specs.git"
+fi
+if [ -z "${EEST_REF+x}" ]; then
+  EEST_REF="projects/zkevm-releases"
+fi
 EEST_DIR="$(_eest_dashboard_root_path "${EEST_DIR:-execution-specs}")"
 FILLER_PATH="${FILLER_PATH:-tests/amsterdam/eip8025_optional_proofs}"
 FORK="${FORK:-Amsterdam}"
@@ -126,7 +133,7 @@ SITE_DIR="$(_eest_dashboard_root_path "${SITE_DIR:-site}")"
 SITE_MAX_SIZE_MB="${SITE_MAX_SIZE_MB:-900}"
 
 export ROOT_DIR
-export EEST_REPO EEST_REF EEST_DIR
+export EEST_REPO EEST_REF EEST_RELEASE_TAG EEST_DIR
 export HIVE_REPO HIVE_REF HIVE_DIR
 export HIVE_UI_REPO HIVE_UI_REF HIVE_UI_DIR HIVE_UI_DISCOVERY_NAME
 export EL_CLIENT_CONFIG EL_CLIENTS EL_CLIENT_OVERRIDES_JSON
@@ -137,7 +144,7 @@ eest_dashboard_print_env() {
 
   for name in \
     ROOT_DIR \
-    EEST_REPO EEST_REF EEST_DIR \
+    EEST_REPO EEST_REF EEST_RELEASE_TAG EEST_DIR \
     HIVE_REPO HIVE_REF HIVE_DIR \
     HIVE_UI_REPO HIVE_UI_REF HIVE_UI_DIR HIVE_UI_DISCOVERY_NAME \
     EL_CLIENT_CONFIG EL_CLIENTS EL_CLIENT_OVERRIDES_JSON \
@@ -146,6 +153,35 @@ eest_dashboard_print_env() {
     eval "value=\${$name}"
     printf '%s=%s\n' "$name" "$value"
   done
+}
+
+eest_dashboard_eest_source_mode() {
+  if [ -n "$EEST_RELEASE_TAG" ]; then
+    printf '%s\n' release
+  else
+    printf '%s\n' fill
+  fi
+}
+
+eest_dashboard_validate_eest_source() {
+  if [ -n "$EEST_RELEASE_TAG" ]; then
+    if [ -n "$EEST_REPO" ] || [ -n "$EEST_REF" ]; then
+      printf '%s\n' \
+        'error: EEST_RELEASE_TAG is set, so EEST_REPO and EEST_REF must both be empty.' \
+        '       Clear eest_repo and eest_ref when using a pre-filled EEST release.' >&2
+      return 1
+    fi
+    return 0
+  fi
+
+  if [ -z "$EEST_REPO" ] || [ -z "$EEST_REF" ]; then
+    printf '%s\n' \
+      'error: EEST_RELEASE_TAG is empty, so EEST_REPO and EEST_REF must both be set.' \
+      '       Set eest_repo/eest_ref for fill mode, or set eest_release_tag and clear both.' >&2
+    return 1
+  fi
+
+  return 0
 }
 
 _eest_dashboard_require_cmd() {
@@ -234,7 +270,8 @@ _eest_dashboard_usage() {
     '  eest_dashboard_check_prereqs' \
     '' \
     '  scripts/env.sh --print' \
-    '  scripts/env.sh --check'
+    '  scripts/env.sh --check' \
+    '  scripts/env.sh --validate-eest-source'
 }
 
 if ! _eest_dashboard_is_sourced; then
@@ -245,6 +282,10 @@ if ! _eest_dashboard_is_sourced; then
       ;;
     --check)
       eest_dashboard_check_prereqs
+      exit $?
+      ;;
+    --validate-eest-source)
+      eest_dashboard_validate_eest_source
       exit $?
       ;;
     --help | -h)
