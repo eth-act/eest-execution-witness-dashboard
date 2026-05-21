@@ -26,8 +26,9 @@ _merge_hive_result_dirs_usage() {
     '' \
     'Merge already-Hive-shaped result directories into one output directory.' \
     '' \
-    'Each SOURCE_DIR must contain at least one top-level Hive suite JSON and may' \
-    'contain referenced logs, details/, and client log subdirectories.' \
+    'Each SOURCE_DIR may contain top-level Hive suite JSON plus referenced' \
+    'logs, details/, and client log subdirectories. Sources with no suite JSON' \
+    'are skipped, which allows all-skipped Hive consume outputs.' \
     '' \
     'Options:' \
     '  --output DIR            Output directory. Default: HIVE_RESULTS_DIR from scripts/env.sh.' \
@@ -187,10 +188,6 @@ _merge_hive_result_dirs_validate_source() {
     _merge_hive_result_dirs_die "source directory does not exist: $source"
   fi
 
-  if [ -z "$(_merge_hive_result_dirs_first_suite_json "$source")" ]; then
-    _merge_hive_result_dirs_die "source has no top-level Hive suite JSON: $source"
-  fi
-
   invalid_json="$(
     find "$source" -maxdepth 1 -type f -name '*.json' \
       ! -name 'hive.json' \
@@ -289,6 +286,13 @@ main() {
     fi
     if _merge_hive_result_dirs_path_contains "$_merge_hive_result_dirs_output" "$normalized_source"; then
       _merge_hive_result_dirs_die "source must not be inside output: $normalized_source"
+    fi
+    if [ ! -d "$normalized_source" ]; then
+      _merge_hive_result_dirs_die "source directory does not exist: $normalized_source"
+    fi
+    if [ -z "$(_merge_hive_result_dirs_first_suite_json "$normalized_source")" ]; then
+      _merge_hive_result_dirs_log "Skipping source with no top-level Hive suite JSON: $normalized_source"
+      continue
     fi
     _merge_hive_result_dirs_validate_source "$normalized_source"
     normalized_sources+=("$normalized_source")

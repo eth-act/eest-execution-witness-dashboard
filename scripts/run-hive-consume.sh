@@ -34,6 +34,7 @@ _run_hive_consume_usage() {
     'Additional overrides passed through to the worker:' \
     '  HIVE_READY_ATTEMPTS, HIVE_READY_SLEEP, HIVE_CONSUME_ALLOW_FAILURE' \
     '  HIVE_DOCKER_OUTPUT, HIVE_LOG_TO_STDOUT, HIVE_LOG_TAIL_LINES' \
+    '  HIVE_PRUNE_SKIPPED         Remove pytest-skipped Hive cases. Default: 1' \
     '  RUN_HIVE_SETUP             Set to 0 to skip the initial setup-hive.sh. Default: 1'
 }
 

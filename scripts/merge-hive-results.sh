@@ -149,19 +149,52 @@ _merge_hive_results_source_dir_for() {
   return 1
 }
 
+_merge_hive_results_first_suite_json() {
+  find "$1" -maxdepth 1 -type f -name '*.json' \
+    ! -name 'hive.json' \
+    ! -name 'errorReport.json' \
+    ! -name 'containerErrorReport.json' \
+    ! -name '.*' \
+    -print -quit
+}
+
+_merge_hive_results_all_results_pruned() {
+  local summary_file
+
+  summary_file="$1/.eest-prune-skipped-summary"
+  [ -f "$summary_file" ] || return 1
+
+  jq -e '
+    (.suite_files_seen | type == "number")
+    and (.suite_files_seen > 0)
+    and (.suite_files_removed | type == "number")
+    and (.suite_files_removed > 0)
+    and (.test_cases_pruned | type == "number")
+    and (.test_cases_pruned > 0)
+  ' "$summary_file" >/dev/null
+}
+
 _merge_hive_results_validate_client_dir() {
-  local client_dir full_name invalid_json json_count
+  local client_dir first_json full_name invalid_json
 
   client_dir="$1"
   full_name="$2"
 
-  json_count="$(find "$client_dir" -maxdepth 1 -type f -name '*.json' | wc -l | tr -d ' ')"
-  if [ "$json_count" -eq 0 ]; then
+  first_json="$(_merge_hive_results_first_suite_json "$client_dir")"
+  if [ -z "$first_json" ]; then
+    if _merge_hive_results_all_results_pruned "$client_dir"; then
+      return 2
+    fi
     _merge_hive_results_die "client $full_name did not produce any top-level Hive result JSON in $client_dir"
   fi
 
   invalid_json="$(
-    find "$client_dir" -maxdepth 1 -type f -name '*.json' -print0 |
+    find "$client_dir" -maxdepth 1 -type f -name '*.json' \
+      ! -name 'hive.json' \
+      ! -name 'errorReport.json' \
+      ! -name 'containerErrorReport.json' \
+      ! -name '.*' \
+      -print0 |
       while IFS= read -r -d '' result_json; do
         if ! jq -e --arg client "$full_name" '
           ((.clients // (.clientVersions | keys_unsorted) // [])) as $clients
@@ -205,7 +238,12 @@ _merge_hive_results_validate_final_dir() {
   local invalid_json
 
   invalid_json="$(
-    find "$HIVE_RESULTS_DIR" -maxdepth 1 -type f -name '*.json' -print0 |
+    find "$HIVE_RESULTS_DIR" -maxdepth 1 -type f -name '*.json' \
+      ! -name 'hive.json' \
+      ! -name 'errorReport.json' \
+      ! -name 'containerErrorReport.json' \
+      ! -name '.*' \
+      -print0 |
       while IFS= read -r -d '' result_json; do
         if ! jq -e '
           ((.clients // (.clientVersions | keys_unsorted) // [])) as $clients
@@ -224,7 +262,7 @@ _merge_hive_results_validate_final_dir() {
 }
 
 main() {
-  local client_dir descriptor full_name id resolved source_root
+  local client_dir descriptor full_name id resolved source_root validate_status
 
   _merge_hive_results_parse_args "$@"
   _merge_hive_results_require_cmd jq jq
@@ -259,7 +297,15 @@ main() {
     fi
 
     _merge_hive_results_log "Merging results for $full_name from $client_dir"
-    _merge_hive_results_validate_client_dir "$client_dir" "$full_name"
+    validate_status=0
+    _merge_hive_results_validate_client_dir "$client_dir" "$full_name" || validate_status=$?
+    if [ "$validate_status" -eq 2 ]; then
+      _merge_hive_results_log "Skipping $full_name because only skipped Hive cases were produced"
+      continue
+    fi
+    if [ "$validate_status" -ne 0 ]; then
+      exit "$validate_status"
+    fi
     _merge_hive_results_copy_tree "$client_dir"
   done < <(jq -c '.[]' <<< "$resolved")
 

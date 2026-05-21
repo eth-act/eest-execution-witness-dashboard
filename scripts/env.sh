@@ -111,7 +111,7 @@ HIVE_UI_DIR="$(_eest_dashboard_root_path "${HIVE_UI_DIR:-hive-ui}")"
 HIVE_UI_DISCOVERY_NAME="${HIVE_UI_DISCOVERY_NAME:-execution-witness}"
 
 EL_CLIENT_CONFIG="$(_eest_dashboard_root_path "${EL_CLIENT_CONFIG:-config/el-clients.json}")"
-EL_CLIENTS="${EL_CLIENTS:-go-ethereum,ethrex}"
+EL_CLIENTS="${EL_CLIENTS:-go-ethereum,ethrex,nethermind}"
 if [ -z "${EL_CLIENT_OVERRIDES_JSON+x}" ] || [ -z "$EL_CLIENT_OVERRIDES_JSON" ]; then
   EL_CLIENT_OVERRIDES_JSON="{}"
 fi

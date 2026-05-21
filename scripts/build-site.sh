@@ -205,6 +205,16 @@ _build_site_first_suite_json() {
     -print -quit
 }
 
+_build_site_has_listable_results() {
+  local first_result
+
+  if ! first_result="$(_build_site_first_suite_json "$1")"; then
+    _build_site_die "unable to scan Hive results directory: $1"
+  fi
+
+  [ -n "$first_result" ]
+}
+
 _build_site_assert_listable_results() {
   local dir first_result phase
 
@@ -302,7 +312,9 @@ _build_site_validate_inputs() {
     _build_site_die "Hive results directory does not exist; run scripts/run-hive-consume.sh first: $HIVE_RESULTS_DIR"
   fi
 
-  _build_site_assert_listable_results 'during input validation' "$HIVE_RESULTS_DIR"
+  if ! _build_site_has_listable_results "$HIVE_RESULTS_DIR"; then
+    _build_site_log "Hive results directory has no non-skipped suite JSON: $HIVE_RESULTS_DIR"
+  fi
 }
 
 _build_site_reset_site_dir() {
@@ -360,7 +372,11 @@ _build_site_generate_listing() {
   tmp="$SITE_DIR/listing.jsonl.tmp"
 
   _build_site_log "Generating listing.jsonl"
-  _build_site_assert_listable_results 'before listing generation' "$listing_source"
+  if ! _build_site_has_listable_results "$listing_source"; then
+    _build_site_log "No non-skipped Hive suite JSON found; writing empty listing.jsonl"
+    : > "$SITE_DIR/listing.jsonl"
+    return
+  fi
 
   if ! (
     cd "$HIVE_DIR"
@@ -380,7 +396,6 @@ _build_site_generate_listing() {
 
 _build_site_copy_results() {
   _build_site_log "Copying Hive results into static site"
-  _build_site_assert_listable_results 'before copying into static site' "$HIVE_RESULTS_DIR"
   mkdir -p "$SITE_DIR/results"
   rsync -a --delete "$HIVE_RESULTS_DIR"/ "$SITE_DIR/results"/
 }
@@ -407,8 +422,7 @@ _build_site_write_discovery() {
 
 _build_site_validate_single_client_listing() {
   if ! jq -s -e '
-    length > 0
-    and all(.[]; (.clients | type == "array" and length == 1))
+    all(.[]; (.clients | type == "array" and length == 1))
   ' "$SITE_DIR/listing.jsonl" >/dev/null; then
     _build_site_die "listing.jsonl must contain only per-client result entries with exactly one client"
   fi
@@ -417,8 +431,8 @@ _build_site_validate_single_client_listing() {
 _build_site_validate_output() {
   local first_copied_result first_listing_result max_size_kb site_size_kb site_size_mb
 
-  if [ ! -s "$SITE_DIR/listing.jsonl" ]; then
-    _build_site_die "listing.jsonl was not created or is empty: $SITE_DIR/listing.jsonl"
+  if [ ! -e "$SITE_DIR/listing.jsonl" ]; then
+    _build_site_die "listing.jsonl was not created: $SITE_DIR/listing.jsonl"
   fi
 
   if [ ! -s "$SITE_DIR/index.html" ]; then
@@ -437,7 +451,7 @@ _build_site_validate_output() {
     _build_site_die "discovery.json is not a valid hive-ui discovery file: $SITE_DIR/discovery.json"
   fi
 
-  if ! jq -e . "$SITE_DIR/listing.jsonl" >/dev/null; then
+  if [ -s "$SITE_DIR/listing.jsonl" ] && ! jq -e . "$SITE_DIR/listing.jsonl" >/dev/null; then
     _build_site_die "listing.jsonl is not valid JSON lines: $SITE_DIR/listing.jsonl"
   fi
   _build_site_validate_single_client_listing
@@ -449,7 +463,7 @@ _build_site_validate_output() {
 
   first_copied_result="$(find "$SITE_DIR/results" -type f -print -quit)"
   if [ -z "$first_copied_result" ]; then
-    _build_site_die "results directory was not populated: $SITE_DIR/results"
+    _build_site_log "No non-skipped Hive result files were copied into $SITE_DIR/results"
   fi
 
   site_size_kb="$(du -sk "$SITE_DIR" | awk '{print $1}')"

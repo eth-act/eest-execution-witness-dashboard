@@ -7,7 +7,7 @@ Static dashboard scaffolding for publishing execution witness Hive results with
 ## Phase 1 Defaults
 
 The first implementation pass uses public branch refs rather than immutable
-SHAs or tags. These refs were checked with `git ls-remote` on 2026-05-15:
+SHAs or tags. These refs were checked with `git ls-remote` on 2026-05-21:
 
 ```bash
 EEST_REPO=https://github.com/ethereum/execution-specs.git
@@ -20,7 +20,7 @@ HIVE_UI_REPO=https://github.com/ethpandaops/hive-ui.git
 HIVE_UI_REF=b5441f735366a4f7d13575a020ccd6517d7ecaf3
 HIVE_UI_DISCOVERY_NAME=execution-witness
 
-EL_CLIENTS=go-ethereum,ethrex
+EL_CLIENTS=go-ethereum,ethrex,nethermind
 EL_CLIENT_CONFIG=config/el-clients.json
 EL_CLIENT_OVERRIDES_JSON={}
 HIVE_PARALLELISM=1
@@ -37,6 +37,9 @@ Default EL descriptors:
 - `ethrex`: `https://github.com/jsign/ethrex.git` at
   `jsign-engine-newpayload-with-witness-v5`, built through Hive's
   `clients/ethrex/Dockerfile.git`.
+- `nethermind`: `https://github.com/Dyslex7c/nethermind.git` at
+  `new-payload-with-witness-ssz`, built through Hive's
+  `clients/nethermind/Dockerfile.git` and selected for RLP JSON-RPC mode.
 
 Generated work directories are ignored by git:
 
@@ -100,10 +103,11 @@ Prepare Hive and generate `hive/clients-local.yaml`:
 scripts/setup-hive.sh
 ```
 
-The default `EL_CLIENTS=go-ethereum,ethrex` selects both execution clients, but
-the dashboard now runs each selected EL independently. This produces one Hive
-result entry per EL client, matching the shape expected by hive-ui's grouping
-views. Use `EL_CLIENTS=go-ethereum` or `EL_CLIENTS=ethrex` to run a subset.
+The default `EL_CLIENTS=go-ethereum,ethrex,nethermind` selects every default
+execution client, but the dashboard now runs each selected EL independently.
+This produces one Hive result entry per EL client, matching the shape expected
+by hive-ui's grouping views. Use `EL_CLIENTS=go-ethereum`, `EL_CLIENTS=ethrex`,
+or `EL_CLIENTS=nethermind` to run a subset.
 
 `EL_CLIENT_OVERRIDES_JSON` can override descriptor fields without editing the
 tracked config, for example:

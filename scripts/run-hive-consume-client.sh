@@ -24,6 +24,7 @@ HIVE_LOG_TAIL_LINES="${HIVE_LOG_TAIL_LINES:-400}"
 HIVE_CONSUME_ALLOW_FAILURE="${HIVE_CONSUME_ALLOW_FAILURE:-1}"
 HIVE_DOCKER_OUTPUT="${HIVE_DOCKER_OUTPUT:-all}"
 HIVE_LOG_TO_STDOUT="${HIVE_LOG_TO_STDOUT:-1}"
+HIVE_PRUNE_SKIPPED="${HIVE_PRUNE_SKIPPED:-1}"
 RUN_HIVE_SETUP="${RUN_HIVE_SETUP:-1}"
 HIVE_CONSUME_CLIENT_ID="${HIVE_CONSUME_CLIENT_ID:-}"
 export UV_CACHE_DIR HIVE_SIMULATOR HIVE_PARALLELISM
@@ -53,6 +54,7 @@ _run_hive_client_usage() {
     '  HIVE_CONSUME_ALLOW_FAILURE Continue after consume exits non-zero. Default: 1' \
     '  HIVE_DOCKER_OUTPUT         Docker output relay mode: all, build, or none. Default: all' \
     '  HIVE_LOG_TO_STDOUT         Tee Hive stdout/stderr to stdout. Default: 1' \
+    '  HIVE_PRUNE_SKIPPED         Remove pytest-skipped Hive cases from results. Default: 1' \
     '  HIVE_LOG_FILE              Hive stdout/stderr log path. Default: result dir hive-dev-CLIENT_ID.log' \
     '  HIVE_LOG_TAIL_LINES        Lines printed from Hive log on failure. Default: 400'
 }
@@ -431,11 +433,53 @@ _run_hive_client_run_consume() {
   return "$status"
 }
 
+_run_hive_client_prune_skipped_results() {
+  local summary_file
+
+  summary_file="$_run_hive_client_result_dir/.eest-prune-skipped-summary"
+
+  case "$HIVE_PRUNE_SKIPPED" in
+    1 | true | yes)
+      _run_hive_client_require_cmd python3 Python
+      _run_hive_client_log "Pruning pytest-skipped Hive cases"
+      python3 "$_run_hive_client_script_dir/prune-skipped-hive-results.py" \
+        --summary-file "$summary_file" \
+        "$_run_hive_client_result_dir"
+      ;;
+    0 | false | no)
+      _run_hive_client_log "Keeping pytest-skipped Hive cases because HIVE_PRUNE_SKIPPED=$HIVE_PRUNE_SKIPPED"
+      ;;
+    *)
+      _run_hive_client_die "unsupported HIVE_PRUNE_SKIPPED: $HIVE_PRUNE_SKIPPED (expected 1 or 0)"
+      ;;
+  esac
+}
+
+_run_hive_client_all_results_pruned() {
+  local summary_file
+
+  summary_file="$_run_hive_client_result_dir/.eest-prune-skipped-summary"
+  [ -f "$summary_file" ] || return 1
+
+  jq -e '
+    (.suite_files_seen | type == "number")
+    and (.suite_files_seen > 0)
+    and (.suite_files_removed | type == "number")
+    and (.suite_files_removed > 0)
+    and (.test_cases_pruned | type == "number")
+    and (.test_cases_pruned > 0)
+  ' "$summary_file" >/dev/null
+}
+
 _run_hive_client_validate_results() {
   local first_json invalid_json json_count
 
   first_json="$(find "$_run_hive_client_result_dir" -maxdepth 1 -type f -name '*.json' -print -quit)"
   if [ -z "$first_json" ]; then
+    if _run_hive_client_all_results_pruned; then
+      _run_hive_client_log "No non-skipped result JSON remains for $_run_hive_client_full_name"
+      return 0
+    fi
     _run_hive_client_die "client $_run_hive_client_full_name did not produce a top-level Hive result JSON in $_run_hive_client_result_dir"
   fi
 
@@ -477,6 +521,7 @@ main() {
   _run_hive_client_start_hive
   _run_hive_client_wait_for_hive
   _run_hive_client_run_consume
+  _run_hive_client_prune_skipped_results
   _run_hive_client_validate_results
 
   _run_hive_client_log "Hive consume run complete for $_run_hive_client_full_name"

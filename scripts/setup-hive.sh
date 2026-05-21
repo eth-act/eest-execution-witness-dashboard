@@ -29,7 +29,7 @@ _setup_hive_usage() {
     '  HIVE_REPO, HIVE_REF, HIVE_DIR' \
     '  EL_CLIENT_CONFIG, EL_CLIENTS, EL_CLIENT_OVERRIDES_JSON' \
     '' \
-    'EL_CLIENTS is a comma-separated list of descriptor ids. Default: go-ethereum,ethrex.' \
+    'EL_CLIENTS is a comma-separated list of descriptor ids. Default: go-ethereum,ethrex,nethermind.' \
     'EL_CLIENT_OVERRIDES_JSON may be either {"id": {...}} or {"clients": {"id": {...}}}.'
 }
 

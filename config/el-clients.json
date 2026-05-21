@@ -19,6 +19,15 @@
       "github": "jsign/ethrex",
       "ref": "jsign-engine-newpayload-with-witness-v5",
       "transport": "json-rpc-rlp"
+    },
+    "nethermind": {
+      "hive_client": "nethermind",
+      "dockerfile": "git",
+      "nametag": "rlp-engineapi",
+      "repo": "https://github.com/Dyslex7c/nethermind.git",
+      "github": "Dyslex7c/nethermind",
+      "ref": "new-payload-with-witness-ssz",
+      "transport": "json-rpc-rlp"
     }
   }
 }

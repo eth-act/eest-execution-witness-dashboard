@@ -38,7 +38,7 @@ on:
       el_clients:
         description: Comma-separated EL client descriptor ids to run independently.
         required: true
-        default: go-ethereum,ethrex
+        default: go-ethereum,ethrex,nethermind
       el_client_overrides_json:
         description: 'JSON descriptor overrides, e.g. {"ethrex":{"ref":"branch"}}.'
         required: false
