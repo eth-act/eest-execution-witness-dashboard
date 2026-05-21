@@ -50,7 +50,7 @@ on:
       hive_parallelism:
         description: EEST consume parallelism.
         required: true
-        default: "10"
+        default: "16"
       zkevm_benchmark_workload_output_url:
         description: Optional .tar.gz URL for zkevm-benchmark-workload output. Use none to skip.
         required: false
@@ -123,16 +123,16 @@ jobs:
       - name: Upload fixtures artifact
         uses: actions/upload-artifact@v7
         with:
-          name: execution-witness-fixtures
           retention-days: 1
           if-no-files-found: error
           path: fixtures.tar.gz
+          archive: false
 
   consume:
     name: Consume ${{ matrix.hive_client }}
     runs-on: [self-hosted-ghr, size-xl-x64]
     needs: prepare
-    timeout-minutes: 360
+    timeout-minutes: 7200
     permissions:
       contents: read
     strategy:
@@ -187,9 +187,9 @@ jobs:
           sudo apt-get install -y jq
 
       - name: Download fixtures artifact
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
-          name: execution-witness-fixtures
+          name: fixtures.tar.gz
           path: .
 
       - name: Extract fixtures artifact
