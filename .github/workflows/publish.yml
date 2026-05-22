@@ -286,7 +286,7 @@ jobs:
       - name: Install OS prerequisites
         run: |
           sudo apt-get update
-          sudo apt-get install -y pkg-config
+          sudo apt-get install -y libssl-dev pkg-config
 
       - name: Download fixtures artifact
         uses: actions/download-artifact@v8
