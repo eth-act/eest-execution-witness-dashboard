@@ -19,7 +19,7 @@ FILL_TEST_NAME="${FILL_TEST_NAME-auto}"
 UV_CACHE_DIR="${UV_CACHE_DIR:-/tmp/uv-cache}"
 export UV_CACHE_DIR
 
-_fill_fixtures_format=blockchain_test_engine
+_fill_fixtures_format='blockchain_test or blockchain_test_engine'
 
 _fill_fixtures_usage() {
   printf '%s\n' \
@@ -27,7 +27,7 @@ _fill_fixtures_usage() {
     '' \
     'Clone or update execution-specs, install Python dependencies with uv,' \
     'generate execution witness fixtures into FIXTURES_DIR, and validate' \
-    'that the fixture index includes blockchain_test_engine.' \
+    'that the fixture index includes blockchain_test and blockchain_test_engine.' \
     '' \
     'Environment overrides from scripts/env.sh:' \
     '  EEST_REPO, EEST_REF, EEST_DIR, FILLER_PATH, FORK, FIXTURES_DIR' \

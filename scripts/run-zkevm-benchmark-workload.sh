@@ -134,6 +134,10 @@ _run_zkevm_validate() {
   if [ ! -d "$FIXTURES_DIR" ]; then
     _run_zkevm_die "FIXTURES_DIR does not exist: $FIXTURES_DIR"
   fi
+  if { [ -f "$FIXTURES_DIR/.meta/index.json" ] || [ -d "$FIXTURES_DIR/blockchain_tests_engine" ]; } &&
+    [ ! -d "$FIXTURES_DIR/blockchain_tests" ]; then
+    _run_zkevm_die "FIXTURES_DIR is an EEST fixture bundle but does not contain blockchain_tests; zkevm-benchmark-workload requires blockchain_test fixtures"
+  fi
 }
 
 _run_zkevm_prepare_output() {

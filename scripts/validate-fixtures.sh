@@ -15,13 +15,13 @@ fi
 # shellcheck source=scripts/env.sh
 . "$_validate_fixtures_script_dir/env.sh"
 
-_validate_fixtures_format=blockchain_test_engine
+_validate_fixtures_formats=(blockchain_test blockchain_test_engine)
 
 _validate_fixtures_usage() {
   printf '%s\n' \
     'Usage: scripts/validate-fixtures.sh' \
     '' \
-    'Validate that FIXTURES_DIR contains blockchain_test_engine fixtures.' \
+    'Validate that FIXTURES_DIR contains blockchain_test and blockchain_test_engine fixtures.' \
     '' \
     'Environment overrides from scripts/env.sh:' \
     '  FIXTURES_DIR'
@@ -63,19 +63,27 @@ _validate_fixtures_parse_args() {
   done
 }
 
-_validate_fixtures_validate() {
-  local engine_dir first_fixture index_path
+_validate_fixtures_dir_for_format() {
+  case "$1" in
+    blockchain_test)
+      printf '%s\n' "$FIXTURES_DIR/blockchain_tests"
+      ;;
+    blockchain_test_engine)
+      printf '%s\n' "$FIXTURES_DIR/blockchain_tests_engine"
+      ;;
+    *)
+      _validate_fixtures_die "unsupported fixture format validation: $1"
+      ;;
+  esac
+}
 
-  index_path="$FIXTURES_DIR/.meta/index.json"
-  engine_dir="$FIXTURES_DIR/blockchain_tests_engine"
+_validate_fixtures_index_has_format() {
+  local format index_path
 
-  _validate_fixtures_log "Validating fixture index"
+  index_path="$1"
+  format="$2"
 
-  if [ ! -f "$index_path" ]; then
-    _validate_fixtures_die "fixture index does not exist: $index_path"
-  fi
-
-  if ! jq -e --arg format "$_validate_fixtures_format" '
+  jq -e --arg format "$format" '
     .fixture_formats as $formats
     | if ($formats | type) == "array" then
         any($formats[]; . == $format)
@@ -84,20 +92,46 @@ _validate_fixtures_validate() {
       else
         false
       end
-  ' "$index_path" >/dev/null; then
+  ' "$index_path" >/dev/null
+}
+
+_validate_fixtures_validate_format() {
+  local first_fixture fixture_dir format index_path
+
+  index_path="$1"
+  format="$2"
+  fixture_dir="$(_validate_fixtures_dir_for_format "$format")"
+
+  if ! _validate_fixtures_index_has_format "$index_path" "$format"; then
     printf 'fixture_formats in %s:\n' "$index_path" >&2
     jq '.fixture_formats' "$index_path" >&2 || true
-    _validate_fixtures_die "fixture index does not include $_validate_fixtures_format"
+    _validate_fixtures_die "fixture index does not include $format"
   fi
 
-  if [ ! -d "$engine_dir" ]; then
-    _validate_fixtures_die "engine fixture directory does not exist: $engine_dir"
+  if [ ! -d "$fixture_dir" ]; then
+    _validate_fixtures_die "$format fixture directory does not exist: $fixture_dir"
   fi
 
-  first_fixture="$(find "$engine_dir" -type f -print -quit)"
+  first_fixture="$(find "$fixture_dir" -type f -print -quit)"
   if [ -z "$first_fixture" ]; then
-    _validate_fixtures_die "engine fixture directory is empty: $engine_dir"
+    _validate_fixtures_die "$format fixture directory is empty: $fixture_dir"
   fi
+}
+
+_validate_fixtures_validate() {
+  local format index_path
+
+  index_path="$FIXTURES_DIR/.meta/index.json"
+
+  _validate_fixtures_log "Validating fixture index"
+
+  if [ ! -f "$index_path" ]; then
+    _validate_fixtures_die "fixture index does not exist: $index_path"
+  fi
+
+  for format in "${_validate_fixtures_formats[@]}"; do
+    _validate_fixtures_validate_format "$index_path" "$format"
+  done
 
   _validate_fixtures_log "Fixture validation passed"
 }

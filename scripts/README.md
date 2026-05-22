@@ -13,7 +13,7 @@ Implemented scripts:
 - `fill-fixtures.sh`: clone or update `execution-specs`, run `uv sync`,
   generate witness fixtures into `FIXTURES_DIR`, and validate the fixture index.
 - `validate-fixtures.sh`: validate an existing fixture directory contains
-  `blockchain_test_engine` fixtures.
+  both `blockchain_test` and `blockchain_test_engine` fixtures.
 - `setup-hive.sh`: clone or update Hive, build `./hive`, and generate
   `clients-local.yaml` from the selected EL client descriptors.
 - `list-el-clients.sh`: resolve selected EL descriptors and emit table, JSON,
@@ -66,7 +66,8 @@ Prepare execution witness fixtures in the default fill mode:
 scripts/prepare-fixtures.sh
 ```
 
-The generation command targets `blockchain_test_engine`.
+The generation command targets both `blockchain_test` and
+`blockchain_test_engine`.
 
 Prepare pre-filled release fixtures instead of filling locally:
 
