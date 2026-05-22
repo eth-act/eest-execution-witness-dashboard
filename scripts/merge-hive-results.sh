@@ -220,6 +220,11 @@ _merge_hive_results_copy_tree() {
 
   while IFS= read -r -d '' result_file; do
     rel="${result_file#$client_dir/}"
+    case "$rel" in
+      .eest-prune-skipped-summary)
+        continue
+        ;;
+    esac
     target_file="$HIVE_RESULTS_DIR/$rel"
 
     if [ -e "$target_file" ]; then
