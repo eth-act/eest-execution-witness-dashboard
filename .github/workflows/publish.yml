@@ -275,6 +275,7 @@ jobs:
       ZKEVM_METRICS_DIR: ${{ github.workspace }}/zkevm-metrics
       GITHUB_TOKEN: ${{ github.token }}
       GH_TOKEN: ${{ github.token }}
+      ERE_IMAGE_REGISTRY: ghcr.io/eth-act/ere
 
     steps:
       - name: Checkout dashboard repository
