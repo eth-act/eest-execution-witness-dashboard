@@ -51,10 +51,26 @@ on:
         description: EEST consume parallelism.
         required: true
         default: "16"
-      zkevm_benchmark_workload_output_url:
-        description: Optional .tar.gz URL for zkevm-benchmark-workload output. Use none to skip.
+      zkevm_benchmark_workload_repo:
+        description: zkevm-benchmark-workload repository URL.
         required: false
-        default: "none"
+        default: https://github.com/eth-act/zkevm-benchmark-workload.git
+      zkevm_benchmark_workload_ref:
+        description: zkevm-benchmark-workload branch, tag, or commit.
+        required: false
+        default: jsign-eest-format-support
+      zkevm_workload_execution_clients:
+        description: Comma-separated zkevm-benchmark-workload execution clients.
+        required: true
+        default: ethrex,reth
+      zkevm_workload_zkvms:
+        description: Comma-separated zkVMs to run in zkevm-benchmark-workload.
+        required: true
+        default: zisk
+      zkevm_rayon_threads:
+        description: RAYON_NUM_THREADS for zkevm-benchmark-workload runs.
+        required: true
+        default: "10"
       max_site_size_mb:
         description: Fail before upload if site/ is larger than this many MiB.
         required: true
@@ -66,13 +82,14 @@ concurrency:
 
 jobs:
   prepare:
-    name: Prepare fixtures and client matrix
+    name: Prepare fixtures and matrices
     runs-on: ubuntu-latest
     timeout-minutes: 120
     permissions:
       contents: read
     outputs:
       client_matrix: ${{ steps.clients.outputs.matrix }}
+      zkevm_matrix: ${{ steps.zkevm.outputs.matrix }}
     env:
       ROOT_DIR: ${{ github.workspace }}
       EEST_REPO: ${{ inputs.eest_repo }}
@@ -83,6 +100,8 @@ jobs:
       FORK: ${{ inputs.fork }}
       EL_CLIENTS: ${{ inputs.el_clients }}
       EL_CLIENT_OVERRIDES_JSON: ${{ inputs.el_client_overrides_json }}
+      ZKEVM_WORKLOAD_EXECUTION_CLIENTS: ${{ inputs.zkevm_workload_execution_clients }}
+      ZKEVM_WORKLOAD_ZKVMS: ${{ inputs.zkevm_workload_zkvms }}
       FIXTURES_DIR: ${{ github.workspace }}/fixtures
       UV_CACHE_DIR: /tmp/uv-cache
 
@@ -114,6 +133,13 @@ jobs:
           matrix="$(scripts/list-el-clients.sh --github-matrix)"
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
 
+      - name: Resolve selected zkEVM workload runs
+        id: zkevm
+        run: |
+          scripts/list-zkevm-workload-runs.sh
+          matrix="$(scripts/list-zkevm-workload-runs.sh --github-matrix)"
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
       - name: Prepare execution witness fixtures
         run: scripts/prepare-fixtures.sh
 
@@ -123,6 +149,7 @@ jobs:
       - name: Upload fixtures artifact
         uses: actions/upload-artifact@v7
         with:
+          name: fixtures.tar.gz
           retention-days: 1
           if-no-files-found: error
           path: fixtures.tar.gz
@@ -226,12 +253,92 @@ jobs:
             fixtures/.meta/index.json
             fixtures/.meta/report_consume.html
 
+  zkevm-benchmark:
+    name: zkEVM ${{ matrix.execution_client }} / ${{ matrix.zkvm }}
+    runs-on: [self-hosted-ghr, size-xl-x64]
+    needs: prepare
+    timeout-minutes: 7200
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.prepare.outputs.zkevm_matrix) }}
+    env:
+      ROOT_DIR: ${{ github.workspace }}
+      FIXTURES_DIR: ${{ github.workspace }}/fixtures
+      ZKEVM_BENCHMARK_WORKLOAD_REPO: ${{ inputs.zkevm_benchmark_workload_repo }}
+      ZKEVM_BENCHMARK_WORKLOAD_REF: ${{ inputs.zkevm_benchmark_workload_ref }}
+      ZKEVM_BENCHMARK_WORKLOAD_DIR: ${{ github.workspace }}/zkevm-benchmark-workload
+      ZKEVM_WORKLOAD_EXECUTION_CLIENT: ${{ matrix.execution_client }}
+      ZKEVM_WORKLOAD_ZKVM: ${{ matrix.zkvm }}
+      ZKEVM_RAYON_THREADS: ${{ inputs.zkevm_rayon_threads }}
+      ZKEVM_METRICS_DIR: ${{ github.workspace }}/zkevm-metrics
+      GITHUB_TOKEN: ${{ github.token }}
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Checkout dashboard repository
+        uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Install OS prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config
+
+      - name: Download fixtures artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: fixtures.tar.gz
+          path: .
+
+      - name: Extract fixtures artifact
+        run: |
+          mkdir -p fixtures
+          tar -xzf fixtures.tar.gz -C fixtures
+
+      - name: Prepare zkevm-benchmark-workload checkout
+        run: scripts/setup-zkevm-benchmark-workload.sh
+
+      - name: Cache Rust build outputs
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ${{ env.ZKEVM_BENCHMARK_WORKLOAD_DIR }} -> target
+          shared-key: zkevm-benchmark-workload
+
+      - name: Run zkevm-benchmark-workload
+        run: scripts/run-zkevm-benchmark-workload.sh
+
+      - name: Upload zkEVM metrics
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifact }}
+          retention-days: 1
+          if-no-files-found: error
+          include-hidden-files: true
+          path: ${{ env.ZKEVM_METRICS_DIR }}
+
+      - name: Upload zkEVM debug artifacts
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: zkevm-debug-${{ matrix.execution_client }}-${{ matrix.zkvm }}-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 14
+          if-no-files-found: ignore
+          include-hidden-files: true
+          path: |
+            zkevm-metrics
+            fixtures/.meta/index.json
+
   build:
     name: Build Pages artifact
     runs-on: ubuntu-latest
     needs:
       - prepare
       - consume
+      - zkevm-benchmark
     timeout-minutes: 120
     permissions:
       contents: read
@@ -259,9 +366,7 @@ jobs:
       HIVE_CLIENT_RESULTS_DIR: ${{ github.workspace }}/hive/workspace/client-results
       HIVE_RESULTS_SOURCE_DIR: ${{ github.workspace }}/hive/workspace/client-results
       HIVE_COMBINED_RESULTS_DIR: ${{ github.workspace }}/hive/workspace/combined-results
-      ZKEVM_BENCHMARK_WORKLOAD_OUTPUT_URL: ${{ inputs.zkevm_benchmark_workload_output_url }}
-      ZKEVM_BENCHMARK_WORKLOAD_ARCHIVE: ${{ github.workspace }}/hive/workspace/zkevm-benchmark-workload-output.tar.gz
-      ZKEVM_BENCHMARK_WORKLOAD_EXTRACT_DIR: ${{ github.workspace }}/hive/workspace/zkevm-benchmark-workload-output
+      ZKEVM_METRICS_ARTIFACTS_DIR: ${{ github.workspace }}/hive/workspace/zkevm-metrics-artifacts
       ZKEVM_CONVERTED_RESULTS_DIR: ${{ github.workspace }}/hive/workspace/zkevm-converted-results
       HIVE_SIMULATOR: http://127.0.0.1:3000
       HIVE_PARALLELISM: ${{ inputs.hive_parallelism }}
@@ -307,132 +412,44 @@ jobs:
       - name: Merge per-client Hive results
         run: scripts/merge-hive-results.sh
 
-      - name: Download and convert zkEVM benchmark metrics
+      - name: Download zkEVM metrics
+        uses: actions/download-artifact@v7
+        with:
+          pattern: zkevm-metrics-*
+          path: ${{ env.ZKEVM_METRICS_ARTIFACTS_DIR }}
+
+      - name: Convert and merge zkEVM benchmark metrics
         run: |
           set -Eeuo pipefail
 
-          url="${ZKEVM_BENCHMARK_WORKLOAD_OUTPUT_URL:-none}"
-          case "$(printf '%s' "$url" | tr '[:upper:]' '[:lower:]')" in
-            '' | none | null)
-              echo "No zkEVM benchmark workload output URL provided; skipping conversion."
-              exit 0
-              ;;
-          esac
+          rm -rf "$ZKEVM_CONVERTED_RESULTS_DIR"
+          mkdir -p "$ZKEVM_CONVERTED_RESULTS_DIR"
 
-          rm -rf "$ZKEVM_BENCHMARK_WORKLOAD_EXTRACT_DIR"
-          mkdir -p "$ZKEVM_BENCHMARK_WORKLOAD_EXTRACT_DIR"
+          converted_sources=("$HIVE_RESULTS_DIR")
+          converted_count=0
+          while IFS= read -r -d '' metrics_dir; do
+            artifact_name="$(basename "$metrics_dir")"
+            output_dir="$ZKEVM_CONVERTED_RESULTS_DIR/$artifact_name"
+            python3 scripts/convert-zkevm-metrics-to-hive-results.py \
+              --input "$metrics_dir" \
+              --output "$output_dir" \
+              --clean-output
+            converted_sources+=("$output_dir")
+            converted_count=$((converted_count + 1))
+          done < <(find "$ZKEVM_METRICS_ARTIFACTS_DIR" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
 
-          curl --fail --show-error --location \
-            --output "$ZKEVM_BENCHMARK_WORKLOAD_ARCHIVE" \
-            "$url"
-          tar -xzf "$ZKEVM_BENCHMARK_WORKLOAD_ARCHIVE" \
-            -C "$ZKEVM_BENCHMARK_WORKLOAD_EXTRACT_DIR"
-
-          metrics_dir=""
-          if [ -d "$ZKEVM_BENCHMARK_WORKLOAD_EXTRACT_DIR/zkevm-metrics" ]; then
-            metrics_dir="$ZKEVM_BENCHMARK_WORKLOAD_EXTRACT_DIR/zkevm-metrics"
-          else
-            metrics_dir="$(
-              find "$ZKEVM_BENCHMARK_WORKLOAD_EXTRACT_DIR" \
-                -type d \
-                -name zkevm-metrics \
-                -print \
-                -quit
-            )"
-          fi
-
-          if [ -z "$metrics_dir" ]; then
-            metric_file="$(
-              find "$ZKEVM_BENCHMARK_WORKLOAD_EXTRACT_DIR" \
-                -mindepth 3 \
-                -maxdepth 3 \
-                -type f \
-                -name '*.json' \
-                ! -name hardware.json \
-                -print \
-                -quit
-            )"
-            if [ -n "$metric_file" ]; then
-              metrics_dir="$ZKEVM_BENCHMARK_WORKLOAD_EXTRACT_DIR"
-            fi
-          fi
-
-          if [ -z "$metrics_dir" ]; then
-            top_level_dir_count="$(
-              find "$ZKEVM_BENCHMARK_WORKLOAD_EXTRACT_DIR" \
-                -mindepth 1 \
-                -maxdepth 1 \
-                -type d \
-                -print |
-              wc -l
-            )"
-            if [ "$top_level_dir_count" -eq 1 ]; then
-              only_top_level_dir="$(
-                find "$ZKEVM_BENCHMARK_WORKLOAD_EXTRACT_DIR" \
-                  -mindepth 1 \
-                  -maxdepth 1 \
-                  -type d \
-                  -print \
-                  -quit
-              )"
-              metric_file="$(
-                find "$only_top_level_dir" \
-                  -mindepth 3 \
-                  -maxdepth 3 \
-                  -type f \
-                  -name '*.json' \
-                  ! -name hardware.json \
-                  -print \
-                  -quit
-              )"
-              if [ -n "$metric_file" ]; then
-                metrics_dir="$only_top_level_dir"
-              fi
-            fi
-          fi
-
-          if [ -z "$metrics_dir" ]; then
-            echo "Unable to find zkevm-metrics in downloaded archive." >&2
-            echo "Expected zkevm-metrics/<execution-client>/<zkvm>/*.json." >&2
+          if [ "$converted_count" -eq 0 ]; then
+            echo "No zkEVM metrics artifacts were downloaded under $ZKEVM_METRICS_ARTIFACTS_DIR" >&2
             exit 1
           fi
-
-          python3 scripts/convert-zkevm-metrics-to-hive-results.py \
-            --input "$metrics_dir" \
-            --output "$ZKEVM_CONVERTED_RESULTS_DIR" \
-            --clean-output
-
-      - name: Merge Hive and zkEVM results
-        run: |
-          set -Eeuo pipefail
-
-          url="${ZKEVM_BENCHMARK_WORKLOAD_OUTPUT_URL:-none}"
-          case "$(printf '%s' "$url" | tr '[:upper:]' '[:lower:]')" in
-            '' | none | null)
-              echo "No zkEVM converted results to merge."
-              exit 0
-              ;;
-          esac
 
           scripts/merge-hive-result-dirs.sh \
             --output "$HIVE_COMBINED_RESULTS_DIR" \
             --clean-output \
-            "$HIVE_RESULTS_DIR" \
-            "$ZKEVM_CONVERTED_RESULTS_DIR"
+            "${converted_sources[@]}"
 
       - name: Build static hive-ui site
-        run: |
-          set -Eeuo pipefail
-
-          url="${ZKEVM_BENCHMARK_WORKLOAD_OUTPUT_URL:-none}"
-          case "$(printf '%s' "$url" | tr '[:upper:]' '[:lower:]')" in
-            '' | none | null)
-              scripts/build-site.sh
-              ;;
-            *)
-              HIVE_RESULTS_DIR="$HIVE_COMBINED_RESULTS_DIR" scripts/build-site.sh
-              ;;
-          esac
+        run: HIVE_RESULTS_DIR="$HIVE_COMBINED_RESULTS_DIR" scripts/build-site.sh
 
       - name: Smoke test generated site
         run: scripts/smoke-site.sh
@@ -449,6 +466,7 @@ jobs:
             hive/workspace/client-results
             hive/workspace/logs
             hive/workspace/combined-results
+            hive/workspace/zkevm-metrics-artifacts
             hive/workspace/zkevm-converted-results
             site/discovery.json
             site/listing.jsonl

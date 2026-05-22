@@ -21,6 +21,12 @@ HIVE_UI_REPO=https://github.com/ethpandaops/hive-ui.git
 HIVE_UI_REF=b5441f735366a4f7d13575a020ccd6517d7ecaf3
 HIVE_UI_DISCOVERY_NAME=execution-witness
 
+ZKEVM_BENCHMARK_WORKLOAD_REPO=https://github.com/eth-act/zkevm-benchmark-workload.git
+ZKEVM_BENCHMARK_WORKLOAD_REF=jsign-eest-format-support
+ZKEVM_WORKLOAD_EXECUTION_CLIENTS=ethrex,reth
+ZKEVM_WORKLOAD_ZKVMS=zisk
+ZKEVM_RAYON_THREADS=10
+
 EL_CLIENTS=go-ethereum,ethrex,nethermind
 EL_CLIENT_CONFIG=config/el-clients.json
 EL_CLIENT_OVERRIDES_JSON={}
@@ -48,6 +54,8 @@ Generated work directories are ignored by git:
 - `hive/`
 - `hive-ui/`
 - `go-ethereum-src/`
+- `zkevm-benchmark-workload/`
+- `zkevm-metrics/`
 - `fixtures/`
 - `site/`
 
@@ -77,6 +85,8 @@ Local runs are expected to use the same tool versions planned for GitHub
 Actions:
 
 - Docker with the daemon running and usable by the current user without `sudo`.
+- Git.
+- Rust nightly with `cargo`.
 - Go `1.24.x`.
 - Node.js `22.x` and npm.
 - Python `3.12`.
@@ -159,13 +169,44 @@ build logs and `HIVE_LOG_TO_STDOUT=0` writes Hive stdout/stderr only to
 `hive-dev-<client>.log`. Set `HIVE_LOG_TO_STDOUT=1` to stream the same log to
 the console.
 
+## zkEVM Benchmark Workload
+
+The dashboard can run `zkevm-benchmark-workload` directly against the same
+prepared fixtures used by Hive. The default workload matrix runs both `ethrex`
+and `reth` on `zisk`.
+
+Resolve the workload matrix:
+
+```bash
+scripts/list-zkevm-workload-runs.sh
+scripts/list-zkevm-workload-runs.sh --github-matrix
+```
+
+Prepare the workload checkout:
+
+```bash
+scripts/setup-zkevm-benchmark-workload.sh
+```
+
+Run one workload entry:
+
+```bash
+ZKEVM_WORKLOAD_EXECUTION_CLIENT=ethrex \
+ZKEVM_WORKLOAD_ZKVM=zisk \
+scripts/run-zkevm-benchmark-workload.sh
+```
+
+The run writes metrics under `ZKEVM_METRICS_DIR`, defaulting to
+`zkevm-metrics/`, in the shape expected by the converter:
+`zkevm-metrics/<execution-client-version>/<zkvm-version>/*.json`.
+
 ## zkEVM Metrics Conversion
 
 Convert `zkevm-benchmark-workload` output into Hive-compatible result files:
 
 ```bash
 python3 scripts/convert-zkevm-metrics-to-hive-results.py \
-  --input /data/code-data/zkevm-benchmark-workload/zkevm-metrics \
+  --input zkevm-metrics \
   --output hive/workspace/zkevm-converted-results \
   --clean-output
 ```
@@ -230,35 +271,37 @@ public result logs for common secret or private RPC URL patterns.
 
 Manual publishing is implemented in
 `.github/workflows/publish.yml` as a `workflow_dispatch` workflow. The workflow
-generates fixtures once, fans out a GitHub Actions matrix with one consume job
-per selected EL client, merges the per-client Hive result artifacts, and then
+generates fixtures once, fans out one GitHub Actions matrix for Hive consume
+and another for zkEVM workload runs, merges the resulting artifacts, and then
 builds the same static site:
 
 ```text
 scripts/prepare-fixtures.sh
 scripts/setup-eest.sh
 scripts/run-hive-consume-client.sh CLIENT_ID
+scripts/setup-zkevm-benchmark-workload.sh
+scripts/run-zkevm-benchmark-workload.sh
 scripts/merge-hive-results.sh
+scripts/convert-zkevm-metrics-to-hive-results.py
+scripts/merge-hive-result-dirs.sh
 scripts/build-site.sh
 scripts/smoke-site.sh
 ```
 
 The workflow inputs expose `eest_release_tag`, the execution-specs, Hive, and
 hive-ui repos/refs, fixture selection, `EL_CLIENTS`, optional descriptor
-override JSON, consume parallelism, an optional
-`zkevm_benchmark_workload_output_url` `.tar.gz`, and max site size. Fill mode
-uses the default empty `eest_release_tag` plus `eest_repo`/`eest_ref`. Release
-mode uses a tag such as `tests-zkevm@v0.4.2`; when that tag is set, CI ignores
-`eest_repo` and `eest_ref` so it can skip fixture filling.
-When the zkEVM URL is not `none`,
-the workflow downloads it, converts the benchmark metrics into Hive-compatible
-results, merges those with the normal Hive consume results, and builds the site
-from the combined result directory. In CI, `EL_CLIENTS` is still a
-comma-separated selection, but each selected EL runs in its own matrix job.
-Missing per-client result JSON is treated as an infrastructure failure;
-ordinary failing tests can still publish when `HIVE_CONSUME_ALLOW_FAILURE=1`.
-Failed runs upload debug artifacts containing per-client Hive logs and staged
-results.
+override JSON, consume parallelism, zkevm-benchmark-workload repo/ref, zkEVM
+workload execution clients, zkVMs, Rayon thread count, and max site size. Fill
+mode uses the default empty `eest_release_tag` plus `eest_repo`/`eest_ref`.
+Release mode uses a tag such as `tests-zkevm@v0.4.2`; when that tag is set, CI
+ignores `eest_repo` and `eest_ref` so it can skip fixture filling. In CI,
+`EL_CLIENTS` is still a comma-separated selection, but each selected EL runs in
+its own Hive matrix job. Each selected zkEVM workload execution-client/zkVM
+pair runs in its own matrix job. Missing Hive result JSON or missing zkEVM
+metrics is treated as an infrastructure failure; ordinary failing Hive tests
+and per-fixture zkEVM guest crashes are still published as dashboard results.
+Failed runs upload debug artifacts containing per-client Hive logs, zkEVM
+metrics, and staged build results.
 
 After the generated site passes the local smoke test, the workflow configures
 GitHub Pages, uploads `site/` as a Pages artifact, deploys it, and runs the

@@ -18,6 +18,14 @@ Implemented scripts:
   `clients-local.yaml` from the selected EL client descriptors.
 - `list-el-clients.sh`: resolve selected EL descriptors and emit table, JSON,
   ids, or a GitHub Actions matrix.
+- `list-zkevm-workload-runs.sh`: validate selected
+  `zkevm-benchmark-workload` execution-client/zkVM runs and emit a GitHub
+  Actions matrix.
+- `setup-zkevm-benchmark-workload.sh`: clone or update
+  `zkevm-benchmark-workload` and check out the configured ref.
+- `run-zkevm-benchmark-workload.sh`: run one
+  `zkevm-benchmark-workload` stateless-validator execution benchmark against
+  `FIXTURES_DIR`.
 - `run-hive-consume-client.sh`: run one selected EL client against
   `consume engine-witness` into an isolated result directory.
 - `run-hive-consume.sh`: prepare Hive, run the single-client worker once per
@@ -129,11 +137,46 @@ failure. Set `HIVE_DOCKER_OUTPUT=build` and
 `HIVE_LOG_TO_STDOUT=1` to stream Docker build output into the console while
 still writing the per-client Hive log.
 
+Resolve selected `zkevm-benchmark-workload` runs:
+
+```bash
+scripts/list-zkevm-workload-runs.sh
+scripts/list-zkevm-workload-runs.sh --github-matrix
+```
+
+By default, `ZKEVM_WORKLOAD_EXECUTION_CLIENTS=ethrex,reth` and
+`ZKEVM_WORKLOAD_ZKVMS=zisk`, producing one workload run per
+execution-client/zkVM pair. Only `ethrex` and `reth` are accepted execution
+clients because those are the stateless-validator clients supported by the
+workload CLI.
+
+Prepare the workload checkout:
+
+```bash
+scripts/setup-zkevm-benchmark-workload.sh
+```
+
+The default checkout is
+`https://github.com/eth-applied-research-group/zkevm-benchmark-workload.git`
+at `jsign-eest-format-support`.
+
+Run one workload entry against prepared fixtures:
+
+```bash
+ZKEVM_WORKLOAD_EXECUTION_CLIENT=ethrex \
+ZKEVM_WORKLOAD_ZKVM=zisk \
+scripts/run-zkevm-benchmark-workload.sh
+```
+
+This resets `ZKEVM_METRICS_DIR`, defaults `RAYON_NUM_THREADS` from
+`ZKEVM_RAYON_THREADS`, runs `cargo run --locked --release -p ere-hosts`, and
+requires at least one generated metrics JSON before returning successfully.
+
 Convert `zkevm-benchmark-workload` metrics into Hive-compatible results:
 
 ```bash
 python3 scripts/convert-zkevm-metrics-to-hive-results.py \
-  --input /data/code-data/zkevm-benchmark-workload/zkevm-metrics \
+  --input zkevm-metrics \
   --output hive/workspace/zkevm-converted-results \
   --clean-output
 ```

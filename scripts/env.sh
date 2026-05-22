@@ -123,6 +123,16 @@ HIVE_UI_REF="${HIVE_UI_REF:-b5441f735366a4f7d13575a020ccd6517d7ecaf3}"
 HIVE_UI_DIR="$(_eest_dashboard_root_path "${HIVE_UI_DIR:-hive-ui}")"
 HIVE_UI_DISCOVERY_NAME="${HIVE_UI_DISCOVERY_NAME:-execution-witness}"
 
+ZKEVM_BENCHMARK_WORKLOAD_REPO="${ZKEVM_BENCHMARK_WORKLOAD_REPO:-https://github.com/eth-applied-research-group/zkevm-benchmark-workload.git}"
+ZKEVM_BENCHMARK_WORKLOAD_REF="${ZKEVM_BENCHMARK_WORKLOAD_REF:-jsign-eest-format-support}"
+ZKEVM_BENCHMARK_WORKLOAD_DIR="$(_eest_dashboard_root_path "${ZKEVM_BENCHMARK_WORKLOAD_DIR:-zkevm-benchmark-workload}")"
+ZKEVM_WORKLOAD_EXECUTION_CLIENTS="${ZKEVM_WORKLOAD_EXECUTION_CLIENTS:-ethrex,reth}"
+ZKEVM_WORKLOAD_ZKVMS="${ZKEVM_WORKLOAD_ZKVMS:-zisk}"
+ZKEVM_RAYON_THREADS="${ZKEVM_RAYON_THREADS:-10}"
+ZKEVM_WORKLOAD_EXECUTION_CLIENT="${ZKEVM_WORKLOAD_EXECUTION_CLIENT:-}"
+ZKEVM_WORKLOAD_ZKVM="${ZKEVM_WORKLOAD_ZKVM:-}"
+ZKEVM_METRICS_DIR="$(_eest_dashboard_root_path "${ZKEVM_METRICS_DIR:-zkevm-metrics}")"
+
 EL_CLIENT_CONFIG="$(_eest_dashboard_root_path "${EL_CLIENT_CONFIG:-config/el-clients.json}")"
 EL_CLIENTS="${EL_CLIENTS:-go-ethereum,ethrex,nethermind}"
 if [ -z "${EL_CLIENT_OVERRIDES_JSON+x}" ] || [ -z "$EL_CLIENT_OVERRIDES_JSON" ]; then
@@ -144,6 +154,9 @@ export ROOT_DIR
 export EEST_REPO EEST_REF EEST_RELEASE_TAG EEST_DIR
 export HIVE_REPO HIVE_REF HIVE_DIR
 export HIVE_UI_REPO HIVE_UI_REF HIVE_UI_DIR HIVE_UI_DISCOVERY_NAME
+export ZKEVM_BENCHMARK_WORKLOAD_REPO ZKEVM_BENCHMARK_WORKLOAD_REF ZKEVM_BENCHMARK_WORKLOAD_DIR
+export ZKEVM_WORKLOAD_EXECUTION_CLIENTS ZKEVM_WORKLOAD_ZKVMS ZKEVM_RAYON_THREADS
+export ZKEVM_WORKLOAD_EXECUTION_CLIENT ZKEVM_WORKLOAD_ZKVM ZKEVM_METRICS_DIR
 export EL_CLIENT_CONFIG EL_CLIENTS EL_CLIENT_OVERRIDES_JSON
 export FILLER_PATH FORK FIXTURES_DIR HIVE_RESULTS_DIR HIVE_CLIENT_RESULTS_DIR HIVE_SIMULATOR HIVE_PARALLELISM HIVE_CONSUME_ALLOW_FAILURE HIVE_DOCKER_OUTPUT HIVE_LOG_TO_STDOUT SITE_DIR SITE_MAX_SIZE_MB
 
@@ -155,6 +168,9 @@ eest_dashboard_print_env() {
     EEST_REPO EEST_REF EEST_RELEASE_TAG EEST_DIR \
     HIVE_REPO HIVE_REF HIVE_DIR \
     HIVE_UI_REPO HIVE_UI_REF HIVE_UI_DIR HIVE_UI_DISCOVERY_NAME \
+    ZKEVM_BENCHMARK_WORKLOAD_REPO ZKEVM_BENCHMARK_WORKLOAD_REF ZKEVM_BENCHMARK_WORKLOAD_DIR \
+    ZKEVM_WORKLOAD_EXECUTION_CLIENTS ZKEVM_WORKLOAD_ZKVMS ZKEVM_RAYON_THREADS \
+    ZKEVM_WORKLOAD_EXECUTION_CLIENT ZKEVM_WORKLOAD_ZKVM ZKEVM_METRICS_DIR \
     EL_CLIENT_CONFIG EL_CLIENTS EL_CLIENT_OVERRIDES_JSON \
     FILLER_PATH FORK FIXTURES_DIR HIVE_RESULTS_DIR HIVE_CLIENT_RESULTS_DIR HIVE_SIMULATOR HIVE_PARALLELISM HIVE_CONSUME_ALLOW_FAILURE HIVE_DOCKER_OUTPUT HIVE_LOG_TO_STDOUT SITE_DIR SITE_MAX_SIZE_MB
   do
@@ -199,6 +215,8 @@ _eest_dashboard_require_cmd() {
 
   case "$cmd" in
     docker) version="$(docker --version 2>&1)" ;;
+    cargo) version="$(cargo --version 2>&1)" ;;
+    git) version="$(git --version 2>&1)" ;;
     go) version="$(go version 2>&1)" ;;
     node) version="$(node --version 2>&1)" ;;
     npm) version="$(npm --version 2>&1)" ;;
@@ -232,6 +250,8 @@ eest_dashboard_check_prereqs() {
   missing=0
 
   _eest_dashboard_require_cmd docker Docker || missing=1
+  _eest_dashboard_require_cmd cargo Cargo || missing=1
+  _eest_dashboard_require_cmd git Git || missing=1
   _eest_dashboard_require_cmd go Go || missing=1
   _eest_dashboard_require_cmd node Node.js || missing=1
   _eest_dashboard_require_cmd npm npm || missing=1
