@@ -54,6 +54,7 @@ class ConvertZkEvmMetricsTests(unittest.TestCase):
                     "metadata": {"block_used_gas": 10_000_000},
                     "execution": {
                         "success": {
+                            "output_matched": True,
                             "total_num_cycles": 570_661_285,
                             "region_cycles": {},
                             "execution_duration": {"secs": 9, "nanos": 555_227_399},
@@ -119,10 +120,61 @@ class ConvertZkEvmMetricsTests(unittest.TestCase):
                 excerpt,
             )
             self.assertIn("total_num_cycles: 570661285", excerpt)
+            self.assertIn("output_matched: true", excerpt)
             self.assertIn('"block_used_gas": 10000000', excerpt)
 
             preamble = details_bytes[: offsets["begin"]].decode("utf-8")
             self.assertIn("Test GPU", preamble)
+
+    def test_converts_output_mismatch_as_failed_success(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            metrics_dir = root / "metrics"
+            output_dir = root / "out"
+            suite_dir = metrics_dir / "ethrex-81484be" / "zisk-v0.16.1"
+
+            write_json(
+                suite_dir / "test mismatch.json",
+                {
+                    "name": "test_file.py::test_mismatch[fork_Osaka]",
+                    "timestamp_completed": "2026-05-14T06:17:00Z",
+                    "metadata": {"block_used_gas": 123},
+                    "execution": {
+                        "success": {
+                            "output_matched": False,
+                            "total_num_cycles": 99,
+                            "region_cycles": {"execute": 99},
+                            "execution_duration": {"secs": 2, "nanos": 0},
+                        }
+                    },
+                },
+            )
+
+            written = converter.convert(
+                metrics_dir,
+                output_dir,
+                converter.DEFAULT_SUITE_NAME,
+                clean_output=True,
+            )
+            result = json.loads((output_dir / written[0]).read_text(encoding="utf-8"))
+            test_case = result["testCases"]["1"]
+
+            self.assertFalse(test_case["summaryResult"]["pass"])
+            self.assertIn("Status: output mismatch", test_case["description"])
+            self.assertIn("Output matched: false", test_case["description"])
+            self.assertIn(
+                "Failure reason: public output did not match expected values",
+                test_case["description"],
+            )
+
+            details = (output_dir / result["testDetailsLog"]).read_text(encoding="utf-8")
+            self.assertIn("status: output mismatch", details)
+            self.assertIn("output_matched: false", details)
+            self.assertIn("total_num_cycles: 99", details)
+            self.assertIn(
+                "failure_reason: public output did not match expected values",
+                details,
+            )
 
     def test_converts_non_timeout_crash_without_timeout_flag(self):
         with TemporaryDirectory() as tmp:
@@ -179,6 +231,7 @@ class ConvertZkEvmMetricsTests(unittest.TestCase):
                     "metadata": {"block_used_gas": 1},
                     "execution": {
                         "success": {
+                            "output_matched": True,
                             "total_num_cycles": 1,
                             "region_cycles": {},
                             "execution_duration": {"secs": 1, "nanos": 0},
@@ -193,6 +246,75 @@ class ConvertZkEvmMetricsTests(unittest.TestCase):
                     output_dir,
                     converter.DEFAULT_SUITE_NAME,
                     clean_output=False,
+                )
+
+    def test_refuses_success_without_output_matched(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            metrics_dir = root / "metrics"
+            output_dir = root / "out"
+            suite_dir = metrics_dir / "ethrex-1" / "zisk-v1"
+
+            write_json(
+                suite_dir / "test.json",
+                {
+                    "name": "test.py::test_case",
+                    "timestamp_completed": "2026-05-14T06:17:00Z",
+                    "metadata": {"block_used_gas": 1},
+                    "execution": {
+                        "success": {
+                            "total_num_cycles": 1,
+                            "region_cycles": {},
+                            "execution_duration": {"secs": 1, "nanos": 0},
+                        }
+                    },
+                },
+            )
+
+            with self.assertRaisesRegex(
+                converter.ConversionError,
+                "execution.success.output_matched must be a boolean",
+            ):
+                converter.convert(
+                    metrics_dir,
+                    output_dir,
+                    converter.DEFAULT_SUITE_NAME,
+                    clean_output=True,
+                )
+
+    def test_refuses_non_boolean_output_matched(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            metrics_dir = root / "metrics"
+            output_dir = root / "out"
+            suite_dir = metrics_dir / "ethrex-1" / "zisk-v1"
+
+            write_json(
+                suite_dir / "test.json",
+                {
+                    "name": "test.py::test_case",
+                    "timestamp_completed": "2026-05-14T06:17:00Z",
+                    "metadata": {"block_used_gas": 1},
+                    "execution": {
+                        "success": {
+                            "output_matched": "false",
+                            "total_num_cycles": 1,
+                            "region_cycles": {},
+                            "execution_duration": {"secs": 1, "nanos": 0},
+                        }
+                    },
+                },
+            )
+
+            with self.assertRaisesRegex(
+                converter.ConversionError,
+                "execution.success.output_matched must be a boolean",
+            ):
+                converter.convert(
+                    metrics_dir,
+                    output_dir,
+                    converter.DEFAULT_SUITE_NAME,
+                    clean_output=True,
                 )
 
 

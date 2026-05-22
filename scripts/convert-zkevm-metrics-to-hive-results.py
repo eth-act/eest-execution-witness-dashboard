@@ -48,6 +48,14 @@ class LogOffsets:
     end: int
 
 
+@dataclass(frozen=True)
+class ParsedExecutionResult:
+    passed: bool
+    success: dict[str, Any] | None
+    status: str
+    failure_reason: str | None
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Convert zkevm-benchmark-workload metrics into HiveUI results."
@@ -194,18 +202,37 @@ def format_duration(duration_nanos: int | None) -> str:
     return f"{seconds}.{nanos:09d}s"
 
 
-def execution_result(metrics: dict[str, Any]) -> tuple[bool, dict[str, Any] | None, str | None]:
+def format_json_bool(value: bool) -> str:
+    return json.dumps(value)
+
+
+def execution_result(metrics: dict[str, Any]) -> ParsedExecutionResult:
     execution = metrics.get("execution")
     if not isinstance(execution, dict):
-        return False, None, "missing execution metrics"
+        return ParsedExecutionResult(False, None, "failed", "missing execution metrics")
     success = execution.get("success")
     if isinstance(success, dict):
-        return True, success, None
+        output_matched = success.get("output_matched")
+        if not isinstance(output_matched, bool):
+            raise ConversionError("execution.success.output_matched must be a boolean")
+        if output_matched:
+            return ParsedExecutionResult(True, success, "success", None)
+        return ParsedExecutionResult(
+            False,
+            success,
+            "output mismatch",
+            "public output did not match expected values",
+        )
     crashed = execution.get("crashed")
     if isinstance(crashed, dict):
         reason = crashed.get("reason")
-        return False, None, reason if isinstance(reason, str) else "execution crashed"
-    return False, None, "unsupported execution result"
+        return ParsedExecutionResult(
+            False,
+            None,
+            "crashed",
+            reason if isinstance(reason, str) else "execution crashed",
+        )
+    return ParsedExecutionResult(False, None, "failed", "unsupported execution result")
 
 
 def block_used_gas(metrics: dict[str, Any]) -> Any:
@@ -236,9 +263,9 @@ def test_description(
     input_dir: Path,
     suite: MetricsSuite,
     client_name: str,
-    pass_result: bool,
+    execution_status: str,
     success: dict[str, Any] | None,
-    crash_reason: str | None,
+    failure_reason: str | None,
     duration_nanos_value: int | None,
 ) -> str:
     lines = [
@@ -247,14 +274,16 @@ def test_description(
         f"Execution client: {suite.el_version}",
         f"zkVM: {suite.zkvm_version}",
         f"Logical HiveUI client: {client_name}",
-        f"Status: {'success' if pass_result else 'crashed'}",
+        f"Status: {execution_status}",
         f"Block used gas: {block_used_gas(metrics)}",
         f"Execution duration: {format_duration(duration_nanos_value)}",
     ]
     if success is not None:
+        lines.append(f"Output matched: {format_json_bool(success['output_matched'])}")
         lines.append(f"Total cycles: {success.get('total_num_cycles')}")
-    if crash_reason:
-        lines.append(f"Crash reason: {crash_reason}")
+    if failure_reason:
+        label = "Crash reason" if execution_status == "crashed" else "Failure reason"
+        lines.append(f"{label}: {failure_reason}")
     return "\n".join(lines)
 
 
@@ -265,9 +294,9 @@ def test_log_body(
     input_dir: Path,
     suite: MetricsSuite,
     client_name: str,
-    pass_result: bool,
+    execution_status: str,
     success: dict[str, Any] | None,
-    crash_reason: str | None,
+    failure_reason: str | None,
     duration_nanos_value: int | None,
 ) -> str:
     lines = [
@@ -276,19 +305,21 @@ def test_log_body(
         f"zkvm: {suite.zkvm_version}",
         f"logical_client: {client_name}",
         f"block_used_gas: {block_used_gas(metrics)}",
-        f"status: {'success' if pass_result else 'crashed'}",
+        f"status: {execution_status}",
         f"execution_duration: {format_duration(duration_nanos_value)}",
     ]
     if success is not None:
         lines.extend(
             [
+                f"output_matched: {format_json_bool(success['output_matched'])}",
                 f"total_num_cycles: {success.get('total_num_cycles')}",
                 "region_cycles:",
                 json.dumps(success.get("region_cycles", {}), indent=2, sort_keys=True),
             ]
         )
-    if crash_reason:
-        lines.append(f"crash_reason: {crash_reason}")
+    if failure_reason:
+        label = "crash_reason" if execution_status == "crashed" else "failure_reason"
+        lines.append(f"{label}: {failure_reason}")
     lines.extend(
         [
             "raw_metrics:",
@@ -381,10 +412,10 @@ def write_suite(
         offset += len(preamble)
 
         for index, (source, metrics) in enumerate(loaded_metrics, start=1):
-            pass_result, success, crash_reason = execution_result(metrics)
+            execution = execution_result(metrics)
             duration_nanos_value = (
-                duration_to_nanos(success.get("execution_duration"))
-                if success is not None
+                duration_to_nanos(execution.success.get("execution_duration"))
+                if execution.success is not None
                 else None
             )
             end_nanos = metric_end_nanos(metrics, source)
@@ -401,15 +432,15 @@ def write_suite(
                 input_dir=input_dir,
                 suite=suite,
                 client_name=client_name,
-                pass_result=pass_result,
-                success=success,
-                crash_reason=crash_reason,
+                execution_status=execution.status,
+                success=execution.success,
+                failure_reason=execution.failure_reason,
                 duration_nanos_value=duration_nanos_value,
             )
             log_offsets, offset = write_log_entry(log_file, offset, name, body)
 
             summary_result: dict[str, Any] = {
-                "pass": pass_result,
+                "pass": execution.passed,
                 "log": {"begin": log_offsets.begin, "end": log_offsets.end},
             }
 
@@ -421,9 +452,9 @@ def write_suite(
                     input_dir=input_dir,
                     suite=suite,
                     client_name=client_name,
-                    pass_result=pass_result,
-                    success=success,
-                    crash_reason=crash_reason,
+                    execution_status=execution.status,
+                    success=execution.success,
+                    failure_reason=execution.failure_reason,
                     duration_nanos_value=duration_nanos_value,
                 ),
                 "start": start,
