@@ -77,7 +77,7 @@ on:
         default: "900"
 
 concurrency:
-  group: github-pages
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
