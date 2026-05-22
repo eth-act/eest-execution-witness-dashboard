@@ -449,6 +449,15 @@ jobs:
             --clean-output \
             "${converted_sources[@]}"
 
+      - name: Upload full combined Hive results
+        uses: actions/upload-artifact@v7
+        with:
+          name: hive-combined-results-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 14
+          if-no-files-found: error
+          include-hidden-files: true
+          path: ${{ env.HIVE_COMBINED_RESULTS_DIR }}
+
       - name: Build static hive-ui site
         run: HIVE_RESULTS_DIR="$HIVE_COMBINED_RESULTS_DIR" scripts/build-site.sh
 

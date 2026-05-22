@@ -16,6 +16,7 @@ fi
 . "$_build_site_script_dir/env.sh"
 
 HIVEVIEW_LIST_LIMIT="${HIVEVIEW_LIST_LIMIT:-200}"
+SITE_INCLUDE_CLIENT_LOGS="${SITE_INCLUDE_CLIENT_LOGS:-0}"
 _build_site_hive_ui_patch="$ROOT_DIR/patches/hive-ui-relative-paths.patch"
 _build_site_hive_ui_patch_applied=0
 
@@ -30,7 +31,8 @@ _build_site_usage() {
     '  HIVE_UI_DISCOVERY_NAME, SITE_DIR, SITE_MAX_SIZE_MB' \
     '' \
     'Additional overrides:' \
-    '  HIVEVIEW_LIST_LIMIT        Number of test runs in listing.jsonl. Default: 200'
+    '  HIVEVIEW_LIST_LIMIT        Number of test runs in listing.jsonl. Default: 200' \
+    '  SITE_INCLUDE_CLIENT_LOGS   Copy per-test client logs into Pages. Default: 0'
 }
 
 _build_site_log() {
@@ -78,6 +80,29 @@ _build_site_require_positive_int() {
     0)
       _build_site_die "$name must be greater than zero"
       ;;
+  esac
+}
+
+_build_site_require_bool() {
+  local name value
+
+  name="$1"
+  value="$2"
+
+  case "$value" in
+    0 | 1 | true | false)
+      ;;
+    *)
+      _build_site_die "$name must be 0, 1, true, or false: $value"
+      ;;
+  esac
+}
+
+_build_site_normalize_bool() {
+  case "$1" in
+    1 | true) printf '1\n' ;;
+    0 | false) printf '0\n' ;;
+    *) _build_site_die "invalid boolean value: $1" ;;
   esac
 }
 
@@ -196,6 +221,26 @@ _build_site_path_contains() {
   esac
 }
 
+_build_site_validate_result_path() {
+  local part path
+  local -a parts
+
+  path="$1"
+  case "$path" in
+    '' | /* | *'//'*) _build_site_die "invalid result path: $path" ;;
+  esac
+
+  IFS='/'
+  read -r -a parts <<< "$path"
+  for part in "${parts[@]}"; do
+    case "$part" in
+      '' | . | ..)
+        _build_site_die "invalid result path segment in: $path"
+        ;;
+    esac
+  done
+}
+
 _build_site_first_suite_json() {
   find "$1" -maxdepth 1 -type f -name '*.json' \
     ! -name 'hive.json' \
@@ -280,6 +325,8 @@ _build_site_prepare_git_checkout() {
 _build_site_validate_inputs() {
   _build_site_require_positive_int HIVEVIEW_LIST_LIMIT "$HIVEVIEW_LIST_LIMIT"
   _build_site_require_positive_int SITE_MAX_SIZE_MB "$SITE_MAX_SIZE_MB"
+  _build_site_require_bool SITE_INCLUDE_CLIENT_LOGS "$SITE_INCLUDE_CLIENT_LOGS"
+  SITE_INCLUDE_CLIENT_LOGS="$(_build_site_normalize_bool "$SITE_INCLUDE_CLIENT_LOGS")"
   _build_site_validate_discovery_name
 
   ROOT_DIR="$(_build_site_normalize_path "$ROOT_DIR")"
@@ -368,7 +415,7 @@ _build_site_build_hive_ui_assets() {
 _build_site_generate_listing() {
   local listing_source tmp
 
-  listing_source="$SITE_DIR/results"
+  listing_source="$HIVE_RESULTS_DIR"
   tmp="$SITE_DIR/listing.jsonl.tmp"
 
   _build_site_log "Generating listing.jsonl"
@@ -394,10 +441,117 @@ _build_site_generate_listing() {
   mv "$tmp" "$SITE_DIR/listing.jsonl"
 }
 
+_build_site_listed_suite_files() {
+  jq -r 'select(type == "object" and .fileName != null and .fileName != "") | .fileName' "$SITE_DIR/listing.jsonl"
+}
+
+_build_site_referenced_public_result_files() {
+  local suite_file
+
+  suite_file="$1"
+  jq -r '[
+    .simLog,
+    .testDetailsLog
+  ] | map(select(. != null and . != "")) | .[]' "$suite_file"
+}
+
+_build_site_referenced_all_result_files() {
+  local suite_file
+
+  suite_file="$1"
+  jq -r '[
+    .simLog,
+    .testDetailsLog,
+    (.testCases[]? | .clientInfo? // {} | to_entries[]? | .value.logFile?)
+  ] | map(select(. != null and . != "")) | .[]' "$suite_file"
+}
+
+_build_site_referenced_result_files() {
+  if [ "$SITE_INCLUDE_CLIENT_LOGS" -eq 1 ]; then
+    _build_site_referenced_all_result_files "$1"
+  else
+    _build_site_referenced_public_result_files "$1"
+  fi
+}
+
+_build_site_copy_result_file() {
+  local destination relpath source
+
+  relpath="$1"
+  _build_site_validate_result_path "$relpath"
+
+  source="$HIVE_RESULTS_DIR/$relpath"
+  destination="$SITE_DIR/results/$relpath"
+
+  if [ ! -f "$source" ]; then
+    _build_site_die "result file referenced by listing does not exist: $relpath"
+  fi
+
+  mkdir -p "$(dirname "$destination")"
+  cp "$source" "$destination"
+}
+
+_build_site_copy_suite_file() {
+  local destination relpath source tmp
+
+  relpath="$1"
+  _build_site_validate_result_path "$relpath"
+
+  source="$HIVE_RESULTS_DIR/$relpath"
+  destination="$SITE_DIR/results/$relpath"
+
+  if [ ! -f "$source" ]; then
+    _build_site_die "listing.jsonl references a suite result that does not exist: $relpath"
+  fi
+
+  mkdir -p "$(dirname "$destination")"
+  if [ "$SITE_INCLUDE_CLIENT_LOGS" -eq 1 ]; then
+    cp "$source" "$destination"
+    return
+  fi
+
+  tmp="$destination.tmp"
+  jq 'del(.testCases[]?.clientInfo?[]?.logFile, .testCases[]?.clientInfo?[]?.logOffsets)' "$source" > "$tmp"
+  mv "$tmp" "$destination"
+}
+
 _build_site_copy_results() {
-  _build_site_log "Copying Hive results into static site"
+  local asset_count asset_list relpath suite_count suite_list
+
+  _build_site_log "Copying listed Hive results into static site"
   mkdir -p "$SITE_DIR/results"
-  rsync -a --delete "$HIVE_RESULTS_DIR"/ "$SITE_DIR/results"/
+
+  suite_list="$SITE_DIR/.listed-suite-files.tmp"
+  asset_list="$SITE_DIR/.referenced-result-files.tmp"
+
+  _build_site_listed_suite_files | sort -u > "$suite_list"
+  suite_count="$(wc -l < "$suite_list" | tr -d ' ')"
+
+  while IFS= read -r relpath; do
+    [ -n "$relpath" ] || continue
+    _build_site_copy_suite_file "$relpath"
+  done < "$suite_list"
+
+  : > "$asset_list"
+  while IFS= read -r relpath; do
+    [ -n "$relpath" ] || continue
+    _build_site_referenced_result_files "$HIVE_RESULTS_DIR/$relpath" >> "$asset_list"
+  done < "$suite_list"
+  sort -u -o "$asset_list" "$asset_list"
+  asset_count="$(wc -l < "$asset_list" | tr -d ' ')"
+
+  while IFS= read -r relpath; do
+    [ -n "$relpath" ] || continue
+    _build_site_copy_result_file "$relpath"
+  done < "$asset_list"
+
+  rm -f "$suite_list" "$asset_list"
+
+  if [ "$SITE_INCLUDE_CLIENT_LOGS" -eq 1 ]; then
+    _build_site_log "Copied $suite_count listed suite result(s) and $asset_count referenced result asset(s)"
+  else
+    _build_site_log "Copied $suite_count listed suite result(s) and $asset_count public result asset(s); omitted per-test client logs"
+  fi
 }
 
 _build_site_write_hive_ui_notices() {
@@ -428,6 +582,32 @@ _build_site_validate_single_client_listing() {
   fi
 }
 
+_build_site_validate_result_references() {
+  local relpath referenced suite_path
+
+  while IFS= read -r relpath; do
+    [ -n "$relpath" ] || continue
+    _build_site_validate_result_path "$relpath"
+    suite_path="$SITE_DIR/results/$relpath"
+
+    if [ ! -f "$suite_path" ]; then
+      _build_site_die "listing.jsonl references a result file that was not copied: results/$relpath"
+    fi
+
+    if ! jq -e . "$suite_path" >/dev/null; then
+      _build_site_die "referenced result file is not valid JSON: $suite_path"
+    fi
+
+    while IFS= read -r referenced; do
+      [ -n "$referenced" ] || continue
+      _build_site_validate_result_path "$referenced"
+      if [ ! -f "$SITE_DIR/results/$referenced" ]; then
+        _build_site_die "result entry references a public asset that was not copied: results/$referenced"
+      fi
+    done < <(_build_site_referenced_public_result_files "$suite_path")
+  done < <(_build_site_listed_suite_files)
+}
+
 _build_site_validate_output() {
   local first_copied_result first_listing_result max_size_kb site_size_kb site_size_mb
 
@@ -455,6 +635,7 @@ _build_site_validate_output() {
     _build_site_die "listing.jsonl is not valid JSON lines: $SITE_DIR/listing.jsonl"
   fi
   _build_site_validate_single_client_listing
+  _build_site_validate_result_references
 
   first_listing_result="$(jq -r 'select(.fileName != null) | .fileName' "$SITE_DIR/listing.jsonl" | sed -n '1p')"
   if [ -n "$first_listing_result" ] && [ ! -f "$SITE_DIR/results/$first_listing_result" ]; then
@@ -487,8 +668,8 @@ main() {
   _build_site_reset_site_dir
   _build_site_prepare_git_checkout hive-ui "$HIVE_UI_REPO" "$HIVE_UI_REF" "$HIVE_UI_DIR"
   _build_site_build_hive_ui_assets
-  _build_site_copy_results
   _build_site_generate_listing
+  _build_site_copy_results
   _build_site_write_hive_ui_notices
   _build_site_write_discovery
   _build_site_validate_output

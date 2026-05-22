@@ -216,10 +216,17 @@ scripts/build-site.sh
 ```
 
 The script cleans `SITE_DIR`, builds the pinned `HIVE_UI_REF`, generates
-`discovery.json` and `listing.jsonl`, copies merged `HIVE_RESULTS_DIR` into
-`SITE_DIR/results/`, writes hive-ui license/source notices, fails if any
-listing entry contains more than one client, and fails if the output is larger
-than `SITE_MAX_SIZE_MB` (default: `900`).
+`discovery.json` and `listing.jsonl`, copies listed suite JSON files plus
+public detail/simulator logs into `SITE_DIR/results/`, writes hive-ui
+license/source notices, fails if any listing entry contains more than one
+client, and fails if the output is larger than `SITE_MAX_SIZE_MB` (default:
+`900`).
+
+By default, the Pages site omits per-test client logs and removes their
+`clientInfo.*.logFile` pointers from the published suite JSON. This keeps large
+EEST runs under GitHub Pages' supported site size while preserving summary
+pages and detail-log excerpts. Set `SITE_INCLUDE_CLIENT_LOGS=1` for local
+debugging when full per-test log links are needed.
 
 Preview the generated static site with a simple HTTP server:
 

@@ -237,10 +237,15 @@ scripts/build-site.sh
 ```
 
 The script recreates `SITE_DIR`, builds the pinned `HIVE_UI_REF`, writes
-`site/discovery.json`, writes `site/listing.jsonl`, copies merged Hive logs and
-results into `site/results/`, writes hive-ui license/source notices, fails if
-any listing entry has more than one client, and fails if the generated site
-exceeds `SITE_MAX_SIZE_MB`.
+`site/discovery.json`, writes `site/listing.jsonl`, copies the listed suite
+JSON files and public detail/simulator logs into `site/results/`, writes hive-ui
+license/source notices, fails if any listing entry has more than one client,
+and fails if the generated site exceeds `SITE_MAX_SIZE_MB`.
+
+Per-test client logs are omitted from the Pages site by default because large
+EEST runs can exceed GitHub Pages' supported site size. Set
+`SITE_INCLUDE_CLIENT_LOGS=1` for local debugging when you need the per-test log
+links and are not publishing to Pages.
 
 ## Local Preview and Smoke Test
 
@@ -300,7 +305,8 @@ its own Hive matrix job. Each selected zkEVM workload execution-client/zkVM
 pair runs in its own matrix job. Missing Hive result JSON or missing zkEVM
 metrics is treated as an infrastructure failure; ordinary failing Hive tests
 and per-fixture zkEVM guest crashes are still published as dashboard results.
-Failed runs upload debug artifacts containing per-client Hive logs, zkEVM
+Builds upload the full combined Hive results as a short-retention artifact.
+Failed runs also upload debug artifacts containing per-client Hive logs, zkEVM
 metrics, and staged build results.
 
 After the generated site passes the local smoke test, the workflow configures
