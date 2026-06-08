@@ -240,7 +240,7 @@ jobs:
           retention-days: 1
           if-no-files-found: error
           include-hidden-files: true
-          path: ${{ env.HIVE_CONSUME_RESULT_DIR }}
+          path: ${{ env.HIVE_CLIENT_RESULTS_DIR }}
 
       - name: Upload consume debug artifacts
         if: failure()
@@ -414,6 +414,7 @@ jobs:
         with:
           pattern: hive-results-*
           path: ${{ env.HIVE_CLIENT_RESULTS_DIR }}
+          merge-multiple: true
 
       - name: Merge per-client Hive results
         run: scripts/merge-hive-results.sh
