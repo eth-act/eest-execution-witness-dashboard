@@ -1,32 +1,12 @@
 {
   "clients": {
-    "go-ethereum": {
-      "hive_client": "go-ethereum",
-      "dockerfile": "git",
-      "nametag": "rlp-engineapi",
-      "repo": "https://github.com/jsign/go-ethereum.git",
-      "github": "jsign/go-ethereum",
-      "ref": "jsign-bal-devnet-7-zkevm",
-      "hive_extra_flags": "--bal.executionmode=sequential",
-      "managed_patch": "geth-extra-flags",
-      "transport": "json-rpc-rlp"
-    },
     "ethrex": {
       "hive_client": "ethrex",
       "dockerfile": "git",
       "nametag": "rlp-engineapi",
-      "repo": "https://github.com/jsign/ethrex.git",
-      "github": "jsign/ethrex",
-      "ref": "jsign-engine-newpayload-with-witness-v5",
-      "transport": "json-rpc-rlp"
-    },
-    "nethermind": {
-      "hive_client": "nethermind",
-      "dockerfile": "git",
-      "nametag": "rlp-engineapi",
-      "repo": "https://github.com/Dyslex7c/nethermind.git",
-      "github": "Dyslex7c/nethermind",
-      "ref": "new-payload-with-witness-ssz",
+      "repo": "https://github.com/lambdaclass/ethrex.git",
+      "github": "lambdaclass/ethrex",
+      "ref": "e2fab429c5e35580d351e9bd3657f23f8541e684",
       "transport": "json-rpc-rlp"
     }
   }
