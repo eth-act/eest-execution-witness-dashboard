@@ -6,7 +6,7 @@
       "nametag": "rlp-engineapi",
       "repo": "https://github.com/lambdaclass/ethrex.git",
       "github": "lambdaclass/ethrex",
-      "ref": "e2fab429c5e35580d351e9bd3657f23f8541e684",
+      "ref": "main",
       "transport": "json-rpc-rlp"
     }
   }

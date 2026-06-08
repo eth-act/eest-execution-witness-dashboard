@@ -149,7 +149,8 @@ By default, `ZKEVM_WORKLOAD_EXECUTION_CLIENTS=ethrex,reth` and
 `ZKEVM_WORKLOAD_ZKVMS=zisk`, producing one workload run per
 execution-client/zkVM pair. Only `ethrex` and `reth` are accepted execution
 clients because those are the stateless-validator clients supported by the
-workload CLI.
+workload CLI. Set `ZKEVM_WORKLOAD_EXECUTION_CLIENTS` to an empty string,
+`none`, or `skip` to skip workload runs.
 
 Prepare the workload checkout:
 
