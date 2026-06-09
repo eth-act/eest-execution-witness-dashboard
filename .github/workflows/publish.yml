@@ -60,9 +60,9 @@ on:
         required: false
         default: jsign-eest-format-support
       zkevm_workload_execution_clients:
-        description: Comma-separated zkevm-benchmark-workload execution clients. Leave empty or set to none to skip.
+        description: Comma-separated zkevm-benchmark-workload execution clients. Set to ethrex,reth to run; none skips.
         required: false
-        default: ethrex,reth
+        default: none
       zkevm_workload_zkvms:
         description: Comma-separated zkVMs to run in zkevm-benchmark-workload.
         required: true
