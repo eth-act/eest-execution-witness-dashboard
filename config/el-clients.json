@@ -8,6 +8,14 @@
       "github": "lambdaclass/ethrex",
       "ref": "main",
       "transport": "json-rpc-rlp"
+    },
+    "besu": {
+      "hive_client": "besu",
+      "dockerfile": "git",
+      "repo": "https://github.com/Gabriel-Trintinalia/besu.git",
+      "github": "Gabriel-Trintinalia/besu",
+      "ref": "bal-devnet-7-witness",
+      "transport": "json-rpc-rlp"
     }
   }
 }
