@@ -159,8 +159,8 @@ scripts/setup-zkevm-benchmark-workload.sh
 ```
 
 The default checkout is
-`https://github.com/eth-applied-research-group/zkevm-benchmark-workload.git`
-at `jsign-eest-format-support`.
+`https://github.com/eth-act/zkevm-benchmark-workload.git`
+at `v0.4.0`.
 
 Run one workload entry against prepared fixtures:
 

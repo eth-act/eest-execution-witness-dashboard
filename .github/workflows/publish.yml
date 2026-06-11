@@ -42,7 +42,7 @@ on:
       el_clients:
         description: Comma-separated EL client descriptor ids to run independently.
         required: true
-        default: ethrex
+        default: ethrex,besu
       el_client_overrides_json:
         description: 'JSON descriptor overrides, e.g. {"ethrex":{"ref":"branch"}}.'
         required: false
@@ -58,7 +58,7 @@ on:
       zkevm_benchmark_workload_ref:
         description: zkevm-benchmark-workload branch, tag, or commit.
         required: false
-        default: jsign-eest-format-support
+        default: v0.4.0
       zkevm_workload_execution_clients:
         description: Comma-separated zkevm-benchmark-workload execution clients. Set to ethrex,reth to run; none skips.
         required: false
