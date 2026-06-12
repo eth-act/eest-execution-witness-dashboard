@@ -125,8 +125,15 @@ Run Hive and consume the generated fixtures once per selected EL:
 scripts/run-hive-consume.sh
 ```
 
-`HIVE_PARALLELISM=1` keeps consume sequential. Set it to a higher integer to
-run multiple consume tests at once through pytest-xdist.
+Each selected EL descriptor must define `hive_parallelism`, which runs multiple
+consume tests at once through pytest-xdist. Use descriptor overrides for ad hoc
+tuning:
+
+```bash
+EL_CLIENT_OVERRIDES_JSON='{"besu":{"hive_parallelism":4}}' scripts/run-hive-consume.sh
+```
+
+Direct single-client worker runs can still set `HIVE_PARALLELISM` explicitly.
 
 This script cleans `HIVE_CLIENT_RESULTS_DIR`, writes each worker's Hive
 stdout/stderr to `hive-dev-<client>.log`, requires every selected EL to produce

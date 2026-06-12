@@ -30,7 +30,6 @@ ZKEVM_RAYON_THREADS=10
 EL_CLIENTS=go-ethereum,ethrex,nethermind
 EL_CLIENT_CONFIG=config/el-clients.json
 EL_CLIENT_OVERRIDES_JSON={}
-HIVE_PARALLELISM=1
 HIVE_CONSUME_ALLOW_FAILURE=1
 HIVE_CLIENT_RESULTS_DIR=hive/workspace/client-results
 SITE_MAX_SIZE_MB=900
@@ -140,6 +139,13 @@ tracked config, for example:
 EL_CLIENT_OVERRIDES_JSON='{"ethrex":{"ref":"other-branch"}}' scripts/setup-hive.sh
 ```
 
+Per-client consume parallelism is also descriptor-owned. Use the same override
+mechanism for ad hoc tuning:
+
+```bash
+EL_CLIENT_OVERRIDES_JSON='{"besu":{"hive_parallelism":4}}' scripts/run-hive-consume.sh
+```
+
 The same override mechanism can also adjust go-ethereum settings, including
 the Hive extra flags patch:
 
@@ -153,8 +159,9 @@ After fixtures exist, run Hive and consume them with:
 scripts/run-hive-consume.sh
 ```
 
-`HIVE_PARALLELISM=1` keeps consume sequential. Set it to a higher integer to
-let EEST pass `-n <N>` to pytest-xdist.
+Each selected EL descriptor must define `hive_parallelism`, which lets EEST
+pass `-n <N>` to pytest-xdist for that client. Direct single-client worker runs
+can still set `HIVE_PARALLELISM` explicitly.
 
 Per-client Hive results are staged in `HIVE_CLIENT_RESULTS_DIR` and merged into
 `HIVE_RESULTS_DIR` after every selected EL produces at least one top-level

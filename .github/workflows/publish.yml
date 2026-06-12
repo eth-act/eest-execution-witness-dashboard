@@ -47,10 +47,6 @@ on:
         description: 'JSON descriptor overrides, e.g. {"ethrex":{"ref":"branch"}}.'
         required: false
         default: "{}"
-      hive_parallelism:
-        description: EEST consume parallelism.
-        required: true
-        default: "16"
       zkevm_benchmark_workload_repo:
         description: zkevm-benchmark-workload repository URL.
         required: false
@@ -186,7 +182,7 @@ jobs:
       HIVE_CLIENT_RESULTS_DIR: ${{ github.workspace }}/hive/workspace/client-results
       HIVE_CONSUME_RESULT_DIR: ${{ github.workspace }}/hive/workspace/client-results/${{ matrix.id }}
       HIVE_SIMULATOR: http://127.0.0.1:3000
-      HIVE_PARALLELISM: ${{ inputs.hive_parallelism }}
+      HIVE_PARALLELISM: ${{ matrix.hive_parallelism }}
       HIVE_READY_ATTEMPTS: "1800"
       HIVE_CONSUME_ALLOW_FAILURE: "1"
       HIVE_DOCKER_OUTPUT: build
@@ -375,7 +371,6 @@ jobs:
       ZKEVM_METRICS_ARTIFACTS_DIR: ${{ github.workspace }}/hive/workspace/zkevm-metrics-artifacts
       ZKEVM_CONVERTED_RESULTS_DIR: ${{ github.workspace }}/hive/workspace/zkevm-converted-results
       HIVE_SIMULATOR: http://127.0.0.1:3000
-      HIVE_PARALLELISM: ${{ inputs.hive_parallelism }}
       SITE_DIR: ${{ github.workspace }}/site
       SITE_MAX_SIZE_MB: ${{ inputs.max_site_size_mb }}
       SITE_SMOKE_BASE_PATH: ${{ github.event.repository.name }}

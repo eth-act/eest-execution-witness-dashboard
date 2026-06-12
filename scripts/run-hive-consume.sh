@@ -175,7 +175,7 @@ _run_hive_consume_reset_client_results_dir() {
 }
 
 _run_hive_consume_run_clients() {
-  local descriptor full_name id resolved
+  local descriptor full_name id parallelism resolved
 
   if ! resolved="$(eest_el_clients_resolve_descriptors)"; then
     _run_hive_consume_die "failed to resolve EL client descriptors"
@@ -184,9 +184,12 @@ _run_hive_consume_run_clients() {
   while IFS= read -r descriptor; do
     id="$(eest_el_clients_descriptor_field "$descriptor" '.id')"
     full_name="$(eest_el_clients_full_client_name "$descriptor")"
+    parallelism="$(eest_el_clients_hive_parallelism "$descriptor")" ||
+      _run_hive_consume_die "failed to resolve HIVE_PARALLELISM for $id"
     _run_hive_consume_log "Running per-client consume for $full_name"
 
     RUN_HIVE_SETUP=0 \
+      HIVE_PARALLELISM="$parallelism" \
       HIVE_CONSUME_RESULT_DIR="$HIVE_CLIENT_RESULTS_DIR/$id" \
       HIVE_LOG_FILE="$HIVE_CLIENT_RESULTS_DIR/$id/hive-dev-$id.log" \
       "$_run_hive_consume_script_dir/run-hive-consume-client.sh" "$id"

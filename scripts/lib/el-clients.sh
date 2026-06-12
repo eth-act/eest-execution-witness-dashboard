@@ -118,29 +118,63 @@ eest_el_clients_artifact_name() {
   printf 'hive-results-%s\n' "$id"
 }
 
+eest_el_clients_hive_parallelism() {
+  local descriptor
+
+  descriptor="$1"
+
+  jq -er '
+    .id as $id
+    | if (has("hive_parallelism") | not) then
+        error("EL client descriptor \($id) is missing required hive_parallelism")
+      else
+        .hive_parallelism as $value
+        | if ($value | type) == "number" then
+            if ($value > 0 and $value == ($value | floor)) then
+              ($value | tostring)
+            else
+              error("EL client descriptor \($id) hive_parallelism must be a positive integer")
+            end
+          elif ($value | type) == "string" then
+            if ($value | test("^[1-9][0-9]*$")) then
+              $value
+            else
+              error("EL client descriptor \($id) hive_parallelism must be a positive integer")
+            end
+          else
+            error("EL client descriptor \($id) hive_parallelism must be a positive integer")
+          end
+      end
+  ' <<< "$descriptor"
+}
+
 eest_el_clients_matrix_json() {
-  local artifact descriptor full_name id resolved
+  local artifact descriptor full_name id objects parallelism resolved
 
   resolved="$(eest_el_clients_resolve_descriptors)" || return 1
 
-  jq -c '
-    {include: [
-      .[] | {
-        id: .id,
-        hive_client: "",
-        artifact: ""
-      }
-    ]}
-  ' <<< "$resolved" |
-    jq -c --argjson descriptors "$resolved" '
-      .include = [
-        $descriptors[] | {
-          id: .id,
-          hive_client: ((.hive_client + (if (.nametag // "") != "" then "_" + .nametag else "" end))),
-          artifact: ("hive-results-" + .id)
-        }
-      ]
-    '
+  objects="$(
+    while IFS= read -r descriptor; do
+      id="$(eest_el_clients_descriptor_field "$descriptor" '.id')"
+      full_name="$(eest_el_clients_full_client_name "$descriptor")"
+      artifact="$(eest_el_clients_artifact_name "$id")" || return 1
+      parallelism="$(eest_el_clients_hive_parallelism "$descriptor")" || return 1
+
+      jq -cn \
+        --arg id "$id" \
+        --arg hive_client "$full_name" \
+        --arg artifact "$artifact" \
+        --arg hive_parallelism "$parallelism" \
+        '{
+          id: $id,
+          hive_client: $hive_client,
+          artifact: $artifact,
+          hive_parallelism: $hive_parallelism
+        }'
+    done < <(jq -c '.[]' <<< "$resolved")
+  )" || return 1
+
+  jq -c -s '{include: .}' <<< "$objects"
 }
 
 eest_el_clients_selected_ids() {
