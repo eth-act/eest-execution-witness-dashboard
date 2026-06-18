@@ -23,7 +23,8 @@ _run_zkevm_usage() {
     '' \
     'Environment overrides from scripts/env.sh:' \
     '  ZKEVM_BENCHMARK_WORKLOAD_DIR, FIXTURES_DIR, ZKEVM_METRICS_DIR' \
-    '  ZKEVM_WORKLOAD_EXECUTION_CLIENT, ZKEVM_WORKLOAD_ZKVM, ZKEVM_RAYON_THREADS'
+    '  ZKEVM_WORKLOAD_EXECUTION_CLIENT, ZKEVM_WORKLOAD_ZKVM, ZKEVM_RAYON_THREADS' \
+    '  EL_GUEST_CONFIG, ZKEVM_WORKLOAD_GUEST_ARTIFACT_BASE_URL'
 }
 
 _run_zkevm_log() {
@@ -75,6 +76,35 @@ _run_zkevm_validate_component() {
   esac
 }
 
+_run_zkevm_resolve_guest_artifact_base_url() {
+  if [ ! -f "$EL_GUEST_CONFIG" ]; then
+    _run_zkevm_die "EL guest descriptor file does not exist: $EL_GUEST_CONFIG"
+  fi
+
+  jq -r \
+    --arg client "$ZKEVM_WORKLOAD_EXECUTION_CLIENT" \
+    --arg zkvm "$ZKEVM_WORKLOAD_ZKVM" \
+    --arg override_url "$ZKEVM_WORKLOAD_GUEST_ARTIFACT_BASE_URL" '
+      def guest_descriptor($client):
+        .guests[$client] // error("unknown EL guest id: \($client)");
+      def configured_guest_artifact_base_url($client; $zkvm):
+        guest_descriptor($client) as $guest
+        | (($guest.zkvms[$zkvm].guest_artifact_base_url // $guest.guest_artifact_base_url // "") | tostring);
+
+      if (.guests | type) != "object" then
+        error("EL_GUEST_CONFIG must contain a guests object")
+      else
+        guest_descriptor($client) as $guest
+        | (if ($override_url | length) > 0 then $override_url else configured_guest_artifact_base_url($client; $zkvm) end) as $url
+        | if (($guest.requires_guest_artifact_base_url // false) == true) and ($url | length) == 0 then
+            error("EL guest descriptor \($client) requires guest_artifact_base_url for zkVM \($zkvm)")
+          else
+            $url
+          end
+      end
+    ' "$EL_GUEST_CONFIG"
+}
+
 _run_zkevm_guard_clean_dir() {
   local dir
 
@@ -118,12 +148,10 @@ _run_zkevm_parse_args() {
 }
 
 _run_zkevm_validate() {
-  if [ "$ZKEVM_WORKLOAD_EXECUTION_CLIENT" != ethrex ] && [ "$ZKEVM_WORKLOAD_EXECUTION_CLIENT" != reth ]; then
-    _run_zkevm_die "ZKEVM_WORKLOAD_EXECUTION_CLIENT supports only ethrex and reth: $ZKEVM_WORKLOAD_EXECUTION_CLIENT"
-  fi
-
+  _run_zkevm_validate_component ZKEVM_WORKLOAD_EXECUTION_CLIENT "$ZKEVM_WORKLOAD_EXECUTION_CLIENT"
   _run_zkevm_validate_component ZKEVM_WORKLOAD_ZKVM "$ZKEVM_WORKLOAD_ZKVM"
   _run_zkevm_require_positive_int ZKEVM_RAYON_THREADS "$ZKEVM_RAYON_THREADS"
+  ZKEVM_WORKLOAD_GUEST_ARTIFACT_BASE_URL="$(_run_zkevm_resolve_guest_artifact_base_url)" || exit 1
 
   if [ ! -d "$ZKEVM_BENCHMARK_WORKLOAD_DIR" ]; then
     _run_zkevm_die "ZKEVM_BENCHMARK_WORKLOAD_DIR does not exist; run scripts/setup-zkevm-benchmark-workload.sh first: $ZKEVM_BENCHMARK_WORKLOAD_DIR"
@@ -152,14 +180,23 @@ _run_zkevm_run() {
 
   (
     cd "$ZKEVM_BENCHMARK_WORKLOAD_DIR"
+    cargo_args=(
+      --zkvms "$ZKEVM_WORKLOAD_ZKVM"
+      --action execute
+      --output-folder "$ZKEVM_METRICS_DIR"
+    )
+    if [ -n "$ZKEVM_WORKLOAD_GUEST_ARTIFACT_BASE_URL" ]; then
+      cargo_args+=(--guest-artifact-base-url "$ZKEVM_WORKLOAD_GUEST_ARTIFACT_BASE_URL")
+    fi
+    cargo_args+=(
+      stateless-validator
+      --execution-client "$ZKEVM_WORKLOAD_EXECUTION_CLIENT"
+      --input-folder "$FIXTURES_DIR"
+    )
+
     RUST_LOG=info RAYON_NUM_THREADS="$ZKEVM_RAYON_THREADS" \
       cargo run --locked --release -p ere-hosts -- \
-        --zkvms "$ZKEVM_WORKLOAD_ZKVM" \
-        --action execute \
-        --output-folder "$ZKEVM_METRICS_DIR" \
-        stateless-validator \
-        --execution-client "$ZKEVM_WORKLOAD_EXECUTION_CLIENT" \
-        --input-folder "$FIXTURES_DIR"
+        "${cargo_args[@]}"
   )
 }
 
@@ -188,6 +225,7 @@ main() {
   _run_zkevm_parse_args "$@"
   _run_zkevm_require_cmd cargo Cargo
   _run_zkevm_require_cmd find find
+  _run_zkevm_require_cmd jq jq
   _run_zkevm_validate
   _run_zkevm_prepare_output
   _run_zkevm_run

@@ -1,0 +1,10 @@
+{
+  "guests": {
+    "ethrex": {},
+    "reth": {},
+    "zesu": {
+      "requires_guest_artifact_base_url": true,
+      "guest_artifact_base_url": "https://github.com/Consensys/zesu-zkvm/releases/download/bal-devnet-7-2026-06-12"
+    }
+  }
+}

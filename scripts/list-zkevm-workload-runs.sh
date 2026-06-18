@@ -22,7 +22,8 @@ _list_zkevm_usage() {
     'Resolve the selected zkevm-benchmark-workload execution-client/zkVM runs.' \
     '' \
     'Environment overrides from scripts/env.sh:' \
-    '  ZKEVM_WORKLOAD_EXECUTION_CLIENTS, ZKEVM_WORKLOAD_ZKVMS'
+    '  ZKEVM_WORKLOAD_EXECUTION_CLIENTS, ZKEVM_WORKLOAD_ZKVMS' \
+    '  EL_GUEST_CONFIG'
 }
 
 _list_zkevm_die() {
@@ -42,7 +43,11 @@ _list_zkevm_require_cmd() {
 }
 
 _list_zkevm_runs_json() {
-  jq -c -n \
+  if [ ! -f "$EL_GUEST_CONFIG" ]; then
+    _list_zkevm_die "EL guest descriptor file does not exist: $EL_GUEST_CONFIG"
+  fi
+
+  jq -c \
     --arg clients "$ZKEVM_WORKLOAD_EXECUTION_CLIENTS" \
     --arg zkvms "$ZKEVM_WORKLOAD_ZKVMS" '
       def trim: gsub("^\\s+|\\s+$"; "");
@@ -72,27 +77,45 @@ _list_zkevm_runs_json() {
         else
           error("\($label) values may contain only letters, numbers, dots, underscores, or hyphens")
         end;
+      def require_guest_config:
+        if (.guests | type) != "object" then
+          error("EL_GUEST_CONFIG must contain a guests object")
+        else
+          .
+        end;
+      def guest_descriptor($client):
+        .guests[$client] // error("unknown EL guest id: \($client)");
+      def guest_artifact_base_url($client; $zkvm):
+        guest_descriptor($client) as $guest
+        | (($guest.zkvms[$zkvm].guest_artifact_base_url // $guest.guest_artifact_base_url // "") | tostring);
+      def require_guest_artifact_base_url($client; $zkvm):
+        guest_descriptor($client) as $guest
+        | guest_artifact_base_url($client; $zkvm) as $url
+        | if (($guest.requires_guest_artifact_base_url // false) == true) and ($url | length) == 0 then
+            error("EL guest descriptor \($client) requires guest_artifact_base_url for zkVM \($zkvm)")
+          else
+            $url
+          end;
 
-      (split_csv($clients) | require_unique("ZKEVM_WORKLOAD_EXECUTION_CLIENTS"; .) | require_safe("ZKEVM_WORKLOAD_EXECUTION_CLIENTS"; .)) as $clients
+      require_guest_config as $config
+      | (split_csv($clients) | require_unique("ZKEVM_WORKLOAD_EXECUTION_CLIENTS"; .) | require_safe("ZKEVM_WORKLOAD_EXECUTION_CLIENTS"; .)) as $clients
       | if ($clients | length) == 0 then
           []
         else
           (split_csv($zkvms) | require_non_empty("ZKEVM_WORKLOAD_ZKVMS"; .) | require_unique("ZKEVM_WORKLOAD_ZKVMS"; .) | require_safe("ZKEVM_WORKLOAD_ZKVMS"; .)) as $zkvms
-          | if all($clients[]; . == "ethrex" or . == "reth") then
-              [
-                $clients[] as $client
-                | $zkvms[] as $zkvm
-                | {
-                    execution_client: $client,
-                    zkvm: $zkvm,
-                    artifact: ("zkevm-metrics-" + $client + "-" + $zkvm)
-                  }
-              ]
-            else
-              error("ZKEVM_WORKLOAD_EXECUTION_CLIENTS supports only ethrex and reth")
-            end
+          | [
+              $clients[] as $client
+              | $config | guest_descriptor($client) as $guest
+              | $zkvms[] as $zkvm
+              | {
+                  execution_client: $client,
+                  zkvm: $zkvm,
+                  guest_artifact_base_url: ($config | require_guest_artifact_base_url($client; $zkvm)),
+                  artifact: ("zkevm-metrics-" + $client + "-" + $zkvm)
+                }
+            ]
         end
-    '
+    ' "$EL_GUEST_CONFIG"
 }
 
 main() {

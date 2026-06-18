@@ -6,8 +6,7 @@ Static dashboard scaffolding for publishing execution witness Hive results with
 
 ## Phase 1 Defaults
 
-The first implementation pass uses public branch refs rather than immutable
-SHAs or tags. These refs were checked with `git ls-remote` on 2026-05-21:
+Default repositories, refs, and runtime settings:
 
 ```bash
 EEST_RELEASE_TAG=
@@ -22,13 +21,14 @@ HIVE_UI_REF=b5441f735366a4f7d13575a020ccd6517d7ecaf3
 HIVE_UI_DISCOVERY_NAME=execution-witness
 
 ZKEVM_BENCHMARK_WORKLOAD_REPO=https://github.com/eth-act/zkevm-benchmark-workload.git
-ZKEVM_BENCHMARK_WORKLOAD_REF=jsign-eest-format-support
+ZKEVM_BENCHMARK_WORKLOAD_REF=v0.5.0
 ZKEVM_WORKLOAD_EXECUTION_CLIENTS=ethrex,reth
 ZKEVM_WORKLOAD_ZKVMS=zisk
 ZKEVM_RAYON_THREADS=10
 
 EL_CLIENTS=go-ethereum,ethrex,nethermind
 EL_CLIENT_CONFIG=config/el-clients.json
+EL_GUEST_CONFIG=config/el-guests.json
 EL_CLIENT_OVERRIDES_JSON={}
 HIVE_CONSUME_ALLOW_FAILURE=1
 HIVE_CLIENT_RESULTS_DIR=hive/workspace/client-results
@@ -202,6 +202,22 @@ ZKEVM_WORKLOAD_EXECUTION_CLIENT=ethrex \
 ZKEVM_WORKLOAD_ZKVM=zisk \
 scripts/run-zkevm-benchmark-workload.sh
 ```
+
+Zesu guest artifact URLs are configured in `config/el-guests.json`. Run an
+opt-in Zesu workload entry:
+
+```bash
+ZKEVM_WORKLOAD_EXECUTION_CLIENT=zesu \
+ZKEVM_WORKLOAD_ZKVM=zisk \
+scripts/run-zkevm-benchmark-workload.sh
+```
+
+For one-off local testing, `ZKEVM_WORKLOAD_GUEST_ARTIFACT_BASE_URL` can override
+the URL from `config/el-guests.json`.
+
+Zesu requires workload support for `--execution-client zesu` and
+`--guest-artifact-base-url`. The local default `v0.5.0` includes that support;
+if you override `ZKEVM_BENCHMARK_WORKLOAD_REF`, use `v0.5.0` or newer.
 
 The run writes metrics under `ZKEVM_METRICS_DIR`, defaulting to
 `zkevm-metrics/`, in the shape expected by the converter:

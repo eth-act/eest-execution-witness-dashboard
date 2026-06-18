@@ -52,13 +52,13 @@ on:
         required: false
         default: https://github.com/eth-act/zkevm-benchmark-workload.git
       zkevm_benchmark_workload_ref:
-        description: zkevm-benchmark-workload branch, tag, or commit.
+        description: zkevm-benchmark-workload branch, tag, or commit. Use v0.5.0 or newer for Zesu runs.
         required: false
-        default: v0.4.0
+        default: v0.5.0
       zkevm_workload_execution_clients:
-        description: Comma-separated zkevm-benchmark-workload execution clients. Set to ethrex,reth to run; none skips.
+        description: Comma-separated zkevm-benchmark-workload execution clients from config/el-guests.json. Set to ethrex,reth or zesu to run; none skips.
         required: false
-        default: none
+        default: zesu
       zkevm_workload_zkvms:
         description: Comma-separated zkVMs to run in zkevm-benchmark-workload.
         required: true

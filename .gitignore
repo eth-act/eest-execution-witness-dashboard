@@ -6,3 +6,4 @@
 /zkevm-metrics/
 /fixtures/
 /site/
+.envrc

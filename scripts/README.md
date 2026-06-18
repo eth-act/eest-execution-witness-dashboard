@@ -154,10 +154,24 @@ scripts/list-zkevm-workload-runs.sh --github-matrix
 
 By default, `ZKEVM_WORKLOAD_EXECUTION_CLIENTS=ethrex,reth` and
 `ZKEVM_WORKLOAD_ZKVMS=zisk`, producing one workload run per
-execution-client/zkVM pair. Only `ethrex` and `reth` are accepted execution
-clients because those are the stateless-validator clients supported by the
-workload CLI. Set `ZKEVM_WORKLOAD_EXECUTION_CLIENTS` to an empty string,
+execution-client/zkVM pair. `ethrex`, `reth`, and opt-in `zesu` are accepted
+execution clients. Set `ZKEVM_WORKLOAD_EXECUTION_CLIENTS` to an empty string,
 `none`, or `skip` to skip workload runs.
+
+Workload guest descriptors live in `config/el-guests.json`. Descriptors can set
+`guest_artifact_base_url` at the guest level and may override it per zkVM under
+`zkvms.<zkvm>.guest_artifact_base_url`. Zesu uses this to locate release ELF
+assets:
+
+```bash
+ZKEVM_WORKLOAD_EXECUTION_CLIENTS=zesu \
+ZKEVM_WORKLOAD_ZKVMS=zisk \
+scripts/list-zkevm-workload-runs.sh --github-matrix
+```
+
+Zesu requires workload support for `--execution-client zesu` and
+`--guest-artifact-base-url`. The local default `v0.5.0` includes that support;
+if you override `ZKEVM_BENCHMARK_WORKLOAD_REF`, use `v0.5.0` or newer.
 
 Prepare the workload checkout:
 
@@ -167,7 +181,7 @@ scripts/setup-zkevm-benchmark-workload.sh
 
 The default checkout is
 `https://github.com/eth-act/zkevm-benchmark-workload.git`
-at `v0.4.0`.
+at `v0.5.0`.
 
 Run one workload entry against prepared fixtures:
 
@@ -176,6 +190,10 @@ ZKEVM_WORKLOAD_EXECUTION_CLIENT=ethrex \
 ZKEVM_WORKLOAD_ZKVM=zisk \
 scripts/run-zkevm-benchmark-workload.sh
 ```
+
+For a single Zesu run, `run-zkevm-benchmark-workload.sh` reads the URL from
+`config/el-guests.json`. Set `ZKEVM_WORKLOAD_GUEST_ARTIFACT_BASE_URL` only when
+you need a temporary local override.
 
 This resets `ZKEVM_METRICS_DIR`, defaults `RAYON_NUM_THREADS` from
 `ZKEVM_RAYON_THREADS`, runs `cargo run --locked --release -p ere-hosts`, and
