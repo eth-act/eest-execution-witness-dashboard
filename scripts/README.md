@@ -35,6 +35,8 @@ Implemented scripts:
 - `merge-hive-result-dirs.sh`: merge directories that already contain
   Hive-shaped result JSON/log files, such as normal Hive logs plus converted
   zkEVM metrics.
+- `list-zkevm-metrics-roots.sh`: discover downloaded zkEVM metrics roots across
+  both artifact-wrapper and flattened GitHub Actions download layouts.
 - `convert-zkevm-metrics-to-hive-results.py`: convert `zkevm-benchmark-workload`
   `zkevm-metrics/` output into Hive-compatible result files.
 - `build-site.sh`: generate a static hive-ui site in `SITE_DIR`, write
@@ -202,13 +204,18 @@ requires at least one generated metrics JSON before returning successfully.
 Convert `zkevm-benchmark-workload` metrics into Hive-compatible results:
 
 ```bash
+scripts/list-zkevm-metrics-roots.sh zkevm-metrics-artifacts
 python3 scripts/convert-zkevm-metrics-to-hive-results.py \
   --input zkevm-metrics \
   --output hive/workspace/zkevm-converted-results \
   --clean-output
 ```
 
-This writes one result JSON per execution-client/zkVM combination and a
+`list-zkevm-metrics-roots.sh` is used by CI after downloading metrics artifacts.
+It emits directories that contain `<execution-client>/<zkvm>/*.json`, whether
+GitHub Actions preserved each artifact under its own directory or flattened a
+single artifact directly into the download path. The converter writes one result
+JSON per execution-client/zkVM combination and a
 generated details log for each result. To build a HiveUI site from only those
 converted results:
 
