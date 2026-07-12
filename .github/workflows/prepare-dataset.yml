@@ -16,12 +16,12 @@ on:
         required: false
         default: projects/zkevm-releases
       filler_path:
-        description: execution-specs filler path to generate.
-        required: true
+        description: execution-specs filler path to generate in fill mode; ignored when eest_release_tag is set.
+        required: false
         default: tests/amsterdam/eip8025_optional_proofs
       fork:
-        description: EEST fork name to fill.
-        required: true
+        description: EEST fork name to generate in fill mode; ignored when eest_release_tag is set.
+        required: false
         default: Amsterdam
       hive_repo:
         description: Hive repository URL shared by every workload in the dataset.
