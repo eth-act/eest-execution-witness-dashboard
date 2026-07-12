@@ -1,0 +1,215 @@
+name: Prepare execution witness dataset
+
+on:
+  workflow_dispatch:
+    inputs:
+      eest_release_tag:
+        description: Optional pre-filled EEST release tag. When set, eest_repo/eest_ref are ignored for fixture preparation.
+        required: false
+        default: ""
+      eest_repo:
+        description: execution-specs repository URL.
+        required: false
+        default: https://github.com/ethereum/execution-specs.git
+      eest_ref:
+        description: execution-specs branch, tag, or commit.
+        required: false
+        default: projects/zkevm-releases
+      filler_path:
+        description: execution-specs filler path to generate.
+        required: true
+        default: tests/amsterdam/eip8025_optional_proofs
+      fork:
+        description: EEST fork name to fill.
+        required: true
+        default: Amsterdam
+      hive_repo:
+        description: Hive repository URL shared by every workload in the dataset.
+        required: true
+        default: https://github.com/ethereum/hive.git
+      hive_ref:
+        description: Hive branch, tag, or commit to pin.
+        required: true
+        default: master
+      zkevm_benchmark_workload_repo:
+        description: zkevm-benchmark-workload repository URL shared by the dataset.
+        required: true
+        default: https://github.com/eth-act/zkevm-benchmark-workload.git
+      zkevm_benchmark_workload_ref:
+        description: zkevm-benchmark-workload branch, tag, or commit to pin.
+        required: true
+        default: v0.5.0
+      zkevm_rayon_threads:
+        description: RAYON_NUM_THREADS shared by zkEVM runs in this dataset.
+        required: true
+        default: "10"
+
+jobs:
+  prepare:
+    name: Prepare immutable dataset
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    env:
+      ROOT_DIR: ${{ github.workspace }}
+      EEST_REPO: ${{ inputs.eest_repo }}
+      EEST_REF: ${{ inputs.eest_ref }}
+      EEST_RELEASE_TAG: ${{ inputs.eest_release_tag }}
+      EEST_DIR: ${{ github.workspace }}/execution-specs
+      FILLER_PATH: ${{ inputs.filler_path }}
+      FORK: ${{ inputs.fork }}
+      FIXTURES_DIR: ${{ github.workspace }}/fixtures
+      UV_CACHE_DIR: /tmp/uv-cache
+
+    steps:
+      - name: Checkout dashboard repository
+        uses: actions/checkout@v6
+
+      - name: Install Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8.1.0
+
+      - name: Install OS prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl jq
+
+      - name: Validate dataset inputs
+        env:
+          RAYON_THREADS: ${{ inputs.zkevm_rayon_threads }}
+        run: |
+          set -Eeuo pipefail
+          scripts/env.sh --validate-eest-source
+          case "$RAYON_THREADS" in
+            ''|*[!0-9]*|0) echo "zkevm_rayon_threads must be a positive integer" >&2; exit 1 ;;
+          esac
+
+      - name: Prepare execution witness fixtures
+        run: scripts/prepare-fixtures.sh
+
+      - name: Pack fixtures
+        run: tar -czf fixtures.tar.gz -C fixtures .
+
+      - name: Resolve shared toolchain commits
+        id: toolchains
+        env:
+          HIVE_REPO_INPUT: ${{ inputs.hive_repo }}
+          HIVE_REF_INPUT: ${{ inputs.hive_ref }}
+          ZKEVM_REPO_INPUT: ${{ inputs.zkevm_benchmark_workload_repo }}
+          ZKEVM_REF_INPUT: ${{ inputs.zkevm_benchmark_workload_ref }}
+        run: |
+          set -Eeuo pipefail
+
+          resolve_ref() {
+            local label="$1" repo="$2" ref="$3" checkout="$4"
+            echo "Resolving $label ref $ref" >&2
+            git init -q "$checkout"
+            git -C "$checkout" remote add origin "$repo"
+            if ! git -C "$checkout" fetch --depth=1 origin "$ref"; then
+              case "$ref" in
+                [0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]*)
+                  git -C "$checkout" fetch --filter=blob:none origin
+                  ;;
+                *)
+                  return 1
+                  ;;
+              esac
+            fi
+            if git -C "$checkout" cat-file -e "$ref^{commit}" 2>/dev/null; then
+              printf '%s\n' "$(git -C "$checkout" rev-parse "$ref^{commit}")"
+            else
+              printf '%s\n' "$(git -C "$checkout" rev-parse 'FETCH_HEAD^{commit}')"
+            fi
+          }
+
+          eest_repo_resolved="$(git -C "$EEST_DIR" remote get-url origin)"
+          eest_commit="$(git -C "$EEST_DIR" rev-parse HEAD)"
+          hive_commit="$(resolve_ref Hive "$HIVE_REPO_INPUT" "$HIVE_REF_INPUT" "$RUNNER_TEMP/hive-ref")"
+          zkevm_commit="$(resolve_ref zkevm-benchmark-workload "$ZKEVM_REPO_INPUT" "$ZKEVM_REF_INPUT" "$RUNNER_TEMP/zkevm-ref")"
+
+          {
+            echo "eest_repo=$eest_repo_resolved"
+            echo "eest_commit=$eest_commit"
+            echo "hive_commit=$hive_commit"
+            echo "zkevm_commit=$zkevm_commit"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Write and validate dataset manifest
+        env:
+          EEST_REPO_RESOLVED: ${{ steps.toolchains.outputs.eest_repo }}
+          EEST_COMMIT: ${{ steps.toolchains.outputs.eest_commit }}
+          HIVE_COMMIT: ${{ steps.toolchains.outputs.hive_commit }}
+          ZKEVM_COMMIT: ${{ steps.toolchains.outputs.zkevm_commit }}
+          EEST_REQUESTED_REF: ${{ inputs.eest_ref }}
+          EEST_RELEASE_TAG_INPUT: ${{ inputs.eest_release_tag }}
+          HIVE_REPO_INPUT: ${{ inputs.hive_repo }}
+          HIVE_REF_INPUT: ${{ inputs.hive_ref }}
+          ZKEVM_REPO_INPUT: ${{ inputs.zkevm_benchmark_workload_repo }}
+          ZKEVM_REF_INPUT: ${{ inputs.zkevm_benchmark_workload_ref }}
+          RAYON_THREADS: ${{ inputs.zkevm_rayon_threads }}
+        run: |
+          set -Eeuo pipefail
+          created_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          python3 scripts/dashboard-artifacts.py write-dataset \
+            --output dataset.json \
+            --dataset-id "$GITHUB_RUN_ID" \
+            --fixture-archive fixtures.tar.gz \
+            --eest-repo "$EEST_REPO_RESOLVED" \
+            --eest-requested-ref "$EEST_REQUESTED_REF" \
+            --eest-release-tag "$EEST_RELEASE_TAG_INPUT" \
+            --eest-commit "$EEST_COMMIT" \
+            --filler-path "$FILLER_PATH" \
+            --fork "$FORK" \
+            --hive-repo "$HIVE_REPO_INPUT" \
+            --hive-requested-ref "$HIVE_REF_INPUT" \
+            --hive-commit "$HIVE_COMMIT" \
+            --zkevm-repo "$ZKEVM_REPO_INPUT" \
+            --zkevm-requested-ref "$ZKEVM_REF_INPUT" \
+            --zkevm-commit "$ZKEVM_COMMIT" \
+            --rayon-threads "$RAYON_THREADS" \
+            --repository "$GITHUB_REPOSITORY" \
+            --ref "$GITHUB_REF" \
+            --sha "$GITHUB_SHA" \
+            --workflow-ref "$GITHUB_WORKFLOW_REF" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --created-at "$created_at"
+          python3 scripts/dashboard-artifacts.py validate-dataset \
+            --manifest dataset.json \
+            --dataset-id "$GITHUB_RUN_ID" \
+            --fixture-archive fixtures.tar.gz \
+            --repository "$GITHUB_REPOSITORY" \
+            --allow-non-main
+
+      - name: Upload dataset manifest
+        uses: actions/upload-artifact@v7
+        with:
+          name: dataset-manifest-${{ github.run_id }}
+          retention-days: 90
+          if-no-files-found: error
+          path: dataset.json
+
+      - name: Upload dataset fixtures
+        uses: actions/upload-artifact@v7
+        with:
+          name: dataset-fixtures-${{ github.run_id }}
+          retention-days: 90
+          if-no-files-found: error
+          path: fixtures.tar.gz
+
+      - name: Summarize dataset
+        run: |
+          {
+            echo "## Dataset prepared"
+            echo
+            echo "- Dataset run ID: \`$GITHUB_RUN_ID\`"
+            echo "- Source ref: \`$GITHUB_REF\`"
+            echo "- Retention: 90 days"
+            echo
+            echo "Use \`$GITHUB_RUN_ID\` as \`dataset_run_id\` in the Run workloads and Publish workflows."
+          } >> "$GITHUB_STEP_SUMMARY"

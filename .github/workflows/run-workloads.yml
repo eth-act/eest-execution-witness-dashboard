@@ -1,0 +1,423 @@
+name: Run execution witness workloads
+
+on:
+  workflow_dispatch:
+    inputs:
+      dataset_run_id:
+        description: Run ID produced by the Prepare execution witness dataset workflow.
+        required: true
+      el_clients:
+        description: Comma-separated EL client descriptor IDs. Set to none to skip Hive workloads.
+        required: true
+        default: ethrex
+      el_client_overrides_json:
+        description: 'JSON descriptor overrides, e.g. {"ethrex":{"ref":"branch"}}.'
+        required: false
+        default: "{}"
+      zkevm_workload_execution_clients:
+        description: Comma-separated execution clients from config/el-guests.json. Set to none to skip.
+        required: true
+        default: none
+      zkevm_workload_zkvms:
+        description: Comma-separated zkVMs used when zkEVM clients are selected.
+        required: true
+        default: zisk
+
+jobs:
+  resolve:
+    name: Resolve dataset and workload matrices
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      client_matrix: ${{ steps.workloads.outputs.client_matrix }}
+      client_count: ${{ steps.workloads.outputs.client_count }}
+      zkevm_matrix: ${{ steps.workloads.outputs.zkevm_matrix }}
+      zkevm_count: ${{ steps.workloads.outputs.zkevm_count }}
+      eest_repo: ${{ steps.dataset.outputs.eest_repo }}
+      eest_commit: ${{ steps.dataset.outputs.eest_commit }}
+      filler_path: ${{ steps.dataset.outputs.filler_path }}
+      fork: ${{ steps.dataset.outputs.fork }}
+      hive_repo: ${{ steps.dataset.outputs.hive_repo }}
+      hive_commit: ${{ steps.dataset.outputs.hive_commit }}
+      zkevm_repo: ${{ steps.dataset.outputs.zkevm_repo }}
+      zkevm_commit: ${{ steps.dataset.outputs.zkevm_commit }}
+      rayon_threads: ${{ steps.dataset.outputs.rayon_threads }}
+    env:
+      DATASET_RUN_ID: ${{ inputs.dataset_run_id }}
+      EL_CLIENTS: ${{ inputs.el_clients }}
+      EL_CLIENT_OVERRIDES_JSON: ${{ inputs.el_client_overrides_json }}
+      ZKEVM_WORKLOAD_EXECUTION_CLIENTS: ${{ inputs.zkevm_workload_execution_clients }}
+      ZKEVM_WORKLOAD_ZKVMS: ${{ inputs.zkevm_workload_zkvms }}
+
+    steps:
+      - name: Checkout dashboard repository
+        uses: actions/checkout@v6
+
+      - name: Validate dispatch source and dataset ID
+        run: |
+          set -Eeuo pipefail
+          if [ "$GITHUB_REF" != refs/heads/main ]; then
+            echo "Publishable workload artifacts must be produced from refs/heads/main" >&2
+            exit 1
+          fi
+          case "$DATASET_RUN_ID" in
+            ''|*[!0-9]*|0) echo "dataset_run_id must be a positive numeric workflow run ID" >&2; exit 1 ;;
+          esac
+
+      - name: Download dataset manifest
+        uses: actions/download-artifact@v8
+        with:
+          name: dataset-manifest-${{ inputs.dataset_run_id }}
+          path: dataset
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.dataset_run_id }}
+
+      - name: Validate and expose dataset
+        id: dataset
+        run: |
+          set -Eeuo pipefail
+          python3 scripts/dashboard-artifacts.py validate-dataset \
+            --manifest dataset/dataset.json \
+            --dataset-id "$DATASET_RUN_ID" \
+            --repository "$GITHUB_REPOSITORY"
+
+          {
+            echo "eest_repo=$(jq -r '.eest.repo' dataset/dataset.json)"
+            echo "eest_commit=$(jq -r '.eest.commit' dataset/dataset.json)"
+            echo "filler_path=$(jq -r '.eest.filler_path' dataset/dataset.json)"
+            echo "fork=$(jq -r '.eest.fork' dataset/dataset.json)"
+            echo "hive_repo=$(jq -r '.hive.repo' dataset/dataset.json)"
+            echo "hive_commit=$(jq -r '.hive.commit' dataset/dataset.json)"
+            echo "zkevm_repo=$(jq -r '.zkevm_benchmark.repo' dataset/dataset.json)"
+            echo "zkevm_commit=$(jq -r '.zkevm_benchmark.commit' dataset/dataset.json)"
+            echo "rayon_threads=$(jq -r '.zkevm_benchmark.rayon_threads' dataset/dataset.json)"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Resolve selected workloads
+        id: workloads
+        run: |
+          set -Eeuo pipefail
+          client_matrix="$(scripts/list-el-clients.sh --github-matrix)"
+          zkevm_matrix="$(scripts/list-zkevm-workload-runs.sh --github-matrix)"
+          client_count="$(jq -r '.include | length' <<< "$client_matrix")"
+          zkevm_count="$(jq -r '.include | length' <<< "$zkevm_matrix")"
+
+          if [ "$client_count" -eq 0 ] && [ "$zkevm_count" -eq 0 ]; then
+            echo "At least one Hive client or zkEVM workload must be selected" >&2
+            exit 1
+          fi
+
+          {
+            echo "client_matrix=$client_matrix"
+            echo "client_count=$client_count"
+            echo "zkevm_matrix=$zkevm_matrix"
+            echo "zkevm_count=$zkevm_count"
+          } >> "$GITHUB_OUTPUT"
+
+  hive:
+    name: Hive ${{ matrix.hive_client }}
+    if: ${{ needs.resolve.outputs.client_count != '0' }}
+    needs: resolve
+    runs-on: [self-hosted-ghr, size-xl-x64]
+    timeout-minutes: 7200
+    permissions:
+      actions: read
+      contents: read
+    concurrency:
+      group: dataset-${{ inputs.dataset_run_id }}-hive-${{ matrix.id }}
+      cancel-in-progress: false
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.resolve.outputs.client_matrix) }}
+    env:
+      ROOT_DIR: ${{ github.workspace }}
+      DATASET_RUN_ID: ${{ inputs.dataset_run_id }}
+      EEST_REPO: ${{ needs.resolve.outputs.eest_repo }}
+      EEST_REF: ${{ needs.resolve.outputs.eest_commit }}
+      EEST_RELEASE_TAG: ""
+      EEST_DIR: ${{ github.workspace }}/execution-specs
+      FILLER_PATH: ${{ needs.resolve.outputs.filler_path }}
+      FORK: ${{ needs.resolve.outputs.fork }}
+      HIVE_REPO: ${{ needs.resolve.outputs.hive_repo }}
+      HIVE_REF: ${{ needs.resolve.outputs.hive_commit }}
+      HIVE_DIR: ${{ github.workspace }}/hive
+      EL_CLIENTS: ${{ matrix.id }}
+      EL_CLIENT_OVERRIDES_JSON: ${{ inputs.el_client_overrides_json }}
+      FIXTURES_DIR: ${{ github.workspace }}/fixtures
+      HIVE_RESULTS_DIR: ${{ github.workspace }}/hive/workspace/logs
+      HIVE_CLIENT_RESULTS_DIR: ${{ github.workspace }}/hive/workspace/client-results
+      HIVE_CONSUME_RESULT_DIR: ${{ github.workspace }}/hive/workspace/client-results/${{ matrix.id }}
+      HIVE_SIMULATOR: http://127.0.0.1:3000
+      HIVE_PARALLELISM: ${{ matrix.hive_parallelism }}
+      HIVE_READY_ATTEMPTS: "1800"
+      HIVE_CONSUME_ALLOW_FAILURE: "1"
+      HIVE_DOCKER_OUTPUT: build
+      HIVE_LOG_TO_STDOUT: "1"
+      UV_CACHE_DIR: /tmp/uv-cache
+
+    steps:
+      - name: Checkout dashboard repository
+        uses: actions/checkout@v6
+
+      - name: Install Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: 1.24.x
+          cache: false
+
+      - name: Install Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8.1.0
+
+      - name: Install OS prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Download dataset manifest
+        uses: actions/download-artifact@v8
+        with:
+          name: dataset-manifest-${{ inputs.dataset_run_id }}
+          path: dataset
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.dataset_run_id }}
+
+      - name: Download dataset fixtures
+        uses: actions/download-artifact@v8
+        with:
+          name: dataset-fixtures-${{ inputs.dataset_run_id }}
+          path: dataset
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.dataset_run_id }}
+
+      - name: Validate and extract dataset
+        run: |
+          set -Eeuo pipefail
+          python3 scripts/dashboard-artifacts.py validate-dataset \
+            --manifest dataset/dataset.json \
+            --dataset-id "$DATASET_RUN_ID" \
+            --fixture-archive dataset/fixtures.tar.gz \
+            --repository "$GITHUB_REPOSITORY"
+          mkdir -p fixtures
+          tar -xzf dataset/fixtures.tar.gz -C fixtures
+          scripts/validate-fixtures.sh
+
+      - name: Prepare execution-specs checkout
+        run: scripts/setup-eest.sh
+
+      - name: Run Hive and consume fixtures
+        run: scripts/run-hive-consume-client.sh "${{ matrix.id }}"
+
+      - name: Build and validate Hive result bundle
+        env:
+          RESULT_BUNDLE: ${{ github.workspace }}/result-bundle
+        run: |
+          set -Eeuo pipefail
+          rm -rf "$RESULT_BUNDLE"
+          mkdir -p "$RESULT_BUNDLE/payload"
+          cp -a "$HIVE_CLIENT_RESULTS_DIR"/. "$RESULT_BUNDLE/payload"/
+          scripts/list-el-clients.sh --json | jq '.[0]' > "$RESULT_BUNDLE/workload-config.json"
+          created_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          python3 scripts/dashboard-artifacts.py write-result \
+            --output "$RESULT_BUNDLE/result-manifest.json" \
+            --dataset-manifest dataset/dataset.json \
+            --payload "$RESULT_BUNDLE/payload" \
+            --kind hive \
+            --client-id "${{ matrix.id }}" \
+            --config "$RESULT_BUNDLE/workload-config.json" \
+            --repository "$GITHUB_REPOSITORY" \
+            --ref "$GITHUB_REF" \
+            --sha "$GITHUB_SHA" \
+            --workflow-ref "$GITHUB_WORKFLOW_REF" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --created-at "$created_at"
+          rm "$RESULT_BUNDLE/workload-config.json"
+          python3 scripts/dashboard-artifacts.py validate-result \
+            --manifest "$RESULT_BUNDLE/result-manifest.json" \
+            --dataset-manifest dataset/dataset.json \
+            --payload "$RESULT_BUNDLE/payload" \
+            --kind hive \
+            --client-id "${{ matrix.id }}"
+
+      - name: Upload reusable Hive result
+        uses: actions/upload-artifact@v7
+        with:
+          name: hive-results-v1-${{ inputs.dataset_run_id }}-${{ matrix.id }}
+          retention-days: 90
+          overwrite: true
+          if-no-files-found: error
+          include-hidden-files: true
+          path: result-bundle
+
+      - name: Upload Hive debug artifacts
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: hive-debug-${{ matrix.id }}-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 14
+          if-no-files-found: ignore
+          include-hidden-files: true
+          path: |
+            hive/workspace/client-results/${{ matrix.id }}
+            hive/workspace/logs
+            fixtures/.meta/index.json
+            fixtures/.meta/report_consume.html
+            result-bundle
+
+  zkevm:
+    name: zkEVM ${{ matrix.execution_client }} / ${{ matrix.zkvm }}
+    if: ${{ needs.resolve.outputs.zkevm_count != '0' }}
+    needs: resolve
+    runs-on: [self-hosted-ghr, size-xl-x64]
+    timeout-minutes: 7200
+    permissions:
+      actions: read
+      contents: read
+      packages: read
+    concurrency:
+      group: dataset-${{ inputs.dataset_run_id }}-zkevm-${{ matrix.execution_client }}-${{ matrix.zkvm }}
+      cancel-in-progress: false
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.resolve.outputs.zkevm_matrix) }}
+    env:
+      ROOT_DIR: ${{ github.workspace }}
+      DATASET_RUN_ID: ${{ inputs.dataset_run_id }}
+      FIXTURES_DIR: ${{ github.workspace }}/fixtures
+      ZKEVM_BENCHMARK_WORKLOAD_REPO: ${{ needs.resolve.outputs.zkevm_repo }}
+      ZKEVM_BENCHMARK_WORKLOAD_REF: ${{ needs.resolve.outputs.zkevm_commit }}
+      ZKEVM_BENCHMARK_WORKLOAD_DIR: ${{ github.workspace }}/zkevm-benchmark-workload
+      ZKEVM_WORKLOAD_EXECUTION_CLIENT: ${{ matrix.execution_client }}
+      ZKEVM_WORKLOAD_ZKVM: ${{ matrix.zkvm }}
+      ZKEVM_WORKLOAD_GUEST_ARTIFACT_BASE_URL: ${{ matrix.guest_artifact_base_url }}
+      ZKEVM_RAYON_THREADS: ${{ needs.resolve.outputs.rayon_threads }}
+      ZKEVM_METRICS_DIR: ${{ github.workspace }}/zkevm-metrics
+      GITHUB_TOKEN: ${{ github.token }}
+      GH_TOKEN: ${{ github.token }}
+      ERE_IMAGE_REGISTRY: ghcr.io/eth-act/ere
+
+    steps:
+      - name: Checkout dashboard repository
+        uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Install OS prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential clang jq libclang-dev libssl-dev pkg-config
+
+      - name: Download dataset manifest
+        uses: actions/download-artifact@v8
+        with:
+          name: dataset-manifest-${{ inputs.dataset_run_id }}
+          path: dataset
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.dataset_run_id }}
+
+      - name: Download dataset fixtures
+        uses: actions/download-artifact@v8
+        with:
+          name: dataset-fixtures-${{ inputs.dataset_run_id }}
+          path: dataset
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.dataset_run_id }}
+
+      - name: Validate and extract dataset
+        run: |
+          set -Eeuo pipefail
+          python3 scripts/dashboard-artifacts.py validate-dataset \
+            --manifest dataset/dataset.json \
+            --dataset-id "$DATASET_RUN_ID" \
+            --fixture-archive dataset/fixtures.tar.gz \
+            --repository "$GITHUB_REPOSITORY"
+          mkdir -p fixtures
+          tar -xzf dataset/fixtures.tar.gz -C fixtures
+          scripts/validate-fixtures.sh
+
+      - name: Prepare zkevm-benchmark-workload checkout
+        run: scripts/setup-zkevm-benchmark-workload.sh
+
+      - name: Cache Rust build outputs
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ${{ env.ZKEVM_BENCHMARK_WORKLOAD_DIR }} -> target
+          shared-key: zkevm-benchmark-workload-${{ needs.resolve.outputs.zkevm_commit }}
+
+      - name: Run zkevm-benchmark-workload
+        run: scripts/run-zkevm-benchmark-workload.sh
+
+      - name: Build and validate zkEVM result bundle
+        env:
+          RESULT_BUNDLE: ${{ github.workspace }}/result-bundle
+        run: |
+          set -Eeuo pipefail
+          rm -rf "$RESULT_BUNDLE"
+          mkdir -p "$RESULT_BUNDLE/payload"
+          cp -a "$ZKEVM_METRICS_DIR"/. "$RESULT_BUNDLE/payload"/
+          jq \
+            --arg client "${{ matrix.execution_client }}" \
+            --arg zkvm "${{ matrix.zkvm }}" \
+            '{execution_client: $client, zkvm: $zkvm, guest: .guests[$client]}' \
+            config/el-guests.json > "$RESULT_BUNDLE/workload-config.json"
+          created_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          python3 scripts/dashboard-artifacts.py write-result \
+            --output "$RESULT_BUNDLE/result-manifest.json" \
+            --dataset-manifest dataset/dataset.json \
+            --payload "$RESULT_BUNDLE/payload" \
+            --kind zkevm \
+            --client-id "${{ matrix.execution_client }}" \
+            --zkvm "${{ matrix.zkvm }}" \
+            --config "$RESULT_BUNDLE/workload-config.json" \
+            --repository "$GITHUB_REPOSITORY" \
+            --ref "$GITHUB_REF" \
+            --sha "$GITHUB_SHA" \
+            --workflow-ref "$GITHUB_WORKFLOW_REF" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --created-at "$created_at"
+          rm "$RESULT_BUNDLE/workload-config.json"
+          python3 scripts/dashboard-artifacts.py validate-result \
+            --manifest "$RESULT_BUNDLE/result-manifest.json" \
+            --dataset-manifest dataset/dataset.json \
+            --payload "$RESULT_BUNDLE/payload" \
+            --kind zkevm \
+            --client-id "${{ matrix.execution_client }}" \
+            --zkvm "${{ matrix.zkvm }}"
+
+      - name: Upload reusable zkEVM metrics
+        uses: actions/upload-artifact@v7
+        with:
+          name: zkevm-metrics-v1-${{ inputs.dataset_run_id }}-${{ matrix.execution_client }}-${{ matrix.zkvm }}
+          retention-days: 90
+          overwrite: true
+          if-no-files-found: error
+          include-hidden-files: true
+          path: result-bundle
+
+      - name: Upload zkEVM debug artifacts
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: zkevm-debug-${{ matrix.execution_client }}-${{ matrix.zkvm }}-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 14
+          if-no-files-found: ignore
+          include-hidden-files: true
+          path: |
+            zkevm-metrics
+            fixtures/.meta/index.json
+            result-bundle

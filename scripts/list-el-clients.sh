@@ -22,7 +22,8 @@ _list_el_clients_usage() {
     'Usage: scripts/list-el-clients.sh [--json | --github-matrix | --ids]' \
     '' \
     'Resolve the selected EL client descriptors from EL_CLIENTS and' \
-    'EL_CLIENT_OVERRIDES_JSON without preparing Hive.'
+    'EL_CLIENT_OVERRIDES_JSON without preparing Hive.' \
+    'Set EL_CLIENTS to none, skip, or empty to select no Hive clients.'
 }
 
 _list_el_clients_die() {
@@ -42,7 +43,7 @@ _list_el_clients_require_cmd() {
 }
 
 main() {
-  local mode resolved
+  local mode normalized resolved
 
   mode=table
   while [ "$#" -gt 0 ]; do
@@ -69,6 +70,18 @@ main() {
   done
 
   _list_el_clients_require_cmd jq jq
+
+  normalized="$(printf '%s' "$EL_CLIENTS" | tr '[:upper:]' '[:lower:]' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+  case "$normalized" in
+    none | skip | empty)
+      case "$mode" in
+        json) printf '%s\n' '[]' ;;
+        github-matrix) printf '%s\n' '{"include":[]}' ;;
+        ids | table) ;;
+      esac
+      return 0
+      ;;
+  esac
 
   case "$mode" in
     json)

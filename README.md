@@ -297,11 +297,39 @@ public result logs for common secret or private RPC URL patterns.
 
 ## GitHub Pages Publishing
 
-Manual publishing is implemented in
-`.github/workflows/publish.yml` as a `workflow_dispatch` workflow. The workflow
-generates fixtures once, fans out one GitHub Actions matrix for Hive consume
-and another for zkEVM workload runs, merges the resulting artifacts, and then
-builds the same static site:
+Publishing is split into three manually dispatched workflows so successful
+client results can be reused independently:
+
+1. `.github/workflows/prepare-dataset.yml` prepares fixtures and pins the
+   shared EEST, Hive, and zkevm-benchmark-workload toolchains. Its workflow run
+   ID is the immutable `dataset_run_id`.
+2. `.github/workflows/run-workloads.yml` runs any selected subset of Hive
+   clients and zkEVM execution-client/zkVM pairs against that dataset.
+3. `.github/workflows/publish.yml` selects the newest successful artifact for
+   every requested workload in the dataset, merges the results, and deploys an
+   atomic Pages site.
+
+All three publishable stages must run from `main`. A typical operation is:
+
+```bash
+gh workflow run prepare-dataset.yml --ref main
+# Copy the completed prepare workflow's run ID from its URL or job summary.
+DATASET_RUN_ID=123456789
+
+gh workflow run run-workloads.yml --ref main \
+  -f dataset_run_id="$DATASET_RUN_ID" \
+  -f el_clients=ethrex \
+  -f zkevm_workload_execution_clients=zesu \
+  -f zkevm_workload_zkvms=zisk
+
+gh workflow run publish.yml --ref main \
+  -f dataset_run_id="$DATASET_RUN_ID" \
+  -f el_clients=ethrex \
+  -f zkevm_workload_execution_clients=zesu \
+  -f zkevm_workload_zkvms=zisk
+```
+
+The underlying pipeline remains:
 
 ```text
 scripts/prepare-fixtures.sh
@@ -316,21 +344,32 @@ scripts/build-site.sh
 scripts/smoke-site.sh
 ```
 
-The workflow inputs expose `eest_release_tag`, the execution-specs, Hive, and
-hive-ui repos/refs, fixture selection, `EL_CLIENTS`, optional descriptor
-override JSON, consume parallelism, zkevm-benchmark-workload repo/ref, zkEVM
-workload execution clients, zkVMs, Rayon thread count, and max site size. Fill
-mode uses the default empty `eest_release_tag` plus `eest_repo`/`eest_ref`.
-Release mode uses a tag such as `tests-zkevm@v0.4.2`; when that tag is set, CI
-ignores `eest_repo` and `eest_ref` so it can skip fixture filling. In CI,
-`EL_CLIENTS` is still a comma-separated selection, but each selected EL runs in
-its own Hive matrix job. Each selected zkEVM workload execution-client/zkVM
-pair runs in its own matrix job. Missing Hive result JSON or missing zkEVM
-metrics is treated as an infrastructure failure; ordinary failing Hive tests
-and per-fixture zkEVM guest crashes are still published as dashboard results.
-Builds upload the full combined Hive results as a short-retention artifact.
-Failed runs also upload debug artifacts containing per-client Hive logs, zkEVM
-metrics, and staged build results.
+Dataset preparation supports both fill mode and an exact release tag such as
+`tests-zkevm@v0.4.2`. Dataset manifests and fixture archives are retained for
+90 days. Reusable result bundles are also retained for 90 days and contain a
+validated manifest plus their Hive results or zkEVM metrics payload.
+
+To refresh one client after changing its descriptor ref, dispatch
+`run-workloads.yml` with that client and `zkevm_workload_execution_clients=none`,
+then dispatch `publish.yml` with the complete desired site selection. The
+publisher combines the new client artifact with the preceding successful
+artifacts for the other clients. Adding a client follows the same process. If
+a refresh fails before producing a reusable artifact, the previous successful
+artifact remains eligible; a new client with no successful artifact causes
+publication to fail without changing the deployed site.
+
+Set `el_clients=none` to run or publish only zkEVM results, or set
+`zkevm_workload_execution_clients=none` for Hive-only operation. Result bundles
+from another dataset, an expired artifact, or a non-`main` run are rejected.
+When the dataset artifacts expire or shared EEST/Hive/benchmark settings must
+change, prepare a new dataset and run every required workload once.
+
+Missing Hive result JSON or missing zkEVM metrics is treated as an
+infrastructure failure. Ordinary failing Hive tests and per-fixture zkEVM
+guest crashes are still published as dashboard results. Publish runs upload
+the full combined Hive results as a short-retention artifact, while failed
+runs upload debug artifacts containing selected artifact metadata and staged
+results.
 
 After the generated site passes the local smoke test, the workflow configures
 GitHub Pages, uploads `site/` as a Pages artifact, deploys it, and runs the

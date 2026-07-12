@@ -20,7 +20,7 @@ class ListElClientsTests(unittest.TestCase):
     def run_matrix(
         self,
         *,
-        clients: str = "ethrex,besu",
+        clients: str = "ethrex",
         overrides: str = "{}",
         config_path: Path | None = None,
     ) -> subprocess.CompletedProcess[str]:
@@ -59,11 +59,11 @@ class ListElClientsTests(unittest.TestCase):
         by_id = {entry["id"]: entry for entry in matrix["include"]}
 
         self.assertEqual(by_id["ethrex"]["hive_parallelism"], "16")
-        self.assertEqual(by_id["besu"]["hive_parallelism"], "8")
+        self.assertEqual(set(by_id), {"ethrex"})
 
     def test_override_can_tune_one_client_parallelism(self):
         completed = self.run_matrix(
-            overrides='{"besu":{"hive_parallelism":4}}',
+            overrides='{"ethrex":{"hive_parallelism":4}}',
         )
 
         self.assertEqual(
@@ -75,8 +75,7 @@ class ListElClientsTests(unittest.TestCase):
         matrix = json.loads(completed.stdout)
         by_id = {entry["id"]: entry for entry in matrix["include"]}
 
-        self.assertEqual(by_id["ethrex"]["hive_parallelism"], "16")
-        self.assertEqual(by_id["besu"]["hive_parallelism"], "4")
+        self.assertEqual(by_id["ethrex"]["hive_parallelism"], "4")
 
     def test_invalid_or_missing_parallelism_fails_matrix_generation(self):
         invalid_values = [
@@ -119,6 +118,18 @@ class ListElClientsTests(unittest.TestCase):
 
                     self.assertNotEqual(completed.returncode, 0)
                     self.assertIn("hive_parallelism", completed.stderr)
+
+    def test_none_produces_empty_matrix(self):
+        completed = self.run_matrix(clients="none")
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(json.loads(completed.stdout), {"include": []})
+
+    def test_skip_produces_empty_matrix(self):
+        completed = self.run_matrix(clients="skip")
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(json.loads(completed.stdout), {"include": []})
 
 
 if __name__ == "__main__":

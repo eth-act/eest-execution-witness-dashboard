@@ -37,6 +37,8 @@ Implemented scripts:
   zkEVM metrics.
 - `list-zkevm-metrics-roots.sh`: discover downloaded zkEVM metrics roots across
   both artifact-wrapper and flattened GitHub Actions download layouts.
+- `dashboard-artifacts.py`: create and validate immutable dataset/result
+  manifests and deterministically select reusable cross-run artifacts.
 - `convert-zkevm-metrics-to-hive-results.py`: convert `zkevm-benchmark-workload`
   `zkevm-metrics/` output into Hive-compatible result files.
 - `build-site.sh`: generate a static hive-ui site in `SITE_DIR`, write
