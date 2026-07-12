@@ -7,17 +7,7 @@
       "hive_parallelism": 16,
       "repo": "https://github.com/lambdaclass/ethrex.git",
       "github": "lambdaclass/ethrex",
-      "ref": "main",
-      "transport": "json-rpc-rlp"
-    },
-    "besu": {
-      "hive_client": "besu",
-      "dockerfile": "git",
-      "nametag": "rlp-engineapi",
-      "hive_parallelism": 8,
-      "repo": "https://github.com/besu-eth/besu.git",
-      "github": "besu-eth/besu",
-      "ref": "bal-devnet-7-witness",
+      "ref": "glamsterdam-devnet-7",
       "transport": "json-rpc-rlp"
     }
   }
