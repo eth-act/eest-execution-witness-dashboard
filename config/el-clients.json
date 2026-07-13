@@ -4,7 +4,7 @@
       "hive_client": "ethrex",
       "dockerfile": "git",
       "nametag": "rlp-engineapi",
-      "hive_parallelism": 16,
+      "hive_parallelism": 8,
       "repo": "https://github.com/lambdaclass/ethrex.git",
       "github": "lambdaclass/ethrex",
       "ref": "glamsterdam-devnet-7",
