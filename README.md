@@ -348,6 +348,8 @@ Dataset preparation supports both fill mode and an exact release tag such as
 `tests-zkevm@v0.4.2`. Dataset manifests and fixture archives are retained for
 90 days. Reusable result bundles are also retained for 90 days and contain a
 validated manifest plus their Hive results or zkEVM metrics payload.
+When a release tag is present, the published HiveUI group title displays it as
+`tests-zkevm v0.4.2`; fill-mode datasets retain the `execution-witness` title.
 
 To refresh one client after changing its descriptor ref, dispatch
 `run-workloads.yml` with that client and `zkevm_workload_execution_clients=none`,

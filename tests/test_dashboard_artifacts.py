@@ -138,6 +138,13 @@ class DatasetManifestTests(unittest.TestCase):
         with self.assertRaisesRegex(ArtifactError, "control characters"):
             dashboard_artifacts.validate_dataset(dataset)
 
+    def test_release_tag_rejects_newlines(self):
+        dataset = dataset_manifest()
+        dataset["eest"]["release_tag"] = "tests-zkevm@v0.4.2\nINJECTED=value"
+
+        with self.assertRaisesRegex(ArtifactError, "control characters"):
+            dashboard_artifacts.validate_dataset(dataset)
+
 
 class ResultManifestTests(unittest.TestCase):
     def setUp(self):

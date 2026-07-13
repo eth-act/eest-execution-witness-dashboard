@@ -190,6 +190,8 @@ def validate_dataset(value: Any, *, require_main: bool = True) -> dict[str, Any]
     release_tag = eest.get("release_tag")
     if not isinstance(release_tag, str):
         fail("dataset.eest.release_tag must be a string")
+    if "\n" in release_tag or "\r" in release_tag or "\0" in release_tag:
+        fail("dataset.eest.release_tag may not contain control characters")
     require_sha(require_string(eest, "commit", "dataset.eest"), "dataset.eest.commit")
     require_string(eest, "filler_path", "dataset.eest")
     require_string(eest, "fork", "dataset.eest")

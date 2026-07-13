@@ -51,6 +51,7 @@ jobs:
       HIVE_UI_REPO: ${{ inputs.hive_ui_repo }}
       HIVE_UI_REF: ${{ inputs.hive_ui_ref }}
       HIVE_UI_DIR: ${{ github.workspace }}/hive-ui
+      # Used when the dataset was generated from source instead of an EEST release.
       HIVE_UI_DISCOVERY_NAME: execution-witness
       EL_CLIENTS: ${{ inputs.el_clients }}
       EL_CLIENT_OVERRIDES_JSON: "{}"
@@ -125,6 +126,14 @@ jobs:
             --dataset-id "$DATASET_RUN_ID" \
             --repository "$GITHUB_REPOSITORY"
 
+          eest_release_tag="$(jq -r '.eest.release_tag' dataset/dataset.json)"
+          hive_ui_discovery_name="execution-witness"
+          if [ -n "$eest_release_tag" ]; then
+            # HiveUI displays the discovery name as the group title. Keep the
+            # exact release identity while making the tag easier to read.
+            hive_ui_discovery_name="${eest_release_tag/@/ }"
+          fi
+
           {
             echo "EEST_REPO=$(jq -r '.eest.repo' dataset/dataset.json)"
             echo "EEST_REF=$(jq -r '.eest.commit' dataset/dataset.json)"
@@ -136,6 +145,7 @@ jobs:
             echo "ZKEVM_BENCHMARK_WORKLOAD_REPO=$(jq -r '.zkevm_benchmark.repo' dataset/dataset.json)"
             echo "ZKEVM_BENCHMARK_WORKLOAD_REF=$(jq -r '.zkevm_benchmark.commit' dataset/dataset.json)"
             echo "ZKEVM_RAYON_THREADS=$(jq -r '.zkevm_benchmark.rayon_threads' dataset/dataset.json)"
+            echo "HIVE_UI_DISCOVERY_NAME=$hive_ui_discovery_name"
           } >> "$GITHUB_ENV"
 
       - name: Prepare pinned Hive checkout for hiveview

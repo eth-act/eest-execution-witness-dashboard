@@ -108,8 +108,8 @@ _build_site_normalize_bool() {
 
 _build_site_validate_discovery_name() {
   case "$HIVE_UI_DISCOVERY_NAME" in
-    '' | *[!A-Za-z0-9_.-]*)
-      _build_site_die "HIVE_UI_DISCOVERY_NAME must contain only letters, numbers, dots, underscores, or hyphens: $HIVE_UI_DISCOVERY_NAME"
+    '' | ' '* | *' ' | *[!A-Za-z0-9_.\ -]*)
+      _build_site_die "HIVE_UI_DISCOVERY_NAME must contain only letters, numbers, spaces, dots, underscores, or hyphens, without leading or trailing spaces: $HIVE_UI_DISCOVERY_NAME"
       ;;
   esac
 }
