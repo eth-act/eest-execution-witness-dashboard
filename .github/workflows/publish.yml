@@ -138,6 +138,21 @@ jobs:
             echo "ZKEVM_RAYON_THREADS=$(jq -r '.zkevm_benchmark.rayon_threads' dataset/dataset.json)"
           } >> "$GITHUB_ENV"
 
+      - name: Prepare pinned Hive checkout for hiveview
+        run: |
+          set -Eeuo pipefail
+          hive_setup_clients="$EL_CLIENTS"
+          case "$(printf '%s' "$hive_setup_clients" | tr '[:upper:]' '[:lower:]')" in
+            none|skip|empty)
+              hive_setup_clients="$(jq -r '.clients | keys[0] // empty' config/el-clients.json)"
+              if [ -z "$hive_setup_clients" ]; then
+                echo "config/el-clients.json must contain at least one descriptor to prepare Hive" >&2
+                exit 1
+              fi
+              ;;
+          esac
+          EL_CLIENTS="$hive_setup_clients" scripts/setup-hive.sh
+
       - name: Resolve newest workload artifacts
         run: |
           set -Eeuo pipefail
@@ -239,21 +254,6 @@ jobs:
             echo "| --- | --- | ---: | ---: |"
             jq -r '.[] | "| \(.kind):\(.client_id)\(if .zkvm then ":" + .zkvm else "" end) | `\(.name)` | \(.run_id) | \(.artifact_id) |"' selected-artifacts.json
           } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Prepare pinned Hive checkout for hiveview
-        run: |
-          set -Eeuo pipefail
-          hive_setup_clients="$EL_CLIENTS"
-          case "$(printf '%s' "$hive_setup_clients" | tr '[:upper:]' '[:lower:]')" in
-            none|skip|empty)
-              hive_setup_clients="$(jq -r '.clients | keys[0] // empty' config/el-clients.json)"
-              if [ -z "$hive_setup_clients" ]; then
-                echo "config/el-clients.json must contain at least one descriptor to prepare Hive" >&2
-                exit 1
-              fi
-              ;;
-          esac
-          EL_CLIENTS="$hive_setup_clients" scripts/setup-hive.sh
 
       - name: Merge per-client Hive results
         run: |
