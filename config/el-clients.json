@@ -9,6 +9,16 @@
       "github": "lambdaclass/ethrex",
       "ref": "glamsterdam-devnet-7",
       "transport": "json-rpc-rlp"
+    },
+    "go-ethereum": {
+      "hive_client": "go-ethereum",
+      "dockerfile": "git",
+      "nametag": "rlp-engineapi",
+      "hive_parallelism": 8,
+      "repo": "https://github.com/ethereum/go-ethereum.git",
+      "github": "ethereum/go-ethereum",
+      "ref": "glamsterdam-devnet-7",
+      "transport": "json-rpc-rlp"
     }
   }
 }
