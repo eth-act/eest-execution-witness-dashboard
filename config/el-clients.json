@@ -19,6 +19,16 @@
       "github": "ethereum/go-ethereum",
       "ref": "glamsterdam-devnet-7",
       "transport": "json-rpc-rlp"
+    },
+    "besu": {
+      "hive_client": "besu",
+      "dockerfile": "git",
+      "nametag": "rlp-engineapi",
+      "hive_parallelism": 8,
+      "repo": "https://github.com/besu-eth/besu.git",
+      "github": "besu-eth/besu",
+      "ref": "glamsterdam-devnet-7-zkevm",
+      "transport": "json-rpc-rlp"
     }
   }
 }
