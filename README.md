@@ -234,21 +234,18 @@ python3 scripts/convert-zkevm-metrics-to-hive-results.py \
   --clean-output
 ```
 
-To publish both normal Hive runs and converted zkEVM metrics in one site,
-merge the already-Hive-shaped result directories into a staging directory:
+To publish both normal Hive runs and converted zkEVM metrics in one site, merge
+the converted directory with the selected per-client results in one pass:
 
 ```bash
-scripts/merge-hive-result-dirs.sh \
-  --output hive/workspace/combined-results \
-  --clean-output \
-  hive/workspace/logs \
-  hive/workspace/zkevm-converted-results
+scripts/merge-hive-results.sh \
+  --source hive/workspace/zkevm-converted-results
 ```
 
-Then build from the merged result directory:
+Then build from `HIVE_RESULTS_DIR` as usual:
 
 ```bash
-HIVE_RESULTS_DIR=hive/workspace/combined-results scripts/build-site.sh
+scripts/build-site.sh
 ```
 
 ## Static Site Build
@@ -337,9 +334,8 @@ scripts/setup-eest.sh
 scripts/run-hive-consume-client.sh CLIENT_ID
 scripts/setup-zkevm-benchmark-workload.sh
 scripts/run-zkevm-benchmark-workload.sh
-scripts/merge-hive-results.sh
 scripts/convert-zkevm-metrics-to-hive-results.py
-scripts/merge-hive-result-dirs.sh
+scripts/merge-hive-results.sh --source hive/workspace/zkevm-converted-results
 scripts/build-site.sh
 scripts/smoke-site.sh
 ```

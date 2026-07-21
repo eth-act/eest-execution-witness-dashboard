@@ -60,7 +60,6 @@ jobs:
       HIVE_RESULTS_DIR: ${{ github.workspace }}/hive/workspace/logs
       HIVE_CLIENT_RESULTS_DIR: ${{ github.workspace }}/hive/workspace/client-results
       HIVE_RESULTS_SOURCE_DIR: ${{ github.workspace }}/hive/workspace/client-results
-      HIVE_COMBINED_RESULTS_DIR: ${{ github.workspace }}/hive/workspace/combined-results
       ZKEVM_METRICS_ARTIFACTS_DIR: ${{ github.workspace }}/hive/workspace/zkevm-metrics-artifacts
       ZKEVM_CONVERTED_RESULTS_DIR: ${{ github.workspace }}/hive/workspace/zkevm-converted-results
       SITE_DIR: ${{ github.workspace }}/site
@@ -265,27 +264,14 @@ jobs:
             jq -r '.[] | "| \(.kind):\(.client_id)\(if .zkvm then ":" + .zkvm else "" end) | `\(.name)` | \(.run_id) | \(.artifact_id) |"' selected-artifacts.json
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Merge per-client Hive results
-        run: |
-          set -Eeuo pipefail
-          case "$(printf '%s' "$EL_CLIENTS" | tr '[:upper:]' '[:lower:]')" in
-            none|skip|empty)
-              rm -rf "$HIVE_RESULTS_DIR"
-              mkdir -p "$HIVE_RESULTS_DIR"
-              ;;
-            *)
-              scripts/merge-hive-results.sh
-              ;;
-          esac
-
-      - name: Convert and merge zkEVM benchmark metrics
+      - name: Convert zkEVM metrics and merge all results
         run: |
           set -Eeuo pipefail
 
           rm -rf "$ZKEVM_CONVERTED_RESULTS_DIR"
           mkdir -p "$ZKEVM_CONVERTED_RESULTS_DIR" "$ZKEVM_METRICS_ARTIFACTS_DIR"
 
-          converted_sources=("$HIVE_RESULTS_DIR")
+          merge_args=()
           converted_count=0
           while IFS= read -r -d '' metrics_dir; do
             artifact_name="$(basename "$metrics_dir")"
@@ -294,7 +280,7 @@ jobs:
               --input "$metrics_dir" \
               --output "$output_dir" \
               --clean-output
-            converted_sources+=("$output_dir")
+            merge_args+=(--source "$output_dir")
             converted_count=$((converted_count + 1))
           done < <(scripts/list-zkevm-metrics-roots.sh --null "$ZKEVM_METRICS_ARTIFACTS_DIR")
 
@@ -304,10 +290,7 @@ jobs:
             exit 1
           fi
 
-          scripts/merge-hive-result-dirs.sh \
-            --output "$HIVE_COMBINED_RESULTS_DIR" \
-            --clean-output \
-            "${converted_sources[@]}"
+          scripts/merge-hive-results.sh "${merge_args[@]}"
 
       - name: Upload full combined Hive results
         uses: actions/upload-artifact@v7
@@ -316,10 +299,10 @@ jobs:
           retention-days: 14
           if-no-files-found: error
           include-hidden-files: true
-          path: ${{ env.HIVE_COMBINED_RESULTS_DIR }}
+          path: ${{ env.HIVE_RESULTS_DIR }}
 
       - name: Build static hive-ui site
-        run: HIVE_RESULTS_DIR="$HIVE_COMBINED_RESULTS_DIR" scripts/build-site.sh
+        run: scripts/build-site.sh
 
       - name: Smoke test generated site
         run: scripts/smoke-site.sh
@@ -338,7 +321,6 @@ jobs:
             downloaded-artifacts
             hive/workspace/client-results
             hive/workspace/logs
-            hive/workspace/combined-results
             hive/workspace/zkevm-metrics-artifacts
             hive/workspace/zkevm-converted-results
             site/discovery.json

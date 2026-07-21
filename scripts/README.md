@@ -31,10 +31,11 @@ Implemented scripts:
 - `run-hive-consume.sh`: prepare Hive, run the single-client worker once per
   selected EL, and merge per-client results into `HIVE_RESULTS_DIR`.
 - `merge-hive-results.sh`: validate and merge isolated per-client Hive result
-  directories without overwriting conflicting files.
-- `merge-hive-result-dirs.sh`: merge directories that already contain
-  Hive-shaped result JSON/log files, such as normal Hive logs plus converted
-  zkEVM metrics.
+  directories plus optional Hive-shaped sources in one pass without
+  overwriting conflicting files.
+- `merge-hive-result-dirs.py`: shared in-process validator and merge engine.
+- `merge-hive-result-dirs.sh`: compatibility entrypoint for merging arbitrary
+  directories that already contain Hive-shaped result JSON/log files.
 - `list-zkevm-metrics-roots.sh`: discover downloaded zkEVM metrics roots across
   both artifact-wrapper and flattened GitHub Actions download layouts.
 - `dashboard-artifacts.py`: create and validate immutable dataset/result
@@ -228,20 +229,22 @@ HIVE_RESULTS_DIR=hive/workspace/zkevm-converted-results scripts/build-site.sh
 Merge normal Hive results with converted zkEVM metrics:
 
 ```bash
+scripts/merge-hive-results.sh \
+  --source hive/workspace/zkevm-converted-results
+```
+
+The selected per-client results and every `--source` directory are validated
+and merged directly into `HIVE_RESULTS_DIR`. Empty sources are skipped;
+non-empty sources must contain valid top-level suite JSON, are single-client by
+default, and may not overwrite a conflicting path. The generic compatibility
+entrypoint remains available when all inputs are already Hive-shaped:
+
+```bash
 scripts/merge-hive-result-dirs.sh \
   --output hive/workspace/combined-results \
   --clean-output \
   hive/workspace/logs \
   hive/workspace/zkevm-converted-results
-```
-
-This script is for directories that are already in Hive result format. It
-requires each source to contain at least one top-level suite JSON, rejects
-invalid or multi-client result JSON by default, and refuses to overwrite
-conflicting files. Build a site from the merged output with:
-
-```bash
-HIVE_RESULTS_DIR=hive/workspace/combined-results scripts/build-site.sh
 ```
 
 Build the static hive-ui site:
