@@ -10,14 +10,10 @@ on:
         description: Comma-separated Hive client IDs required on the site. Set to none to omit Hive results.
         required: true
         default: ethrex
-      zkevm_workload_execution_clients:
-        description: Comma-separated zkEVM execution clients required on the site. Set to none to omit.
+      zkevm_workload_runs:
+        description: Comma-separated CLIENT:ZKVM pairs required on the site. Set to none to omit.
         required: true
         default: none
-      zkevm_workload_zkvms:
-        description: Comma-separated zkVMs required for each selected zkEVM execution client.
-        required: true
-        default: zisk
       hive_ui_repo:
         description: hive-ui repository URL.
         required: true
@@ -55,8 +51,7 @@ jobs:
       HIVE_UI_DISCOVERY_NAME: execution-witness
       EL_CLIENTS: ${{ inputs.el_clients }}
       EL_CLIENT_OVERRIDES_JSON: "{}"
-      ZKEVM_WORKLOAD_EXECUTION_CLIENTS: ${{ inputs.zkevm_workload_execution_clients }}
-      ZKEVM_WORKLOAD_ZKVMS: ${{ inputs.zkevm_workload_zkvms }}
+      ZKEVM_WORKLOAD_RUNS: ${{ inputs.zkevm_workload_runs }}
       HIVE_RESULTS_DIR: ${{ github.workspace }}/hive/workspace/logs
       HIVE_CLIENT_RESULTS_DIR: ${{ github.workspace }}/hive/workspace/client-results
       HIVE_RESULTS_SOURCE_DIR: ${{ github.workspace }}/hive/workspace/client-results

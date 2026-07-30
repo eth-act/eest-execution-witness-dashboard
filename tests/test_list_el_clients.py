@@ -58,7 +58,7 @@ class ListElClientsTests(unittest.TestCase):
         matrix = json.loads(completed.stdout)
         by_id = {entry["id"]: entry for entry in matrix["include"]}
 
-        self.assertEqual(by_id["ethrex"]["hive_parallelism"], "16")
+        self.assertEqual(by_id["ethrex"]["hive_parallelism"], "8")
         self.assertEqual(set(by_id), {"ethrex"})
 
     def test_override_can_tune_one_client_parallelism(self):

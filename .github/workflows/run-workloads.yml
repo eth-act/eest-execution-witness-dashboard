@@ -14,14 +14,10 @@ on:
         description: 'JSON descriptor overrides, e.g. {"ethrex":{"ref":"branch"}}.'
         required: false
         default: "{}"
-      zkevm_workload_execution_clients:
-        description: Comma-separated execution clients from config/el-guests.json. Set to none to skip.
+      zkevm_workload_runs:
+        description: Comma-separated CLIENT:ZKVM pairs. Set to none to skip zkEVM workloads.
         required: true
         default: none
-      zkevm_workload_zkvms:
-        description: Comma-separated zkVMs used when zkEVM clients are selected.
-        required: true
-        default: zisk
 
 jobs:
   resolve:
@@ -49,8 +45,7 @@ jobs:
       DATASET_RUN_ID: ${{ inputs.dataset_run_id }}
       EL_CLIENTS: ${{ inputs.el_clients }}
       EL_CLIENT_OVERRIDES_JSON: ${{ inputs.el_client_overrides_json }}
-      ZKEVM_WORKLOAD_EXECUTION_CLIENTS: ${{ inputs.zkevm_workload_execution_clients }}
-      ZKEVM_WORKLOAD_ZKVMS: ${{ inputs.zkevm_workload_zkvms }}
+      ZKEVM_WORKLOAD_RUNS: ${{ inputs.zkevm_workload_runs }}
 
     steps:
       - name: Checkout dashboard repository

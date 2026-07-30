@@ -157,20 +157,18 @@ scripts/list-zkevm-workload-runs.sh
 scripts/list-zkevm-workload-runs.sh --github-matrix
 ```
 
-By default, `ZKEVM_WORKLOAD_EXECUTION_CLIENTS=ethrex,reth` and
-`ZKEVM_WORKLOAD_ZKVMS=zisk`, producing one workload run per
-execution-client/zkVM pair. `ethrex`, `reth`, and opt-in `zesu` are accepted
-execution clients. Set `ZKEVM_WORKLOAD_EXECUTION_CLIENTS` to an empty string,
-`none`, or `skip` to skip workload runs.
+By default, `ZKEVM_WORKLOAD_RUNS=ethrex:zisk,reth:zisk`, producing the two
+explicit execution-client/zkVM pairs in the list. `ethrex`, `reth`, and opt-in
+`zesu` are accepted execution clients. Set `ZKEVM_WORKLOAD_RUNS` to an empty
+string, `none`, `skip`, or `empty` to skip workload runs.
 
 Workload guest descriptors live in `config/el-guests.json`. Descriptors can set
 `guest_artifact_base_url` at the guest level and may override it per zkVM under
-`zkvms.<zkvm>.guest_artifact_base_url`. Zesu uses this to locate release ELF
+`zkvms.<zkvm>.guest_artifact_base_url`. Zesu can use this to locate release ELF
 assets:
 
 ```bash
-ZKEVM_WORKLOAD_EXECUTION_CLIENTS=zesu \
-ZKEVM_WORKLOAD_ZKVMS=zisk \
+ZKEVM_WORKLOAD_RUNS=zesu:zisk,ethrex:zisk,ethrex:sp1 \
 scripts/list-zkevm-workload-runs.sh --github-matrix
 ```
 

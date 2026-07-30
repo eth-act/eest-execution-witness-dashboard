@@ -119,7 +119,16 @@ class RunZkevmBenchmarkWorkloadTests(unittest.TestCase):
         self.assertIn("--execution-client\nethrex", args)
 
     def test_zesu_run_uses_configured_guest_artifact_base_url(self):
-        completed, args_file = self.run_script(execution_client="zesu")
+        completed, args_file = self.run_script(
+            execution_client="zesu",
+            guest_config={
+                "guests": {
+                    "zesu": {
+                        "guest_artifact_base_url": ZESU_URL,
+                    }
+                }
+            },
+        )
 
         self.assertEqual(
             completed.returncode,

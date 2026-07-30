@@ -22,7 +22,7 @@ _list_zkevm_usage() {
     'Resolve the selected zkevm-benchmark-workload execution-client/zkVM runs.' \
     '' \
     'Environment overrides from scripts/env.sh:' \
-    '  ZKEVM_WORKLOAD_EXECUTION_CLIENTS, ZKEVM_WORKLOAD_ZKVMS' \
+    '  ZKEVM_WORKLOAD_RUNS (comma-separated CLIENT:ZKVM pairs)' \
     '  EL_GUEST_CONFIG'
 }
 
@@ -48,35 +48,57 @@ _list_zkevm_runs_json() {
   fi
 
   jq -c \
-    --arg clients "$ZKEVM_WORKLOAD_EXECUTION_CLIENTS" \
-    --arg zkvms "$ZKEVM_WORKLOAD_ZKVMS" '
+    --arg runs "$ZKEVM_WORKLOAD_RUNS" '
       def trim: gsub("^\\s+|\\s+$"; "");
-      def split_csv($value):
+      def parse_runs($value):
         ($value | trim) as $trimmed
         | ($trimmed | ascii_downcase) as $normalized
-        | if $normalized == "none" or $normalized == "skip" or $normalized == "empty" then
+        | if
+            ($trimmed | length) == 0
+            or $normalized == "none"
+            or $normalized == "skip"
+            or $normalized == "empty"
+          then
             []
           else
-            $value | split(",") | map(trim) | map(select(length > 0))
+            $value
+            | split(",")
+            | map(trim)
+            | if any(.[]; length == 0) then
+                error("ZKEVM_WORKLOAD_RUNS contains an empty CLIENT:ZKVM pair")
+              else
+                .
+              end
+            | map(
+                . as $run
+                | ($run | split(":")) as $parts
+                | if ($parts | length) != 2 then
+                    error("ZKEVM_WORKLOAD_RUNS entry must have CLIENT:ZKVM form: \($run)")
+                  else
+                    {
+                      execution_client: ($parts[0] | trim),
+                      zkvm: ($parts[1] | trim)
+                    }
+                  end
+                | if (.execution_client | length) == 0 or (.zkvm | length) == 0 then
+                    error("ZKEVM_WORKLOAD_RUNS entry must have non-empty CLIENT and ZKVM components: \($run)")
+                  else
+                    .
+                  end
+                | if (.execution_client | test("^[A-Za-z0-9_.-]+$")) and (.zkvm | test("^[A-Za-z0-9_.-]+$")) then
+                    .
+                  else
+                    error("ZKEVM_WORKLOAD_RUNS components may contain only letters, numbers, dots, underscores, or hyphens: \($run)")
+                  end
+              )
           end;
-      def require_non_empty($label; $values):
-        if ($values | length) == 0 then
-          error("\($label) must select at least one value")
-        else
-          $values
-        end;
-      def require_unique($label; $values):
-        if ($values | length) != ($values | unique | length) then
-          error("\($label) contains duplicate values")
-        else
-          $values
-        end;
-      def require_safe($label; $values):
-        if all($values[]; test("^[A-Za-z0-9_.-]+$")) then
-          $values
-        else
-          error("\($label) values may contain only letters, numbers, dots, underscores, or hyphens")
-        end;
+      def require_unique_runs($runs):
+        ($runs | map(.execution_client + ":" + .zkvm)) as $keys
+        | if ($keys | length) != ($keys | unique | length) then
+            error("ZKEVM_WORKLOAD_RUNS contains duplicate CLIENT:ZKVM pairs")
+          else
+            $runs
+          end;
       def require_guest_config:
         if (.guests | type) != "object" then
           error("EL_GUEST_CONFIG must contain a guests object")
@@ -98,23 +120,18 @@ _list_zkevm_runs_json() {
           end;
 
       require_guest_config as $config
-      | (split_csv($clients) | require_unique("ZKEVM_WORKLOAD_EXECUTION_CLIENTS"; .) | require_safe("ZKEVM_WORKLOAD_EXECUTION_CLIENTS"; .)) as $clients
-      | if ($clients | length) == 0 then
-          []
-        else
-          (split_csv($zkvms) | require_non_empty("ZKEVM_WORKLOAD_ZKVMS"; .) | require_unique("ZKEVM_WORKLOAD_ZKVMS"; .) | require_safe("ZKEVM_WORKLOAD_ZKVMS"; .)) as $zkvms
-          | [
-              $clients[] as $client
-              | $config | guest_descriptor($client) as $guest
-              | $zkvms[] as $zkvm
-              | {
-                  execution_client: $client,
-                  zkvm: $zkvm,
-                  guest_artifact_base_url: ($config | require_guest_artifact_base_url($client; $zkvm)),
-                  artifact: ("zkevm-metrics-" + $client + "-" + $zkvm)
-                }
-            ]
-        end
+      | (parse_runs($runs) | require_unique_runs(.)) as $runs
+      | [
+          $runs[] as $run
+          | $run.execution_client as $client
+          | $run.zkvm as $zkvm
+          | {
+              execution_client: $client,
+              zkvm: $zkvm,
+              guest_artifact_base_url: ($config | require_guest_artifact_base_url($client; $zkvm)),
+              artifact: ("zkevm-metrics-" + $client + "-" + $zkvm)
+            }
+        ]
     ' "$EL_GUEST_CONFIG"
 }
 

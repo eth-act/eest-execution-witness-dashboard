@@ -22,8 +22,7 @@ HIVE_UI_DISCOVERY_NAME=execution-witness
 
 ZKEVM_BENCHMARK_WORKLOAD_REPO=https://github.com/eth-act/zkevm-benchmark-workload.git
 ZKEVM_BENCHMARK_WORKLOAD_REF=v0.5.0
-ZKEVM_WORKLOAD_EXECUTION_CLIENTS=ethrex,reth
-ZKEVM_WORKLOAD_ZKVMS=zisk
+ZKEVM_WORKLOAD_RUNS=ethrex:zisk,reth:zisk
 ZKEVM_RAYON_THREADS=10
 
 EL_CLIENTS=go-ethereum,ethrex,nethermind
@@ -179,14 +178,17 @@ the console.
 ## zkEVM Benchmark Workload
 
 The dashboard can run `zkevm-benchmark-workload` directly against the same
-prepared fixtures used by Hive. The default workload matrix runs both `ethrex`
-and `reth` on `zisk`.
+prepared fixtures used by Hive. `ZKEVM_WORKLOAD_RUNS` is an explicit,
+comma-separated list of `CLIENT:ZKVM` pairs. The default list runs both
+`ethrex` and `reth` on `zisk`.
 
 Resolve the workload matrix:
 
 ```bash
 scripts/list-zkevm-workload-runs.sh
 scripts/list-zkevm-workload-runs.sh --github-matrix
+ZKEVM_WORKLOAD_RUNS=zesu:zisk,ethrex:zisk,ethrex:sp1 \
+  scripts/list-zkevm-workload-runs.sh --github-matrix
 ```
 
 Prepare the workload checkout:
@@ -203,7 +205,7 @@ ZKEVM_WORKLOAD_ZKVM=zisk \
 scripts/run-zkevm-benchmark-workload.sh
 ```
 
-Zesu guest artifact URLs are configured in `config/el-guests.json`. Run an
+Zesu guest artifact URLs can be configured in `config/el-guests.json`. Run an
 opt-in Zesu workload entry:
 
 ```bash
@@ -316,14 +318,12 @@ DATASET_RUN_ID=123456789
 gh workflow run run-workloads.yml --ref main \
   -f dataset_run_id="$DATASET_RUN_ID" \
   -f el_clients=ethrex \
-  -f zkevm_workload_execution_clients=zesu \
-  -f zkevm_workload_zkvms=zisk
+  -f zkevm_workload_runs=zesu:zisk,ethrex:zisk,ethrex:sp1
 
 gh workflow run publish.yml --ref main \
   -f dataset_run_id="$DATASET_RUN_ID" \
   -f el_clients=ethrex \
-  -f zkevm_workload_execution_clients=zesu \
-  -f zkevm_workload_zkvms=zisk
+  -f zkevm_workload_runs=zesu:zisk,ethrex:zisk,ethrex:sp1
 ```
 
 The underlying pipeline remains:
@@ -348,7 +348,7 @@ When a release tag is present, the published HiveUI group title displays it as
 `tests-zkevm v0.4.2`; fill-mode datasets retain the `execution-witness` title.
 
 To refresh one client after changing its descriptor ref, dispatch
-`run-workloads.yml` with that client and `zkevm_workload_execution_clients=none`,
+`run-workloads.yml` with that client and `zkevm_workload_runs=none`,
 then dispatch `publish.yml` with the complete desired site selection. The
 publisher combines the new client artifact with the preceding successful
 artifacts for the other clients. Adding a client follows the same process. If
@@ -357,7 +357,7 @@ artifact remains eligible; a new client with no successful artifact causes
 publication to fail without changing the deployed site.
 
 Set `el_clients=none` to run or publish only zkEVM results, or set
-`zkevm_workload_execution_clients=none` for Hive-only operation. Result bundles
+`zkevm_workload_runs=none` for Hive-only operation. Result bundles
 from another dataset, an expired artifact, or a non-`main` run are rejected.
 When the dataset artifacts expire or shared EEST/Hive/benchmark settings must
 change, prepare a new dataset and run every required workload once.
