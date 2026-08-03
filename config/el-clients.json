@@ -29,6 +29,16 @@
       "github": "besu-eth/besu",
       "ref": "glamsterdam-devnet-7-zkevm",
       "transport": "json-rpc-rlp"
+    },
+    "nimbus-el": {
+      "hive_client": "nimbus-el",
+      "dockerfile": "git",
+      "nametag": "rlp-engineapi",
+      "hive_parallelism": 8,
+      "repo": "https://github.com/status-im/nimbus-eth1.git",
+      "github": "status-im/nimbus-eth1",
+      "ref": "engine-new-payload-with-witness",
+      "transport": "json-rpc-rlp"
     }
   }
 }
