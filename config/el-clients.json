@@ -39,6 +39,16 @@
       "github": "status-im/nimbus-eth1",
       "ref": "engine-new-payload-with-witness",
       "transport": "json-rpc-rlp"
+    },
+    "nethermind": {
+      "hive_client": "nethermind",
+      "dockerfile": "git",
+      "nametag": "rlp-engineapi",
+      "hive_parallelism": 8,
+      "repo": "https://github.com/NethermindEth/nethermind.git",
+      "github": "NethermindEth/nethermind",
+      "ref": "glamsterdam-devnet-7",
+      "transport": "json-rpc-rlp"
     }
   }
 }
