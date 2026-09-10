@@ -42,6 +42,8 @@ Implemented scripts:
   manifests and deterministically select reusable cross-run artifacts.
 - `convert-zkevm-metrics-to-hive-results.py`: convert `zkevm-benchmark-workload`
   `zkevm-metrics/` output into Hive-compatible result files.
+- `check-smoke-results.py`: require one passing Geth/Hive case and one passing
+  Ethrex/ZisK case, including metrics conversion; see PR smoke check below.
 - `build-site.sh`: generate a static hive-ui site in `SITE_DIR`, write
   `discovery.json` and `listing.jsonl`, copy Hive logs into `results/`, and
   enforce `SITE_MAX_SIZE_MB`.
@@ -102,7 +104,7 @@ Prepare Hive and generate `clients-local.yaml`:
 scripts/setup-hive.sh
 ```
 
-By default, `EL_CLIENTS=go-ethereum,ethrex,nethermind` selects every default
+By default, `EL_CLIENTS=go-ethereum,ethrex,nethermind,nimbus-el` selects every default
 client from `config/el-clients.json`. The consume orchestration runs selected
 clients independently so the final dashboard has one listing entry per EL. Use
 a comma-separated subset to run fewer clients:
@@ -117,8 +119,8 @@ Use `EL_CLIENT_OVERRIDES_JSON` for temporary repo/ref changes:
 EL_CLIENT_OVERRIDES_JSON='{"ethrex":{"ref":"other-branch"}}' scripts/setup-hive.sh
 ```
 
-The same override mechanism applies to go-ethereum. For example, this disables
-the default Hive extra flags patch:
+For a custom go-ethereum descriptor using `managed_patch=geth-extra-flags`,
+this clears its extra flags:
 
 ```bash
 EL_CLIENT_OVERRIDES_JSON='{"go-ethereum":{"hive_extra_flags":""}}' scripts/setup-hive.sh
@@ -135,7 +137,7 @@ consume tests at once through pytest-xdist. Use descriptor overrides for ad hoc
 tuning:
 
 ```bash
-EL_CLIENT_OVERRIDES_JSON='{"besu":{"hive_parallelism":4}}' scripts/run-hive-consume.sh
+EL_CLIENT_OVERRIDES_JSON='{"ethrex":{"hive_parallelism":4}}' scripts/run-hive-consume.sh
 ```
 
 Direct single-client worker runs can still set `HIVE_PARALLELISM` explicitly.
@@ -172,9 +174,9 @@ ZKEVM_WORKLOAD_RUNS=zesu:zisk,ethrex:zisk,ethrex:sp1 \
 scripts/list-zkevm-workload-runs.sh --github-matrix
 ```
 
-Zesu requires workload support for `--execution-client zesu` and
-`--guest-artifact-base-url`. The local default `v0.5.0` includes that support;
-if you override `ZKEVM_BENCHMARK_WORKLOAD_REF`, use `v0.5.0` or newer.
+Workload `v0.17.0` locks `ere-guests` to `v0.17.0`. Empty guest descriptors
+use that release automatically, including Zesu on ZisK; custom artifact URLs
+remain optional overrides. The pinned EEST source is `tests-zkevm@v0.8.4`.
 
 Prepare the workload checkout:
 
@@ -184,7 +186,7 @@ scripts/setup-zkevm-benchmark-workload.sh
 
 The default checkout is
 `https://github.com/eth-act/zkevm-benchmark-workload.git`
-at `v0.5.0`.
+at `v0.17.0`.
 
 Run one workload entry against prepared fixtures:
 
@@ -201,6 +203,60 @@ you need a temporary local override.
 This resets `ZKEVM_METRICS_DIR`, defaults `RAYON_NUM_THREADS` from
 `ZKEVM_RAYON_THREADS`, runs `cargo run --locked --release -p ere-hosts`, and
 requires at least one generated metrics JSON before returning successfully.
+
+### PR smoke check
+
+The PR workflow runs the production scripts against one empty-block test in
+both fixture formats. Geth executes the engine fixture through Hive; Ethrex
+executes the blockchain fixture on ZisK. The benchmark downloads its guest
+and runtime image using its own dependency versions.
+
+Run these commands from the dashboard repository root with the
+[local prerequisites](../README.md#local-prerequisites) installed. They update
+the generated source checkouts and replace outputs under `smoke-results/`.
+
+```bash
+(
+  export EEST_RELEASE_TAG=''
+  export FILLER_PATH=tests/amsterdam/eip8025_optional_proofs/test_witness_headers.py::test_witness_headers_empty_block
+  export FILL_TEST_NAME=0
+  export FIXTURES_DIR="$PWD/smoke-results/fixtures"
+  export HIVE_CLIENT_RESULTS_DIR="$PWD/smoke-results/hive-results"
+  export ZKEVM_METRICS_DIR="$PWD/smoke-results/metrics"
+  export EL_CLIENTS=go-ethereum HIVE_PARALLELISM=1
+  export HIVE_CONSUME_ALLOW_FAILURE=0 HIVE_PRUNE_SKIPPED=0 HIVE_LOG_TO_STDOUT=1
+  export ZKEVM_RAYON_THREADS=2 ERE_IMAGE_REGISTRY=ghcr.io/eth-act/ere
+
+  set -e
+  scripts/setup-zkevm-benchmark-workload.sh
+  scripts/prepare-fixtures.sh
+  scripts/run-hive-consume-client.sh go-ethereum
+  scripts/run-zkevm-benchmark-workload.sh ethrex zisk
+  python3 scripts/convert-zkevm-metrics-to-hive-results.py \
+    --input "$ZKEVM_METRICS_DIR" --output smoke-results/converted --clean-output
+  python3 scripts/check-smoke-results.py \
+    --fixtures "$FIXTURES_DIR" \
+    --hive-results "$HIVE_CLIENT_RESULTS_DIR/go-ethereum" \
+    --metrics "$ZKEVM_METRICS_DIR" \
+    --converted-results smoke-results/converted
+)
+```
+
+The result checker exits nonzero unless each fixture format contains the
+selected case, Hive passes it without skipping, the guest output matches,
+and conversion preserves the passing result. It reads the fixture index and
+result files; it does not prepare or execute workloads.
+
+CI installs Python, Go, Rust nightly, uv, and the native packages listed in
+`.github/workflows/pr-smoke.yml`. It authenticates to GHCR with the job token,
+caches dependencies and Rust build outputs, and runs on a disposable XL
+runner with a 60-minute timeout. The summary records elapsed time and cache
+hits. Cold runs can take longer because they build Geth and the benchmark.
+Fixtures, results, and Hive logs are uploaded for seven days, with build output
+in the step logs. The final **PR smoke** gate requires both local checks and
+real execution to pass. It creates diagnostic artifacts only.
+
+### Metrics conversion
 
 Convert `zkevm-benchmark-workload` metrics into Hive-compatible results:
 

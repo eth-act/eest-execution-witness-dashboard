@@ -7,3 +7,5 @@
 /fixtures/
 /site/
 .envrc
+/smoke-results/
+__pycache__/

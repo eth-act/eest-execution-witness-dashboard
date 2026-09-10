@@ -103,7 +103,7 @@ if [ -z "${EEST_REPO+x}" ]; then
   EEST_REPO="https://github.com/ethereum/execution-specs.git"
 fi
 if [ -z "${EEST_REF+x}" ]; then
-  EEST_REF="projects/zkevm-releases"
+  EEST_REF="tests-zkevm@v0.8.4"
 fi
 if [ -n "$EEST_RELEASE_TAG" ]; then
   # workflow_dispatch text inputs with defaults can arrive populated even when
@@ -124,7 +124,7 @@ HIVE_UI_DIR="$(_eest_dashboard_root_path "${HIVE_UI_DIR:-hive-ui}")"
 HIVE_UI_DISCOVERY_NAME="${HIVE_UI_DISCOVERY_NAME:-zkEVM}"
 
 ZKEVM_BENCHMARK_WORKLOAD_REPO="${ZKEVM_BENCHMARK_WORKLOAD_REPO:-https://github.com/eth-act/zkevm-benchmark-workload.git}"
-ZKEVM_BENCHMARK_WORKLOAD_REF="${ZKEVM_BENCHMARK_WORKLOAD_REF:-v0.5.0}"
+ZKEVM_BENCHMARK_WORKLOAD_REF="${ZKEVM_BENCHMARK_WORKLOAD_REF:-v0.17.0}"
 ZKEVM_BENCHMARK_WORKLOAD_DIR="$(_eest_dashboard_root_path "${ZKEVM_BENCHMARK_WORKLOAD_DIR:-zkevm-benchmark-workload}")"
 if [ -z "${ZKEVM_WORKLOAD_RUNS+x}" ]; then
   ZKEVM_WORKLOAD_RUNS="ethrex:zisk,reth:zisk"
@@ -137,7 +137,7 @@ ZKEVM_METRICS_DIR="$(_eest_dashboard_root_path "${ZKEVM_METRICS_DIR:-zkevm-metri
 
 EL_CLIENT_CONFIG="$(_eest_dashboard_root_path "${EL_CLIENT_CONFIG:-config/el-clients.json}")"
 EL_GUEST_CONFIG="$(_eest_dashboard_root_path "${EL_GUEST_CONFIG:-config/el-guests.json}")"
-EL_CLIENTS="${EL_CLIENTS:-go-ethereum,ethrex,nethermind}"
+EL_CLIENTS="${EL_CLIENTS:-go-ethereum,ethrex,nethermind,nimbus-el}"
 if [ -z "${EL_CLIENT_OVERRIDES_JSON+x}" ] || [ -z "$EL_CLIENT_OVERRIDES_JSON" ]; then
   EL_CLIENT_OVERRIDES_JSON="{}"
 fi

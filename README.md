@@ -11,7 +11,7 @@ Default repositories, refs, and runtime settings:
 ```bash
 EEST_RELEASE_TAG=
 EEST_REPO=https://github.com/ethereum/execution-specs.git
-EEST_REF=projects/zkevm-releases
+EEST_REF=tests-zkevm@v0.8.4
 
 HIVE_REPO=https://github.com/ethereum/hive.git
 HIVE_REF=master
@@ -21,11 +21,11 @@ HIVE_UI_REF=b5441f735366a4f7d13575a020ccd6517d7ecaf3
 HIVE_UI_DISCOVERY_NAME=execution-witness
 
 ZKEVM_BENCHMARK_WORKLOAD_REPO=https://github.com/eth-act/zkevm-benchmark-workload.git
-ZKEVM_BENCHMARK_WORKLOAD_REF=v0.5.0
+ZKEVM_BENCHMARK_WORKLOAD_REF=v0.17.0
 ZKEVM_WORKLOAD_RUNS=ethrex:zisk,reth:zisk
 ZKEVM_RAYON_THREADS=10
 
-EL_CLIENTS=go-ethereum,ethrex,nethermind
+EL_CLIENTS=go-ethereum,ethrex,nethermind,nimbus-el
 EL_CLIENT_CONFIG=config/el-clients.json
 EL_GUEST_CONFIG=config/el-guests.json
 EL_CLIENT_OVERRIDES_JSON={}
@@ -34,17 +34,18 @@ HIVE_CLIENT_RESULTS_DIR=hive/workspace/client-results
 SITE_MAX_SIZE_MB=900
 ```
 
-Default EL descriptors:
+Default EL descriptors use JSON-RPC+RLP. These clients use `glamsterdam-devnet-8`:
 
-- `go-ethereum`: `https://github.com/jsign/go-ethereum.git` at
-  `zkevm-v0.3.4-hive`, with `--bal.executionmode=sequential` injected into
-  Hive's `geth.sh`.
-- `ethrex`: `https://github.com/jsign/ethrex.git` at
-  `jsign-engine-newpayload-with-witness-v5`, built through Hive's
-  `clients/ethrex/Dockerfile.git`.
-- `nethermind`: `https://github.com/Dyslex7c/nethermind.git` at
-  `new-payload-with-witness-ssz`, built through Hive's
-  `clients/nethermind/Dockerfile.git` and selected for RLP JSON-RPC mode.
+- `go-ethereum`: `https://github.com/ethereum/go-ethereum.git`.
+- `ethrex`: `https://github.com/lambdaclass/ethrex.git`.
+- `nethermind`: `https://github.com/NethermindEth/nethermind.git`.
+
+Nimbus (`nimbus-el`) uses `https://github.com/status-im/nimbus-eth1.git` at
+`engine-new-payload-with-witness`, which provides `engine_newPayloadWithWitnessV5`
+and generates witnesses on demand without extra startup flags.
+
+All four build through Hive's corresponding `Dockerfile.git`. Besu is omitted
+until its devnet 8 branch includes the required witness RPC.
 
 Generated work directories are ignored by git:
 
@@ -56,6 +57,7 @@ Generated work directories are ignored by git:
 - `zkevm-metrics/`
 - `fixtures/`
 - `site/`
+- `smoke-results/`
 
 ## Shared Environment
 
@@ -125,11 +127,11 @@ Prepare Hive and generate `hive/clients-local.yaml`:
 scripts/setup-hive.sh
 ```
 
-The default `EL_CLIENTS=go-ethereum,ethrex,nethermind` selects every default
+The default `EL_CLIENTS=go-ethereum,ethrex,nethermind,nimbus-el` selects every default
 execution client, but the dashboard now runs each selected EL independently.
 This produces one Hive result entry per EL client, matching the shape expected
-by hive-ui's grouping views. Use `EL_CLIENTS=go-ethereum`, `EL_CLIENTS=ethrex`,
-or `EL_CLIENTS=nethermind` to run a subset.
+by hive-ui's grouping views. Use a comma-separated subset, such as
+`EL_CLIENTS=nimbus-el`, to run fewer clients.
 
 `EL_CLIENT_OVERRIDES_JSON` can override descriptor fields without editing the
 tracked config, for example:
@@ -142,11 +144,11 @@ Per-client consume parallelism is also descriptor-owned. Use the same override
 mechanism for ad hoc tuning:
 
 ```bash
-EL_CLIENT_OVERRIDES_JSON='{"besu":{"hive_parallelism":4}}' scripts/run-hive-consume.sh
+EL_CLIENT_OVERRIDES_JSON='{"ethrex":{"hive_parallelism":4}}' scripts/run-hive-consume.sh
 ```
 
-The same override mechanism can also adjust go-ethereum settings, including
-the Hive extra flags patch:
+A custom go-ethereum descriptor with `managed_patch=geth-extra-flags` can
+also configure its extra flags:
 
 ```bash
 EL_CLIENT_OVERRIDES_JSON='{"go-ethereum":{"hive_extra_flags":""}}' scripts/setup-hive.sh
@@ -217,9 +219,9 @@ scripts/run-zkevm-benchmark-workload.sh
 For one-off local testing, `ZKEVM_WORKLOAD_GUEST_ARTIFACT_BASE_URL` can override
 the URL from `config/el-guests.json`.
 
-Zesu requires workload support for `--execution-client zesu` and
-`--guest-artifact-base-url`. The local default `v0.5.0` includes that support;
-if you override `ZKEVM_BENCHMARK_WORKLOAD_REF`, use `v0.5.0` or newer.
+Workload `v0.17.0` locks `ere-guests` to `v0.17.0`. Empty guest descriptors
+use that release automatically, including Zesu on ZisK; custom artifact URLs
+remain optional overrides. The pinned EEST source is `tests-zkevm@v0.8.4`.
 
 The run writes metrics under `ZKEVM_METRICS_DIR`, defaulting to
 `zkevm-metrics/`, in the shape expected by the converter:
@@ -249,6 +251,25 @@ Then build from `HIVE_RESULTS_DIR` as usual:
 ```bash
 scripts/build-site.sh
 ```
+
+## PR smoke check
+
+The **PR smoke** check runs the unit tests, then fills one empty-block test in
+both fixture formats and runs it through Geth/Hive and Ethrex/ZisK. It uses the
+same setup and workload scripts as `run-workloads.yml`, then converts the
+zkEVM metrics and checks that both workloads produced exactly one passing
+case. Missing, skipped, duplicate, failed, or timed-out cases fail the check.
+
+See [the local commands](scripts/README.md#pr-smoke-check) to reproduce the run.
+The execution job uses a disposable XL runner with a 60-minute timeout.
+Dependency caches reduce repeat build time; cold runs still compile the
+benchmark and build Geth. The job summary records elapsed time and cache hits.
+Fixtures, results, and Hive logs are retained for seven days; build output is
+in the Actions step logs.
+
+This check covers Geth/Hive, Ethrex/ZisK execution, and metrics conversion.
+It does not generate proofs, publish datasets, or deploy the dashboard.
+Use `PR smoke` as the required check name when configuring branch protection.
 
 ## Static Site Build
 

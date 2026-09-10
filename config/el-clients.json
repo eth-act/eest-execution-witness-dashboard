@@ -7,7 +7,7 @@
       "hive_parallelism": 8,
       "repo": "https://github.com/lambdaclass/ethrex.git",
       "github": "lambdaclass/ethrex",
-      "ref": "glamsterdam-devnet-7",
+      "ref": "glamsterdam-devnet-8",
       "transport": "json-rpc-rlp"
     },
     "go-ethereum": {
@@ -17,17 +17,7 @@
       "hive_parallelism": 8,
       "repo": "https://github.com/ethereum/go-ethereum.git",
       "github": "ethereum/go-ethereum",
-      "ref": "glamsterdam-devnet-7",
-      "transport": "json-rpc-rlp"
-    },
-    "besu": {
-      "hive_client": "besu",
-      "dockerfile": "git",
-      "nametag": "rlp-engineapi",
-      "hive_parallelism": 8,
-      "repo": "https://github.com/besu-eth/besu.git",
-      "github": "besu-eth/besu",
-      "ref": "glamsterdam-devnet-7-zkevm",
+      "ref": "glamsterdam-devnet-8",
       "transport": "json-rpc-rlp"
     },
     "nimbus-el": {
@@ -47,7 +37,7 @@
       "hive_parallelism": 8,
       "repo": "https://github.com/NethermindEth/nethermind.git",
       "github": "NethermindEth/nethermind",
-      "ref": "glamsterdam-devnet-7",
+      "ref": "glamsterdam-devnet-8",
       "transport": "json-rpc-rlp"
     }
   }

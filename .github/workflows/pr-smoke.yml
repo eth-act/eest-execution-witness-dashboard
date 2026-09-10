@@ -1,0 +1,169 @@
+name: PR execution witness smoke
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-smoke-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Local checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+      - name: Validate scripts and configuration
+        run: |
+          set -Eeuo pipefail
+          for script in scripts/*.sh scripts/lib/*.sh; do bash -n "$script"; done
+          jq -e '.clients | type == "object" and length == 4' config/el-clients.json
+          jq -e '.guests | type == "object"' config/el-guests.json
+          scripts/env.sh --validate-eest-source
+          scripts/list-el-clients.sh --json
+          ZKEVM_WORKLOAD_RUNS=ethrex:zisk,reth:zisk,zesu:zisk scripts/list-zkevm-workload-runs.sh --json
+          python3 -m unittest discover -s tests
+
+  smoke:
+    name: Execution smoke
+    needs: checks
+    runs-on: [self-hosted-ghr, size-xl-x64]
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: read
+    env:
+      ROOT_DIR: ${{ github.workspace }}
+      EEST_DIR: ${{ github.workspace }}/execution-specs
+      HIVE_DIR: ${{ github.workspace }}/hive
+      ZKEVM_BENCHMARK_WORKLOAD_DIR: ${{ github.workspace }}/zkevm-benchmark-workload
+      EEST_RELEASE_TAG: ""
+      FILLER_PATH: tests/amsterdam/eip8025_optional_proofs/test_witness_headers.py::test_witness_headers_empty_block
+      FILL_TEST_NAME: "0"
+      FIXTURES_DIR: ${{ github.workspace }}/smoke-results/fixtures
+      HIVE_CLIENT_RESULTS_DIR: ${{ github.workspace }}/smoke-results/hive-results
+      ZKEVM_METRICS_DIR: ${{ github.workspace }}/smoke-results/metrics
+      EL_CLIENTS: go-ethereum
+      HIVE_PARALLELISM: "1"
+      HIVE_CONSUME_ALLOW_FAILURE: "0"
+      HIVE_PRUNE_SKIPPED: "0"
+      HIVE_LOG_TO_STDOUT: "1"
+      ZKEVM_WORKLOAD_RUNS: ethrex:zisk
+      ZKEVM_RAYON_THREADS: "2"
+      ERE_IMAGE_REGISTRY: ghcr.io/eth-act/ere
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Set cache directory and start time
+        run: |
+          printf 'UV_CACHE_DIR=%s/uv-cache\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+          echo "SMOKE_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache: false
+      - uses: astral-sh/setup-uv@v8.1.0
+      - uses: dtolnay/rust-toolchain@nightly
+      - name: Install native prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential clang curl jq libclang-dev libssl-dev pkg-config \
+            cmake libbenchmark-dev libgmp-dev libomp-dev libopenmpi-dev libsodium-dev \
+            nasm nlohmann-json3-dev openmpi-bin openmpi-common
+      - name: Prepare benchmark checkout
+        id: workload
+        run: |
+          scripts/setup-zkevm-benchmark-workload.sh
+          echo "commit=$(git -C "$ZKEVM_BENCHMARK_WORKLOAD_DIR" rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Cache Rust dependencies and build outputs
+        id: rust-cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: zkevm-benchmark-workload -> target
+          shared-key: pr-smoke-${{ steps.workload.outputs.commit }}
+      - name: Cache Go and Python dependencies
+        id: dependency-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+            ${{ env.UV_CACHE_DIR }}
+          key: pr-smoke-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/env.sh') }}
+          restore-keys: pr-smoke-deps-${{ runner.os }}-${{ runner.arch }}-
+      - name: Fill empty-block fixtures
+        run: scripts/prepare-fixtures.sh
+      - name: Run Geth through Hive
+        run: scripts/run-hive-consume-client.sh go-ethereum
+      - name: Run Ethrex on ZisK
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          printf '%s' "$GITHUB_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          scripts/run-zkevm-benchmark-workload.sh ethrex zisk
+      - name: Convert metrics and check results
+        run: |
+          python3 scripts/convert-zkevm-metrics-to-hive-results.py \
+            --input "$ZKEVM_METRICS_DIR" --output smoke-results/converted --clean-output
+          python3 scripts/check-smoke-results.py \
+            --fixtures "$FIXTURES_DIR" \
+            --hive-results "$HIVE_CLIENT_RESULTS_DIR/go-ethereum" \
+            --metrics "$ZKEVM_METRICS_DIR" \
+            --converted-results smoke-results/converted
+      - name: Summarize smoke result
+        if: always()
+        env:
+          SMOKE_STATUS: ${{ job.status }}
+          RUST_CACHE_HIT: ${{ steps.rust-cache.outputs.cache-hit }}
+          DEPENDENCY_CACHE_HIT: ${{ steps.dependency-cache.outputs.cache-hit }}
+        run: |
+          {
+            echo "Geth/Hive and Ethrex/ZisK empty-block smoke: $SMOKE_STATUS"
+            if [ -n "${SMOKE_STARTED_AT:-}" ]; then
+              echo "Elapsed: $(( $(date +%s) - SMOKE_STARTED_AT )) seconds"
+            fi
+            echo "Rust cache hit: ${RUST_CACHE_HIT:-false}"
+            echo "Go/Python cache hit: ${DEPENDENCY_CACHE_HIT:-false}"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pr-smoke-${{ github.event.pull_request.number }}-${{ github.run_attempt }}
+          retention-days: 7
+          if-no-files-found: warn
+          include-hidden-files: true
+          path: smoke-results/
+
+  gate:
+    name: PR smoke
+    needs: [checks, smoke]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Require every check to succeed
+        env:
+          CHECKS_RESULT: ${{ needs.checks.result }}
+          SMOKE_RESULT: ${{ needs.smoke.result }}
+        run: |
+          set -Eeuo pipefail
+          test "$CHECKS_RESULT" = success
+          test "$SMOKE_RESULT" = success
