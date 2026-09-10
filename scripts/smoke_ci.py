@@ -79,11 +79,12 @@ class Prepare:
             self.run(name + "-modules", ["go", "mod", "download"], cwd=path)
         self.run("cargo-fetch", ["cargo", "fetch", "--locked"], cwd=workload)
         metadata = json.loads(self.cmd.run(["cargo", "metadata", "--locked", "--offline", "--format-version", "1"], cwd=workload))
-        inventory = guest_inventory(metadata, os.environ.get("ERE_IMAGE_REGISTRY", "ghcr.io/eth-act/ere"))
+        runs = json.loads(self.cmd.run(["bash", SCRIPTS / "list-zkevm-workload-runs.sh", "--json"]))
+        zkvms = {run["zkvm"] for run in runs}
+        inventory = guest_inventory(metadata, os.environ.get("ERE_IMAGE_REGISTRY", "ghcr.io/eth-act/ere"), zkvms)
         guests = self.inputs / "guests"
         guests.mkdir(exist_ok=True)
-        runs = json.loads(self.cmd.run(["bash", SCRIPTS / "list-zkevm-workload-runs.sh", "--json"]))
-        for zkvm in sorted({r["zkvm"] for r in runs}):
+        for zkvm in sorted(zkvms):
             self.run(f"pull-ere-{zkvm}", ["docker", "pull", inventory[zkvm]["image"]])
         for run in runs:
             client, zkvm = run["execution_client"], run["zkvm"]

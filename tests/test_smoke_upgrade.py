@@ -7,12 +7,13 @@ import sys
 from tempfile import TemporaryDirectory
 import textwrap
 import unittest
+from unittest.mock import patch
 
 
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "scripts"))
 import smoke_upgrade as smoke
-from smoke_ci import pin_dockerfile
+from smoke_ci import Prepare, pin_dockerfile
 
 
 def write_json(path, data):
@@ -33,7 +34,7 @@ def bundle(root):
     write_json(root / ".meta/index.json", {"test_cases": index, "fixture_formats": ["blockchain_test", "blockchain_test_engine"]})
 
 
-def metadata(root):
+def metadata(root, zkvms=("zisk",)):
     packages, nodes = [], []
 
     def add(name, source=None, deps=()):
@@ -43,10 +44,17 @@ def metadata(root):
     add("ere-catalog", "git+https://github.com/eth-act/ere?tag=v0.17.0#" + "a" * 40)
     for name in ("stateless-validator-catalog", "stateless-validator-common", "stateless-validator-downloader"):
         add(name, "git+https://github.com/eth-act/ere-guests?tag=v0.17.0#" + "b" * 40)
-    for parent, child, tag in (("ere-verifier-zisk", "zisk-verifier", "v1.1.0-alpha"),
-                               ("ere-verifier-sp1", "sp1-verifier", "v6.4.0"),
-                               ("ere-platform-openvm", "openvm", "v2.1.0-preview")):
-        add(child, f"git+https://example.test/{child}?tag={tag}#" + "c" * 40)
+    for zkvm, parent, child, tag in (("zisk", "ere-verifier-zisk", "zisk-verifier", "v1.1.0-alpha"),
+                                    ("sp1", "ere-verifier-sp1", "sp1-verifier", "v6.4.0"),
+                                    ("openvm", "ere-platform-openvm", "openvm", "v2.1.0-preview")):
+        if zkvm not in zkvms:
+            continue
+        if zkvm == "zisk":
+            # The pinned workload uses the registry Zisk verifier and omits SP1/OpenVM.
+            add(child, "registry+https://github.com/rust-lang/crates.io-index")
+            packages[-1]["version"] = tag.removeprefix("v")
+        else:
+            add(child, f"git+https://example.test/{child}?tag={tag}#" + "c" * 40)
         add(parent, deps=[child])
     return dict(packages=packages, resolve=dict(nodes=nodes), target_directory=str(root / "target"))
 
@@ -293,13 +301,52 @@ class SmokeValidationTests(unittest.TestCase):
 
     def test_guest_catalog_uses_locked_direct_dependencies(self):
         data = metadata(Path("/tmp/example"))
-        inventory = smoke.guest_inventory(data, "local/ere")
+        inventory = smoke.guest_inventory(data, "local/ere", ["zisk"])
+        self.assertEqual(set(inventory), {"zisk"})
         self.assertEqual(inventory["zisk"], dict(sdk="v1.1.0-alpha", image="local/ere/ere-server-zisk:aaaaaaa"))
         for package in data["packages"]:
             if package["name"] == "stateless-validator-downloader":
                 package["source"] = package["source"].replace("v0.17.0", "v0.16.0")
         with self.assertRaisesRegex(smoke.SmokeError, "ere-guests@v0.17.0"):
-            smoke.guest_inventory(data, "local/ere")
+            smoke.guest_inventory(data, "local/ere", ["zisk"])
+
+    def test_guest_catalog_resolves_each_selected_sdk(self):
+        data = metadata(Path("/tmp/example"), ("zisk", "sp1", "openvm"))
+        inventory = smoke.guest_inventory(data, "local/ere", ["sp1", "openvm", "sp1"])
+        self.assertEqual(inventory, {
+            "sp1": dict(sdk="v6.4.0", image="local/ere/ere-server-sp1:aaaaaaa"),
+            "openvm": dict(sdk="v2.1.0-preview", image="local/ere/ere-server-openvm:aaaaaaa"),
+        })
+
+    def test_guest_catalog_rejects_missing_selected_dependencies(self):
+        data = metadata(Path("/tmp/example"))
+        with self.assertRaisesRegex(smoke.SmokeError, "expected one locked ere-verifier-sp1 package, found 0"):
+            smoke.guest_inventory(data, "local/ere", ["sp1"])
+        for node in data["resolve"]["nodes"]:
+            if node["id"] == "ere-verifier-zisk":
+                node["deps"] = []
+        with self.assertRaisesRegex(smoke.SmokeError, "cannot resolve zisk SDK"):
+            smoke.guest_inventory(data, "local/ere", ["zisk"])
+
+    def test_ci_prepares_zisk_assets_without_unselected_sdk_packages(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            env = {"ROOT_DIR": tmp, "EEST_DIR": str(root / "eest"),
+                   "ZKEVM_BENCHMARK_WORKLOAD_DIR": str(root / "workload"),
+                   "HIVE_DIR": str(root / "hive"), "ERE_IMAGE_REGISTRY": "local/ere"}
+            runs = [dict(execution_client=client, zkvm="zisk") for client in ("ethrex", "reth", "zesu")]
+            with patch.dict(os.environ, env), patch("smoke_ci.Commands") as commands, patch.object(Prepare, "run") as run:
+                commands.return_value.run.side_effect = [json.dumps(metadata(root)), json.dumps(runs)]
+                prepare = Prepare()
+                write_json(prepare.inputs / "resolved.json", {"clients": {}})
+                prepare.assets()
+            pulls = [call.args[1] for call in run.call_args_list if call.args[1][:2] == ["docker", "pull"]]
+            self.assertEqual(pulls, [["docker", "pull", "local/ere/ere-server-zisk:aaaaaaa"]])
+            downloads = [call.args[1][-1] for call in run.call_args_list if call.args[1][0] == "curl"]
+            self.assertCountEqual(downloads, [
+                f"https://github.com/eth-act/ere-guests/releases/download/v0.17.0/stateless-validator-{client}-zisk-v1.1.0-alpha.{suffix}"
+                for client in ("ethrex", "reth", "zesu") for suffix in ("elf", "vk")
+            ])
 
     def test_commit_pinning_handles_current_clone_forms_and_rejects_drift(self):
         for clone, name in (("git clone --depth 1 --branch $tag https://github.com/$github", "go-ethereum"),

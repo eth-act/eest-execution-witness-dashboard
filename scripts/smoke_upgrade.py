@@ -95,8 +95,8 @@ def source_version(package):
     return "v" + package["version"]
 
 
-def guest_inventory(metadata, registry):
-    """Follow the same direct dependency edges as ere-catalog's build script."""
+def guest_inventory(metadata, registry, zkvms):
+    """Resolve selected SDKs using ere-catalog's direct dependency edges."""
     packages = {p["id"]: p for p in metadata["packages"]}
     nodes = {n["id"]: n for n in metadata["resolve"]["nodes"]}
 
@@ -118,11 +118,15 @@ def guest_inventory(metadata, registry):
         ):
             raise SmokeError(f"{name} must resolve to ere-guests@{GUEST_TAG}")
     inventory = {}
-    for zkvm, owner, dependency in (
-        ("zisk", "ere-verifier-zisk", "zisk-verifier"),
-        ("sp1", "ere-verifier-sp1", "sp1-verifier"),
-        ("openvm", "ere-platform-openvm", "openvm"),
-    ):
+    sdk_dependencies = {
+        "zisk": ("ere-verifier-zisk", "zisk-verifier"),
+        "sp1": ("ere-verifier-sp1", "sp1-verifier"),
+        "openvm": ("ere-platform-openvm", "openvm"),
+    }
+    for zkvm in sorted(set(zkvms)):
+        if zkvm not in sdk_dependencies:
+            raise SmokeError(f"unsupported zkVM: {zkvm}")
+        owner, dependency = sdk_dependencies[zkvm]
         parent = package(owner)
         dependencies = [packages[d["pkg"]] for d in nodes[parent["id"]]["deps"]]
         matches = [p for p in dependencies if p["name"] == dependency]
@@ -322,7 +326,9 @@ class Smoke:
             ["cargo", "metadata", "--locked", "--offline", "--format-version", "1"], cwd=self.workload)))
         if metadata:
             self.target = Path(metadata["target_directory"])
-            self.inventory = check("guest catalog", lambda: guest_inventory(metadata, os.environ.get("ERE_IMAGE_REGISTRY", "ghcr.io/eth-act/ere"))) or {}
+            self.inventory = check("guest catalog", lambda: guest_inventory(
+                metadata, os.environ.get("ERE_IMAGE_REGISTRY", "ghcr.io/eth-act/ere"),
+                (run["zkvm"] for run in self.runs))) or {}
         for run in self.runs:
             client, zkvm = run["execution_client"], run["zkvm"]
             if client == "zesu" and zkvm != "zisk":
