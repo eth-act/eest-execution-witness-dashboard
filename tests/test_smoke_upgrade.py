@@ -364,7 +364,8 @@ class SmokeValidationTests(unittest.TestCase):
     def test_commit_pinning_handles_current_clone_forms_and_rejects_drift(self):
         for clone, name in (("git clone --depth 1 --branch $tag https://github.com/$github", "go-ethereum"),
                             ("git clone --depth 1 --branch $tag https://github.com/$github ethrex", "ethrex"),
-                            ("git clone -b $tag https://github.com/$github", "nethermind")):
+                            ("git clone -b $tag https://github.com/$github", "nethermind"),
+                            ('git clone --branch "$tag" https://github.com/$github', "nimbus-eth1")):
             patched = pin_dockerfile("RUN " + clone + " && echo done\n", name)
             self.assertNotIn("git clone", patched)
             self.assertIn(f"git -C {name} fetch --depth 1 origin $tag", patched)

@@ -105,7 +105,7 @@ Prepare Hive and generate `clients-local.yaml`:
 scripts/setup-hive.sh
 ```
 
-By default, `EL_CLIENTS=go-ethereum,ethrex,nethermind` selects every default
+By default, `EL_CLIENTS=go-ethereum,ethrex,nethermind,nimbus-el` selects every default
 client from `config/el-clients.json`. The consume orchestration runs selected
 clients independently so the final dashboard has one listing entry per EL. Use
 a comma-separated subset to run fewer clients:
@@ -233,11 +233,14 @@ The client-image file maps descriptor IDs to local image names or IDs:
 {
   "go-ethereum": "hive/clients/go-ethereum_rlp-engineapi:latest",
   "ethrex": "hive/clients/ethrex_rlp-engineapi:latest",
-  "nethermind": "hive/clients/nethermind_rlp-engineapi:latest"
+  "nethermind": "hive/clients/nethermind_rlp-engineapi:latest",
+  "nimbus-el": "hive/clients/nimbus-el_rlp-engineapi:latest"
 }
 ```
 
-Supply images built from the selected devnet 8 refs. Existing image names alone
+Supply images built from the selected descriptor refs: `glamsterdam-devnet-8`
+for Geth, Ethrex, and Nethermind; `engine-new-payload-with-witness` for Nimbus.
+Existing image names alone
 do not prove source provenance. The script records IDs and available labels;
 CI supplies commit-labelled images and records the source commits separately.
 
@@ -261,7 +264,7 @@ and every blockchain case must have canonical stateless input/output bytes in
 its last block.
 
 `EL_CLIENTS` and `ZKEVM_WORKLOAD_RUNS` select participants as usual. The local
-defaults remain three EL clients and `ethrex:zisk,reth:zisk`; add `zesu:zisk`
+defaults include four EL clients and `ethrex:zisk,reth:zisk`; add `zesu:zisk`
 explicitly to include Zesu. `SMOKE_RUN_TIMEOUT_SECONDS` defaults to `600` per
 workload. `SMOKE_HIVE_PROXY_IMAGE` overrides the local proxy reference;
 `ERE_IMAGE_REGISTRY` changes the local Ere image names. Runtime execution uses
@@ -287,7 +290,7 @@ approved disposable XL runners. `prepare-smoke-ci.sh sources` resolves commits;
 builds or pulls images. These entrypoints reject execution outside a
 `pull_request` job. The smoke script then resolves dependencies, builds, and
 runs the tests. The final `PR smoke` job requires both prior jobs to succeed,
-including real passing cases for all three clients
+including real passing cases for all four clients
 and Ethrex/Reth/Zesu on ZisK. It creates diagnostic artifacts only.
 
 ### Metrics conversion

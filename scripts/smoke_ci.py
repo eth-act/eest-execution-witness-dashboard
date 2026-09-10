@@ -14,7 +14,7 @@ from smoke_upgrade import Commands, GUEST_TAG, SCRIPTS, SmokeError, guest_invent
 
 def pin_dockerfile(text, directory):
     """Replace branch-only clones with a fetch that accepts an immutable commit."""
-    pattern = r"git clone\s+(?:--depth(?:=|\s+)\d+\s+)?(?:--branch|-b)\s+\$tag\s+https://github\.com/\$github(?:\s+" + re.escape(directory) + r")?"
+    pattern = r'git clone\s+(?:--depth(?:=|\s+)\d+\s+)?(?:--branch|-b)\s+(?:"\$tag"|\$tag)\s+https://github\.com/\$github(?:\s+' + re.escape(directory) + r")?"
     replacement = (
         f"git init {directory} && git -C {directory} remote add origin https://github.com/$github"
         f" && git -C {directory} fetch --depth 1 origin $tag"

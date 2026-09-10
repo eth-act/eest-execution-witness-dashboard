@@ -28,7 +28,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           for script in scripts/*.sh scripts/lib/*.sh; do bash -n "$script"; done
-          jq -e '.clients | type == "object" and length == 3' config/el-clients.json
+          jq -e '.clients | type == "object" and length == 4' config/el-clients.json
           jq -e '.guests | type == "object"' config/el-guests.json
           scripts/env.sh --validate-eest-source
           scripts/list-el-clients.sh --json
@@ -48,7 +48,7 @@ jobs:
       EEST_DIR: ${{ github.workspace }}/execution-specs
       HIVE_DIR: ${{ github.workspace }}/hive
       ZKEVM_BENCHMARK_WORKLOAD_DIR: ${{ github.workspace }}/zkevm-benchmark-workload
-      EL_CLIENTS: go-ethereum,ethrex,nethermind
+      EL_CLIENTS: go-ethereum,ethrex,nethermind,nimbus-el
       ZKEVM_WORKLOAD_RUNS: ethrex:zisk,reth:zisk,zesu:zisk
       ZKEVM_RAYON_THREADS: "2"
       ERE_IMAGE_REGISTRY: ghcr.io/eth-act/ere

@@ -25,7 +25,7 @@ ZKEVM_BENCHMARK_WORKLOAD_REF=v0.17.0
 ZKEVM_WORKLOAD_RUNS=ethrex:zisk,reth:zisk
 ZKEVM_RAYON_THREADS=10
 
-EL_CLIENTS=go-ethereum,ethrex,nethermind
+EL_CLIENTS=go-ethereum,ethrex,nethermind,nimbus-el
 EL_CLIENT_CONFIG=config/el-clients.json
 EL_GUEST_CONFIG=config/el-guests.json
 EL_CLIENT_OVERRIDES_JSON={}
@@ -34,14 +34,18 @@ HIVE_CLIENT_RESULTS_DIR=hive/workspace/client-results
 SITE_MAX_SIZE_MB=900
 ```
 
-Default EL descriptors use `glamsterdam-devnet-8` and JSON-RPC+RLP:
+Default EL descriptors use JSON-RPC+RLP. These clients use `glamsterdam-devnet-8`:
 
 - `go-ethereum`: `https://github.com/ethereum/go-ethereum.git`.
 - `ethrex`: `https://github.com/lambdaclass/ethrex.git`.
 - `nethermind`: `https://github.com/NethermindEth/nethermind.git`.
 
-All three build through Hive's corresponding `Dockerfile.git`. Besu and Nimbus
-are omitted until their devnet 8 branches include the required witness RPC.
+Nimbus (`nimbus-el`) uses `https://github.com/status-im/nimbus-eth1.git` at
+`engine-new-payload-with-witness`, which provides `engine_newPayloadWithWitnessV5`
+and generates witnesses on demand without extra startup flags.
+
+All four build through Hive's corresponding `Dockerfile.git`. Besu is omitted
+until its devnet 8 branch includes the required witness RPC.
 
 Generated work directories are ignored by git:
 
@@ -123,11 +127,11 @@ Prepare Hive and generate `hive/clients-local.yaml`:
 scripts/setup-hive.sh
 ```
 
-The default `EL_CLIENTS=go-ethereum,ethrex,nethermind` selects every default
+The default `EL_CLIENTS=go-ethereum,ethrex,nethermind,nimbus-el` selects every default
 execution client, but the dashboard now runs each selected EL independently.
 This produces one Hive result entry per EL client, matching the shape expected
-by hive-ui's grouping views. Use `EL_CLIENTS=go-ethereum`, `EL_CLIENTS=ethrex`,
-or `EL_CLIENTS=nethermind` to run a subset.
+by hive-ui's grouping views. Use a comma-separated subset, such as
+`EL_CLIENTS=nimbus-el`, to run fewer clients.
 
 `EL_CLIENT_OVERRIDES_JSON` can override descriptor fields without editing the
 tracked config, for example:
@@ -272,7 +276,7 @@ prepared local images and guest binaries. Logs and summaries are preserved
 under `smoke-results/run-*`.
 
 The PR-only workflow prepares source checkouts, images, and guests on disposable
-XL runners, then invokes this same script for Geth, Ethrex, Nethermind, and
+XL runners, then invokes this same script for Geth, Ethrex, Nethermind, Nimbus, and
 Ethrex/Reth/Zesu on ZisK. It does not publish datasets or deploy the dashboard. Its stable
 **PR smoke** check succeeds only when both local checks and execution smoke
 succeed. Missing, skipped, duplicate, failed, or timed-out cases fail the check.

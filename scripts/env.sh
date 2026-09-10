@@ -137,7 +137,7 @@ ZKEVM_METRICS_DIR="$(_eest_dashboard_root_path "${ZKEVM_METRICS_DIR:-zkevm-metri
 
 EL_CLIENT_CONFIG="$(_eest_dashboard_root_path "${EL_CLIENT_CONFIG:-config/el-clients.json}")"
 EL_GUEST_CONFIG="$(_eest_dashboard_root_path "${EL_GUEST_CONFIG:-config/el-guests.json}")"
-EL_CLIENTS="${EL_CLIENTS:-go-ethereum,ethrex,nethermind}"
+EL_CLIENTS="${EL_CLIENTS:-go-ethereum,ethrex,nethermind,nimbus-el}"
 if [ -z "${EL_CLIENT_OVERRIDES_JSON+x}" ] || [ -z "$EL_CLIENT_OVERRIDES_JSON" ]; then
   EL_CLIENT_OVERRIDES_JSON="{}"
 fi
