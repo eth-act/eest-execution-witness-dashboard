@@ -1,4 +1,4 @@
-"""Online preparation for PR smoke jobs. Never called by the offline smoke script."""
+"""Prepare source checkouts, images, and guest artifacts for PR smoke jobs."""
 
 import argparse
 import hashlib
@@ -73,12 +73,8 @@ class Prepare:
                 f.write(f"source_key={key}\n")
 
     def assets(self):
-        eest, workload, hive = (Path(os.environ[key]) for key in ("EEST_DIR", "ZKEVM_BENCHMARK_WORKLOAD_DIR", "HIVE_DIR"))
-        self.run("uv-sync", ["uv", "sync", "--locked"], cwd=eest)
-        for name, path in (("hive", hive), ("hiveproxy", hive / "hiveproxy")):
-            self.run(name + "-modules", ["go", "mod", "download"], cwd=path)
-        self.run("cargo-fetch", ["cargo", "fetch", "--locked"], cwd=workload)
-        metadata = json.loads(self.cmd.run(["cargo", "metadata", "--locked", "--offline", "--format-version", "1"], cwd=workload))
+        workload, hive = (Path(os.environ[key]) for key in ("ZKEVM_BENCHMARK_WORKLOAD_DIR", "HIVE_DIR"))
+        metadata = json.loads(self.cmd.run(["cargo", "metadata", "--locked", "--format-version", "1"], cwd=workload))
         runs = json.loads(self.cmd.run(["bash", SCRIPTS / "list-zkevm-workload-runs.sh", "--json"]))
         zkvms = {run["zkvm"] for run in runs}
         inventory = guest_inventory(metadata, os.environ.get("ERE_IMAGE_REGISTRY", "ghcr.io/eth-act/ere"), zkvms)

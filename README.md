@@ -266,12 +266,14 @@ run directory. Inputs and existing results are left intact. See
 [the script reference](scripts/README.md#local-upgrade-smoke) for image mappings,
 prerequisites, and output details.
 
-The script stays offline and reports missing prerequisites instead of fetching
-them. Logs and summaries are preserved under `smoke-results/run-*`.
+Dependency checks and compilation may download Cargo, Go, and Python packages.
+Cargo and uv use `--locked`, and Go uses `-mod=readonly`. Execution uses the
+prepared local images and guest binaries. Logs and summaries are preserved
+under `smoke-results/run-*`.
 
-The PR-only workflow prepares dependencies online on disposable XL runners,
-then invokes this same script for Geth, Ethrex, Nethermind, and Ethrex/Reth/Zesu
-on ZisK. It does not publish datasets or deploy the dashboard. Its stable
+The PR-only workflow prepares source checkouts, images, and guests on disposable
+XL runners, then invokes this same script for Geth, Ethrex, Nethermind, and
+Ethrex/Reth/Zesu on ZisK. It does not publish datasets or deploy the dashboard. Its stable
 **PR smoke** check succeeds only when both local checks and execution smoke
 succeed. Missing, skipped, duplicate, failed, or timed-out cases fail the check.
 Diagnostics are retained for seven days.

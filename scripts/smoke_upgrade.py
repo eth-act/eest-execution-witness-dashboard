@@ -1,4 +1,4 @@
-"""Offline smoke orchestration used by smoke-upgrade.sh (Python 3.11+)."""
+"""Smoke orchestration with prepared images and guests (Python 3.11+)."""
 
 from __future__ import annotations
 
@@ -38,10 +38,9 @@ def write_json(path: Path, value):
     path.write_text(json.dumps(value, indent=2) + "\n")
 
 
-def offline_environment():
+def smoke_environment():
     env = os.environ.copy()
-    env.update(CARGO_NET_OFFLINE="true", UV_OFFLINE="1", UV_NO_SYNC="1",
-               GOPROXY="off", GOSUMDB="off", GOTOOLCHAIN="local", GOWORK="off", RUSTUP_AUTO_INSTALL="0")
+    env["GOWORK"] = "off"
     for key in ("ERE_FORCE_REBUILD_DOCKER_IMAGE", "GH_TOKEN", "GITHUB_TOKEN"):
         env.pop(key, None)
     return env
@@ -235,7 +234,7 @@ def validate_metrics(result_dir, expected, row, client, sdk):
 class Smoke:
     def __init__(self, args, commands=None):
         self.args = args
-        self.cmd = commands or Commands(offline_environment())
+        self.cmd = commands or Commands(smoke_environment())
         self.root = Path(os.environ["ROOT_DIR"])
         self.eest = Path(os.environ["EEST_DIR"])
         self.workload = Path(os.environ["ZKEVM_BENCHMARK_WORKLOAD_DIR"])
@@ -257,7 +256,7 @@ class Smoke:
             raise SmokeError("image reference must be a nonempty string")
         info = json.loads(self.cmd.run([self.docker, "image", "inspect", reference]))[0]
         if info.get("Config", {}).get("OnBuild"):
-            raise SmokeError(f"{reference}: ONBUILD instructions are not allowed in offline smoke images")
+            raise SmokeError(f"{reference}: ONBUILD instructions are not allowed in prepared smoke images")
         if not re.fullmatch(r"sha256:[0-9a-f]{64}", info["Id"]):
             raise SmokeError(f"{reference}: invalid local image ID")
         return {"reference": reference, "id": info["Id"], "labels": info.get("Config", {}).get("Labels") or {}}
@@ -306,7 +305,7 @@ class Smoke:
         endpoint = check("Docker context", lambda: self.cmd.run([self.docker, "context", "inspect", "--format", "{{.Endpoints.docker.Host}} "]))
         endpoint = os.environ.get("DOCKER_HOST") or endpoint
         if not endpoint or not endpoint.startswith("unix://"):
-            errors.append("offline smoke requires a local Docker daemon using a unix:// endpoint")
+            errors.append("smoke requires a local Docker daemon using a unix:// endpoint")
         else:
             self.cmd.env.pop("DOCKER_CONTEXT", None)
             self.cmd.env["DOCKER_HOST"] = endpoint
@@ -323,7 +322,7 @@ class Smoke:
                 if proxy:
                     self.images["hiveproxy"] = proxy
         metadata = check("Cargo dependencies", lambda: json.loads(self.cmd.run(
-            ["cargo", "metadata", "--locked", "--offline", "--format-version", "1"], cwd=self.workload)))
+            ["cargo", "metadata", "--locked", "--format-version", "1"], cwd=self.workload)))
         if metadata:
             self.target = Path(metadata["target_directory"])
             self.inventory = check("guest catalog", lambda: guest_inventory(
@@ -345,7 +344,7 @@ class Smoke:
                 info = check(guest["image"], lambda g=guest: self.image(g["image"]))
                 if info:
                     self.images[f"ere-{zkvm}"] = info
-        check("EEST environment", lambda: self.cmd.run(["uv", "run", "--offline", "--no-sync", "fill", "--help"], cwd=self.eest))
+        check("EEST environment", lambda: self.cmd.run(["uv", "run", "--locked", "fill", "--help"], cwd=self.eest))
         if self.clients:
             for path in (self.hive, self.hive / "hiveproxy"):
                 check(f"Go dependencies ({path})", lambda p=path: self.cmd.run(["go", "list", "-mod=readonly", "-deps", "./..."], cwd=p))
@@ -383,7 +382,7 @@ class Smoke:
         wrapper.write_text(
             f"#!{sys.executable}\nimport os, sys\nargs = sys.argv[1:]\n"
             "if args and (args[0] in ('pull', 'build', 'buildx', 'login') or args[:2] in (['image', 'pull'], ['image', 'build'])):\n"
-            "    sys.exit('offline smoke forbids image downloads/builds through the Docker CLI')\n"
+            "    sys.exit('smoke requires prepared images and forbids image downloads/builds through the Docker CLI')\n"
             "if args and args[0] in ('run', 'create'):\n"
             f"    args[1:1] = ['--pull=never', '--label', {LABEL + '=' + self.run_id!r}]\n"
             f"os.execv({self.docker!r}, [{self.docker!r}] + args)\n"
@@ -403,7 +402,7 @@ class Smoke:
             # consume writes reports/index caches under its input directory.
             shutil.copytree(self.args.fixtures, fixtures)
         else:
-            self.logged("fill", ["uv", "run", "--offline", "--no-sync", "fill", "--output", fixtures,
+            self.logged("fill", ["uv", "run", "--locked", "fill", "--output", fixtures,
                         "--fork", os.environ["FORK"], "-m", "blockchain_test or blockchain_test_engine", "-n", "0",
                         *[f"{HEADER_TEST}::{test}" for test in SMOKE_TESTS]], cwd=self.eest)
         expected = fixture_expectations(fixtures)
@@ -458,6 +457,7 @@ class Smoke:
             "FIXTURES_DIR": str(fixtures), "EL_CLIENT_CONFIG": str(config_path), "EL_CLIENT_OVERRIDES_JSON": "{}",
             "HIVE_CONSUME_RESULT_DIR": str(destination), "HIVE_LOG_FILE": str(destination / "hive.log"),
             "RUN_HIVE_SETUP": "0", "HIVE_CONSUME_ALLOW_FAILURE": "0", "HIVE_PRUNE_SKIPPED": "0",
+            "UV_NO_SYNC": "1",
             "HIVE_PARALLELISM": "1", "HIVE_SIMULATOR": "http://127.0.0.1:3000",
         })
 
@@ -475,7 +475,7 @@ class Smoke:
 
     def execute(self):
         fixtures, expected = self.prepare_fixtures()
-        self.logged("build-workload", ["cargo", "build", "--locked", "--offline", "--release", "-p", "ere-hosts"], cwd=self.workload, timeout=3600)
+        self.logged("build-workload", ["cargo", "build", "--locked", "--release", "-p", "ere-hosts"], cwd=self.workload, timeout=3600)
         stage = self.prepare_hive() if self.clients else None
         for client, row in zip(self.clients, self.rows):
             destination = self.output / "hive-results" / client["id"]
@@ -537,7 +537,7 @@ def parse_args(argv=None):
                                      epilog="Environment: EL_CLIENTS, ZKEVM_WORKLOAD_RUNS, SMOKE_RUN_TIMEOUT_SECONDS (600), SMOKE_HIVE_PROXY_IMAGE, ERE_IMAGE_REGISTRY, and checkout paths from scripts/env.sh.")
     parser.add_argument("--guest-binaries", required=True, type=Path, help="Local ere-guests v0.17.0 ELF/VK directory")
     parser.add_argument("--client-images", required=True, type=Path, help="JSON object mapping client IDs to local Hive-compatible images")
-    parser.add_argument("--check-only", action="store_true", help="Check prerequisites without building or running")
+    parser.add_argument("--check-only", action="store_true", help="Check prerequisites (may fetch dependencies) without building or running workloads")
     parser.add_argument("--fixtures", type=Path, help="Reuse a small prepared EEST bundle instead of filling")
     parser.add_argument("--output-dir", type=Path, help="Absent or empty directory; default: unique smoke-results/run-* directory")
     args = parser.parse_args(argv)

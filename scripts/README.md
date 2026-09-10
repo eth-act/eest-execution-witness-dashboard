@@ -43,7 +43,7 @@ Implemented scripts:
 - `convert-zkevm-metrics-to-hive-results.py`: convert `zkevm-benchmark-workload`
   `zkevm-metrics/` output into Hive-compatible result files.
 - `smoke-upgrade.sh`: fill a tiny fixture selection and validate local EL/zkEVM
-  execution without fetching dependencies; see Local upgrade smoke below.
+  execution with prepared images and guests; see Local upgrade smoke below.
 - `prepare-smoke-ci.sh`: online prerequisite preparation restricted to PR jobs.
 - `build-site.sh`: generate a static hive-ui site in `SITE_DIR`, write
   `discovery.json` and `listing.jsonl`, copy Hive logs into `results/`, and
@@ -208,8 +208,9 @@ requires at least one generated metrics JSON before returning successfully.
 ### Local upgrade smoke
 
 `smoke-upgrade.sh` is a Bash entrypoint backed by standard-library Python 3.11+
-orchestration. It never calls the repository setup scripts or downloads inputs.
-Prepare these locally before running it:
+orchestration. Dependency checks and compilation may download packages using
+the configured Cargo, Go, and uv settings. It uses `--locked` for Cargo and uv,
+and `-mod=readonly` for Go. Prepare these inputs locally before running it:
 
 - Clean EEST, workload, and Hive checkouts at their configured refs, with those
   refs available locally. Defaults are EEST `tests-zkevm@v0.8.4`, workload
@@ -217,8 +218,7 @@ Prepare these locally before running it:
 - An installed Rust toolchain satisfying the workload (Rust 1.93+; CI uses
   nightly), Go satisfying Hive's `go.mod`, Python 3.11+, uv, jq, and a local
   Docker daemon accessible through a Unix socket.
-- Cached Cargo and Go dependencies and an already synced EEST environment.
-  Native packages match CI: `build-essential clang libclang-dev libssl-dev
+- Native packages matching CI: `build-essential clang libclang-dev libssl-dev
   pkg-config cmake libbenchmark-dev libgmp-dev libomp-dev libopenmpi-dev
   libsodium-dev nasm nlohmann-json3-dev openmpi-bin openmpi-common`.
 - Local Hive-compatible devnet 8 client images, a `hive/hiveproxy:latest` image,
@@ -264,11 +264,15 @@ its last block.
 defaults remain three EL clients and `ethrex:zisk,reth:zisk`; add `zesu:zisk`
 explicitly to include Zesu. `SMOKE_RUN_TIMEOUT_SECONDS` defaults to `600` per
 workload. `SMOKE_HIVE_PROXY_IMAGE` overrides the local proxy reference;
-`ERE_IMAGE_REGISTRY` changes the local Ere image names, not the offline policy.
+`ERE_IMAGE_REGISTRY` changes the local Ere image names. Runtime execution uses
+the supplied guest binaries and prepared images; Docker fallback pulls and
+image builds are rejected. Hive consume reuses the EEST environment synced
+during prerequisite checks.
 
-`--check-only` reports missing prerequisites together without starting builds
-or workloads. Exit codes are `0` for success, `1` for execution/validation
-failures, and `2` for invalid arguments or missing prerequisites. Native build
+`--check-only` checks prerequisites and may download dependencies or sync the
+EEST environment, without filling fixtures or building/running workloads.
+Exit codes are `0` for success, `1` for execution/validation failures, and `2`
+for invalid arguments or missing prerequisites. Native build
 errors that cannot be detected without compiling appear in the build log.
 
 Each run writes `summary.md`, `summary.json`, `versions.json`, `expected.json`,
@@ -279,10 +283,11 @@ remove only their own processes and labelled containers.
 
 The PR workflow runs local tests on a hosted runner and execution smoke on
 approved disposable XL runners. `prepare-smoke-ci.sh sources` resolves commits;
-`prepare-smoke-ci.sh assets` downloads dependencies/guests and builds images.
-These online entrypoints reject execution outside a `pull_request` job.
-The subsequent smoke script remains offline. The final `PR smoke` job requires
-both prior jobs to succeed, including real passing cases for all three clients
+`prepare-smoke-ci.sh assets` resolves the guest catalog, downloads guests, and
+builds or pulls images. These entrypoints reject execution outside a
+`pull_request` job. The smoke script then resolves dependencies, builds, and
+runs the tests. The final `PR smoke` job requires both prior jobs to succeed,
+including real passing cases for all three clients
 and Ethrex/Reth/Zesu on ZisK. It creates diagnostic artifacts only.
 
 ### Metrics conversion

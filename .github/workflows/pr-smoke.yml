@@ -95,7 +95,7 @@ jobs:
         run: |
           printf '%s' "$GHCR_READ_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
           scripts/prepare-smoke-ci.sh assets
-      - name: Run offline smoke
+      - name: Build and run smoke
         run: |
           scripts/smoke-upgrade.sh \
             --guest-binaries smoke-results/ci-inputs/guests \

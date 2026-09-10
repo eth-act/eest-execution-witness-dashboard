@@ -69,7 +69,7 @@ root = Path(os.environ['SMOKE_STUB_ROOT'])
 name = Path(sys.argv[0]).name
 args = sys.argv[1:]
 with (root / 'commands.jsonl').open('a') as f:
-    f.write(json.dumps(dict(name=name, args=args, cwd=os.getcwd(), env={k:os.environ.get(k) for k in ('CARGO_NET_OFFLINE','UV_OFFLINE','UV_NO_SYNC','GOPROXY','GOSUMDB','GOTOOLCHAIN','RUN_HIVE_SETUP','HIVE_CONSUME_ALLOW_FAILURE','HIVE_PRUNE_SKIPPED')}))+'\n')
+    f.write(json.dumps(dict(name=name, args=args, cwd=os.getcwd(), env={k:os.environ.get(k) for k in ('CARGO_NET_OFFLINE','UV_OFFLINE','UV_NO_SYNC','GOPROXY','GOSUMDB','GOTOOLCHAIN','RUSTUP_AUTO_INSTALL','RUN_HIVE_SETUP','HIVE_CONSUME_ALLOW_FAILURE','HIVE_PRUNE_SKIPPED')}))+'\n')
 def arg(flag): return args[args.index(flag)+1]
 def write(path, value):
     path.parent.mkdir(parents=True,exist_ok=True)
@@ -167,6 +167,9 @@ class SmokeScriptTests(unittest.TestCase):
             "EL_CLIENT_CONFIG": str(REPO / "config/el-clients.json"), "EL_GUEST_CONFIG": str(REPO / "config/el-guests.json"),
             "EL_CLIENTS": "ethrex", "EL_CLIENT_OVERRIDES_JSON": "{}",
             "ZKEVM_WORKLOAD_RUNS": "ethrex:zisk,reth:zisk", "ERE_IMAGE_REGISTRY": "ghcr.io/eth-act/ere",
+            "CARGO_NET_OFFLINE": "false", "UV_OFFLINE": "0", "UV_NO_SYNC": "0",
+            "GOPROXY": "https://proxy.example.test,direct", "GOSUMDB": "sum.golang.org",
+            "GOTOOLCHAIN": "auto", "RUSTUP_AUTO_INSTALL": "1",
         }
         self.env.pop("DOCKER_HOST", None)
         self.args = ["/bin/bash", str(REPO / "scripts/smoke-upgrade.sh"), "--guest-binaries", str(self.root / "guests"),
@@ -178,7 +181,7 @@ class SmokeScriptTests(unittest.TestCase):
     def commands(self):
         return [json.loads(line) for line in (self.root / "commands.jsonl").read_text().splitlines()]
 
-    def test_complete_offline_run_fills_builds_and_converts(self):
+    def test_run_allows_dependency_fetches_and_uses_prepared_artifacts(self):
         result = self.run_script()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         summary = json.loads((self.root / "output/summary.json").read_text())
@@ -187,11 +190,17 @@ class SmokeScriptTests(unittest.TestCase):
         self.assertTrue(all(r["expected"] == r["executed"] == r["passed"] == 5 for r in summary["participants"]))
         commands = self.commands()
         cargo = next(c for c in commands if c["name"] == "cargo" and "build" in c["args"])
-        self.assertEqual(cargo["args"], ["build", "--locked", "--offline", "--release", "-p", "ere-hosts"])
-        self.assertEqual(cargo["env"]["CARGO_NET_OFFLINE"], "true")
+        self.assertEqual(cargo["args"], ["build", "--locked", "--release", "-p", "ere-hosts"])
+        for command in commands:
+            if command["name"] not in ("cargo", "uv", "go"):
+                continue
+            self.assertNotIn("--offline", command["args"])
+            self.assertNotIn("--no-sync", command["args"])
+            self.assertIn("-mod=readonly" if command["name"] == "go" else "--locked", command["args"])
+            for key in ("CARGO_NET_OFFLINE", "UV_OFFLINE", "UV_NO_SYNC", "GOPROXY", "GOSUMDB", "GOTOOLCHAIN", "RUSTUP_AUTO_INSTALL"):
+                self.assertEqual(command["env"][key], self.env[key], (command["name"], key))
         fill = next(c for c in commands if c["name"] == "uv" and "--output" in c["args"])
-        self.assertIn("--offline", fill["args"])
-        self.assertIn("--no-sync", fill["args"])
+        self.assertIn("--locked", fill["args"])
         guests = [c for c in commands if c["name"] == "ere-hosts"]
         self.assertEqual(len(guests), 2)
         self.assertTrue(all("--bin-path" in c["args"] and "--guest-artifact-base-url" not in c["args"] for c in guests))
@@ -199,6 +208,7 @@ class SmokeScriptTests(unittest.TestCase):
         self.assertEqual(hive["env"]["RUN_HIVE_SETUP"], "0")
         self.assertEqual(hive["env"]["HIVE_CONSUME_ALLOW_FAILURE"], "0")
         self.assertEqual(hive["env"]["HIVE_PRUNE_SKIPPED"], "0")
+        self.assertEqual(hive["env"]["UV_NO_SYNC"], "1")
         proxy = (self.root / "output/hive/hiveproxy/Dockerfile").read_text()
         self.assertNotIn("RUN", proxy)
         self.assertIn("FROM sha256:", proxy)
@@ -341,6 +351,8 @@ class SmokeValidationTests(unittest.TestCase):
                 prepare = Prepare()
                 write_json(prepare.inputs / "resolved.json", {"clients": {}})
                 prepare.assets()
+                commands.return_value.run.assert_any_call(
+                    ["cargo", "metadata", "--locked", "--format-version", "1"], cwd=root / "workload")
             pulls = [call.args[1] for call in run.call_args_list if call.args[1][:2] == ["docker", "pull"]]
             self.assertEqual(pulls, [["docker", "pull", "local/ere/ere-server-zisk:aaaaaaa"]])
             downloads = [call.args[1][-1] for call in run.call_args_list if call.args[1][0] == "curl"]
