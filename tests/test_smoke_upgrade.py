@@ -6,6 +6,7 @@ import subprocess
 import sys
 from tempfile import TemporaryDirectory
 import textwrap
+import time
 import unittest
 from unittest.mock import patch
 
@@ -387,10 +388,19 @@ class SmokeValidationTests(unittest.TestCase):
             with self.assertRaisesRegex(smoke.SmokeError, "timed out"):
                 smoke.Commands(os.environ.copy()).run([sys.executable, "-c", code], log=log, timeout=0.3)
             pid = int(log.read_text().strip())
-            # A killed child can briefly remain a zombie until adopted/reaped.
+            # Signal delivery and reaping can finish after the group leader exits.
             status = Path(f"/proc/{pid}/stat")
-            if status.exists():
-                self.assertEqual(status.read_text().split()[2], "Z")
+            deadline = time.monotonic() + 1
+            while True:
+                try:
+                    state = status.read_text().split()[2]
+                except FileNotFoundError:
+                    break  # The child has already been reaped.
+                if state in ("Z", "X"):
+                    break  # Zombie or dead, awaiting reaping.
+                if time.monotonic() >= deadline:
+                    self.fail(f"child process {pid} is still alive (state {state})")
+                time.sleep(0.01)
 
 
 if __name__ == "__main__":
