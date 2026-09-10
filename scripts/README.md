@@ -42,9 +42,8 @@ Implemented scripts:
   manifests and deterministically select reusable cross-run artifacts.
 - `convert-zkevm-metrics-to-hive-results.py`: convert `zkevm-benchmark-workload`
   `zkevm-metrics/` output into Hive-compatible result files.
-- `smoke-upgrade.sh`: fill a tiny fixture selection and validate local EL/zkEVM
-  execution with prepared images and guests; see Local upgrade smoke below.
-- `prepare-smoke-ci.sh`: online prerequisite preparation restricted to PR jobs.
+- `check-smoke-results.py`: require one passing Geth/Hive case and one passing
+  Ethrex/ZisK case, including metrics conversion; see PR smoke check below.
 - `build-site.sh`: generate a static hive-ui site in `SITE_DIR`, write
   `discovery.json` and `listing.jsonl`, copy Hive logs into `results/`, and
   enforce `SITE_MAX_SIZE_MB`.
@@ -205,93 +204,57 @@ This resets `ZKEVM_METRICS_DIR`, defaults `RAYON_NUM_THREADS` from
 `ZKEVM_RAYON_THREADS`, runs `cargo run --locked --release -p ere-hosts`, and
 requires at least one generated metrics JSON before returning successfully.
 
-### Local upgrade smoke
+### PR smoke check
 
-`smoke-upgrade.sh` is a Bash entrypoint backed by standard-library Python 3.11+
-orchestration. Dependency checks and compilation may download packages using
-the configured Cargo, Go, and uv settings. It uses `--locked` for Cargo and uv,
-and `-mod=readonly` for Go. Prepare these inputs locally before running it:
+The PR workflow runs the production scripts against one empty-block test in
+both fixture formats. Geth executes the engine fixture through Hive; Ethrex
+executes the blockchain fixture on ZisK. The benchmark downloads its guest
+and runtime image using its own dependency versions.
 
-- Clean EEST, workload, and Hive checkouts at their configured refs, with those
-  refs available locally. Defaults are EEST `tests-zkevm@v0.8.4`, workload
-  `v0.17.0`, and Hive `master`. Checkouts are verified, never switched.
-- An installed Rust toolchain satisfying the workload (Rust 1.93+; CI uses
-  nightly), Go satisfying Hive's `go.mod`, Python 3.11+, uv, jq, and a local
-  Docker daemon accessible through a Unix socket.
-- Native packages matching CI: `build-essential clang libclang-dev libssl-dev
-  pkg-config cmake libbenchmark-dev libgmp-dev libomp-dev libopenmpi-dev
-  libsodium-dev nasm nlohmann-json3-dev openmpi-bin openmpi-common`.
-- Local Hive-compatible devnet 8 client images, a `hive/hiveproxy:latest` image,
-  and the Ere server images selected by the workload's locked catalog. The
-  default ZisK server is `ghcr.io/eth-act/ere/ere-server-zisk:5023513`.
-- Guest ELF and VK files from `ere-guests@v0.17.0`, using their release names,
-  e.g. `stateless-validator-ethrex-zisk-v1.1.0-alpha.elf` and the matching `.vk`.
-
-The client-image file maps descriptor IDs to local image names or IDs:
-
-```json
-{
-  "go-ethereum": "hive/clients/go-ethereum_rlp-engineapi:latest",
-  "ethrex": "hive/clients/ethrex_rlp-engineapi:latest",
-  "nethermind": "hive/clients/nethermind_rlp-engineapi:latest",
-  "nimbus-el": "hive/clients/nimbus-el_rlp-engineapi:latest"
-}
-```
-
-Supply images built from the selected descriptor refs: `glamsterdam-devnet-8`
-for Geth, Ethrex, and Nethermind; `engine-new-payload-with-witness` for Nimbus.
-Existing image names alone
-do not prove source provenance. The script records IDs and available labels;
-CI supplies commit-labelled images and records the source commits separately.
+Run these commands from the dashboard repository root with the
+[local prerequisites](../README.md#local-prerequisites) installed. They update
+the generated source checkouts and replace outputs under `smoke-results/`.
 
 ```bash
-scripts/smoke-upgrade.sh --guest-binaries /path/to/guests \
-  --client-images /path/to/client-images.json --check-only
+(
+  export EEST_RELEASE_TAG=''
+  export FILLER_PATH=tests/amsterdam/eip8025_optional_proofs/test_witness_headers.py::test_witness_headers_empty_block
+  export FILL_TEST_NAME=0
+  export FIXTURES_DIR="$PWD/smoke-results/fixtures"
+  export HIVE_CLIENT_RESULTS_DIR="$PWD/smoke-results/hive-results"
+  export ZKEVM_METRICS_DIR="$PWD/smoke-results/metrics"
+  export EL_CLIENTS=go-ethereum HIVE_PARALLELISM=1
+  export HIVE_CONSUME_ALLOW_FAILURE=0 HIVE_PRUNE_SKIPPED=0 HIVE_LOG_TO_STDOUT=1
+  export ZKEVM_RAYON_THREADS=2 ERE_IMAGE_REGISTRY=ghcr.io/eth-act/ere
 
-scripts/smoke-upgrade.sh --guest-binaries /path/to/guests \
-  --client-images /path/to/client-images.json
-
-scripts/smoke-upgrade.sh --guest-binaries /path/to/guests \
-  --client-images /path/to/client-images.json --fixtures /path/to/small-bundle \
-  --output-dir /tmp/my-smoke-run
+  set -e
+  scripts/setup-zkevm-benchmark-workload.sh
+  scripts/prepare-fixtures.sh
+  scripts/run-hive-consume-client.sh go-ethereum
+  scripts/run-zkevm-benchmark-workload.sh ethrex zisk
+  python3 scripts/convert-zkevm-metrics-to-hive-results.py \
+    --input "$ZKEVM_METRICS_DIR" --output smoke-results/converted --clean-output
+  python3 scripts/check-smoke-results.py \
+    --fixtures "$FIXTURES_DIR" \
+    --hive-results "$HIVE_CLIENT_RESULTS_DIR/go-ethereum" \
+    --metrics "$ZKEVM_METRICS_DIR" \
+    --converted-results smoke-results/converted
+)
 ```
 
-The default preset fills `test_witness_headers_empty_block` and all four
-`test_witness_headers_blockhash_at_offset` variants, for both `blockchain_test`
-and `blockchain_test_engine`. Reused fixture bundles are copied before consume
-writes its reports. The fixture index must describe exactly the provided files,
-and every blockchain case must have canonical stateless input/output bytes in
-its last block.
+The result checker exits nonzero unless each fixture format contains the
+selected case, Hive passes it without skipping, the guest output matches,
+and conversion preserves the passing result. It reads the fixture index and
+result files; it does not prepare or execute workloads.
 
-`EL_CLIENTS` and `ZKEVM_WORKLOAD_RUNS` select participants as usual. The local
-defaults include four EL clients and `ethrex:zisk,reth:zisk`; add `zesu:zisk`
-explicitly to include Zesu. `SMOKE_RUN_TIMEOUT_SECONDS` defaults to `600` per
-workload. `SMOKE_HIVE_PROXY_IMAGE` overrides the local proxy reference;
-`ERE_IMAGE_REGISTRY` changes the local Ere image names. Runtime execution uses
-the supplied guest binaries and prepared images; Docker fallback pulls and
-image builds are rejected. Hive consume reuses the EEST environment synced
-during prerequisite checks.
-
-`--check-only` checks prerequisites and may download dependencies or sync the
-EEST environment, without filling fixtures or building/running workloads.
-Exit codes are `0` for success, `1` for execution/validation failures, and `2`
-for invalid arguments or missing prerequisites. Native build
-errors that cannot be detected without compiling appear in the build log.
-
-Each run writes `summary.md`, `summary.json`, `versions.json`, `expected.json`,
-logs, copied/generated fixtures, raw results, and converted metrics to a unique
-`smoke-results/run-*` directory. An explicit output directory must be absent or
-empty and must not overlap inputs. Interrupted runs retain diagnostics and
-remove only their own processes and labelled containers.
-
-The PR workflow runs local tests on a hosted runner and execution smoke on
-approved disposable XL runners. `prepare-smoke-ci.sh sources` resolves commits;
-`prepare-smoke-ci.sh assets` resolves the guest catalog, downloads guests, and
-builds or pulls images. These entrypoints reject execution outside a
-`pull_request` job. The smoke script then resolves dependencies, builds, and
-runs the tests. The final `PR smoke` job requires both prior jobs to succeed,
-including real passing cases for all four clients
-and Ethrex/Reth/Zesu on ZisK. It creates diagnostic artifacts only.
+CI installs Python, Go, Rust nightly, uv, and the native packages listed in
+`.github/workflows/pr-smoke.yml`. It authenticates to GHCR with the job token,
+caches dependencies and Rust build outputs, and runs on a disposable XL
+runner with a 60-minute timeout. The summary records elapsed time and cache
+hits. Cold runs can take longer because they build Geth and the benchmark.
+Fixtures, results, and Hive logs are uploaded for seven days, with build output
+in the step logs. The final **PR smoke** gate requires both local checks and
+real execution to pass. It creates diagnostic artifacts only.
 
 ### Metrics conversion
 

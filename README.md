@@ -252,40 +252,24 @@ Then build from `HIVE_RESULTS_DIR` as usual:
 scripts/build-site.sh
 ```
 
-## Local upgrade smoke and PR check
+## PR smoke check
 
-Run the reusable smoke test with already prepared local inputs:
+The **PR smoke** check runs the unit tests, then fills one empty-block test in
+both fixture formats and runs it through Geth/Hive and Ethrex/ZisK. It uses the
+same setup and workload scripts as `run-workloads.yml`, then converts the
+zkEVM metrics and checks that both workloads produced exactly one passing
+case. Missing, skipped, duplicate, failed, or timed-out cases fail the check.
 
-```bash
-scripts/smoke-upgrade.sh \
-  --guest-binaries /path/to/ere-guests-v0.17.0 \
-  --client-images /path/to/local-client-images.json \
-  --check-only
-```
+See [the local commands](scripts/README.md#pr-smoke-check) to reproduce the run.
+The execution job uses a disposable XL runner with a 60-minute timeout.
+Dependency caches reduce repeat build time; cold runs still compile the
+benchmark and build Geth. The job summary records elapsed time and cache hits.
+Fixtures, results, and Hive logs are retained for seven days; build output is
+in the Actions step logs.
 
-Remove `--check-only` to fill five header-witness cases in both fixture formats,
-build the workload, execute the selected clients and guests, and convert the
-metrics. `--fixtures PATH` reuses a small fixture bundle by copying it into the
-run directory. Inputs and existing results are left intact. See
-[the script reference](scripts/README.md#local-upgrade-smoke) for image mappings,
-prerequisites, and output details.
-
-Dependency checks and compilation may download Cargo, Go, and Python packages.
-Cargo and uv use `--locked`, and Go uses `-mod=readonly`. Execution uses the
-prepared local images and guest binaries. Logs and summaries are preserved
-under `smoke-results/run-*`.
-
-The PR-only workflow prepares source checkouts, images, and guests on disposable
-XL runners, then invokes this same script for Geth, Ethrex, Nethermind, Nimbus, and
-Ethrex/Reth/Zesu on ZisK. It does not publish datasets or deploy the dashboard. Its stable
-**PR smoke** check succeeds only when both local checks and execution smoke
-succeed. Missing, skipped, duplicate, failed, or timed-out cases fail the check.
-Diagnostics are retained for seven days.
-
-A green check covers this small execution-and-conversion path. It does not
-certify the full optional-proofs suite or SP1/OpenVM. The workflow file does not
-configure branch protection; `PR smoke` is the check name to use if protection
-is configured separately.
+This check covers Geth/Hive, Ethrex/ZisK execution, and metrics conversion.
+It does not generate proofs, publish datasets, or deploy the dashboard.
+Use `PR smoke` as the required check name when configuring branch protection.
 
 ## Static Site Build
 
