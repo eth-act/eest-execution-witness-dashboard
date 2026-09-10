@@ -52,11 +52,12 @@ jobs:
       ZKEVM_WORKLOAD_RUNS: ethrex:zisk,reth:zisk,zesu:zisk
       ZKEVM_RAYON_THREADS: "2"
       ERE_IMAGE_REGISTRY: ghcr.io/eth-act/ere
-      UV_CACHE_DIR: ${{ runner.temp }}/uv-cache
     steps:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
+      - name: Set uv cache directory
+        run: printf 'UV_CACHE_DIR=%s/uv-cache\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
