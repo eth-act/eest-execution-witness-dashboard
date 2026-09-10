@@ -31,6 +31,30 @@ def write_json(path: Path, data: dict) -> None:
 
 
 class ConvertZkEvmMetricsTests(unittest.TestCase):
+    def test_execution_metrics_preserve_outcome_and_duration(self):
+        for matched in (True, False):
+            with self.subTest(matched=matched), TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                metrics = root / "metrics"
+                output = root / "converted"
+                write_json(metrics / "ethrex-26.0.0" / "zisk-v1.1.0-alpha" / "case.json", {
+                    "name": "eest__header__block0",
+                    "timestamp_completed": "2026-09-10T12:00:02Z",
+                    "metadata": {"block_used_gas": 100},
+                    "execution": {"success": {
+                        "output_matched": matched,
+                        "execution_duration": {"secs": 2, "nanos": 0},
+                    }},
+                })
+                written = converter.convert(metrics, output, converter.DEFAULT_SUITE_NAME, clean_output=True)
+                suite = json.loads((output / written[0]).read_text())
+                case = next(iter(suite["testCases"].values()))
+                self.assertEqual(case["summaryResult"]["pass"], matched)
+                self.assertEqual(case["start"], "2026-09-10T12:00:00Z")
+                self.assertEqual(case["end"], "2026-09-10T12:00:02Z")
+                details = (output / suite["testDetailsLog"]).read_text()
+                self.assertIn("execution_duration: 2s", details)
+
     def test_converts_success_and_crash_as_plain_failure_and_skips_hardware(self):
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -55,8 +79,6 @@ class ConvertZkEvmMetricsTests(unittest.TestCase):
                     "execution": {
                         "success": {
                             "output_matched": True,
-                            "total_num_cycles": 570_661_285,
-                            "region_cycles": {},
                             "execution_duration": {"secs": 9, "nanos": 555_227_399},
                         }
                     },
@@ -119,7 +141,6 @@ class ConvertZkEvmMetricsTests(unittest.TestCase):
                 "source_path: ethrex-81484be/zisk-v0.16.1/test success with spaces.json",
                 excerpt,
             )
-            self.assertIn("total_num_cycles: 570661285", excerpt)
             self.assertIn("output_matched: true", excerpt)
             self.assertIn('"block_used_gas": 10000000', excerpt)
 
@@ -142,8 +163,6 @@ class ConvertZkEvmMetricsTests(unittest.TestCase):
                     "execution": {
                         "success": {
                             "output_matched": False,
-                            "total_num_cycles": 99,
-                            "region_cycles": {"execute": 99},
                             "execution_duration": {"secs": 2, "nanos": 0},
                         }
                     },
@@ -170,7 +189,6 @@ class ConvertZkEvmMetricsTests(unittest.TestCase):
             details = (output_dir / result["testDetailsLog"]).read_text(encoding="utf-8")
             self.assertIn("status: output mismatch", details)
             self.assertIn("output_matched: false", details)
-            self.assertIn("total_num_cycles: 99", details)
             self.assertIn(
                 "failure_reason: public output did not match expected values",
                 details,
@@ -232,8 +250,6 @@ class ConvertZkEvmMetricsTests(unittest.TestCase):
                     "execution": {
                         "success": {
                             "output_matched": True,
-                            "total_num_cycles": 1,
-                            "region_cycles": {},
                             "execution_duration": {"secs": 1, "nanos": 0},
                         }
                     },
@@ -263,8 +279,6 @@ class ConvertZkEvmMetricsTests(unittest.TestCase):
                     "metadata": {"block_used_gas": 1},
                     "execution": {
                         "success": {
-                            "total_num_cycles": 1,
-                            "region_cycles": {},
                             "execution_duration": {"secs": 1, "nanos": 0},
                         }
                     },
@@ -298,8 +312,6 @@ class ConvertZkEvmMetricsTests(unittest.TestCase):
                     "execution": {
                         "success": {
                             "output_matched": "false",
-                            "total_num_cycles": 1,
-                            "region_cycles": {},
                             "execution_duration": {"secs": 1, "nanos": 0},
                         }
                     },

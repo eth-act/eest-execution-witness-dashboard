@@ -42,6 +42,9 @@ Implemented scripts:
   manifests and deterministically select reusable cross-run artifacts.
 - `convert-zkevm-metrics-to-hive-results.py`: convert `zkevm-benchmark-workload`
   `zkevm-metrics/` output into Hive-compatible result files.
+- `smoke-upgrade.sh`: fill a tiny fixture selection and validate local EL/zkEVM
+  execution without fetching dependencies; see Local upgrade smoke below.
+- `prepare-smoke-ci.sh`: online prerequisite preparation restricted to PR jobs.
 - `build-site.sh`: generate a static hive-ui site in `SITE_DIR`, write
   `discovery.json` and `listing.jsonl`, copy Hive logs into `results/`, and
   enforce `SITE_MAX_SIZE_MB`.
@@ -117,8 +120,8 @@ Use `EL_CLIENT_OVERRIDES_JSON` for temporary repo/ref changes:
 EL_CLIENT_OVERRIDES_JSON='{"ethrex":{"ref":"other-branch"}}' scripts/setup-hive.sh
 ```
 
-The same override mechanism applies to go-ethereum. For example, this disables
-the default Hive extra flags patch:
+For a custom go-ethereum descriptor using `managed_patch=geth-extra-flags`,
+this clears its extra flags:
 
 ```bash
 EL_CLIENT_OVERRIDES_JSON='{"go-ethereum":{"hive_extra_flags":""}}' scripts/setup-hive.sh
@@ -135,7 +138,7 @@ consume tests at once through pytest-xdist. Use descriptor overrides for ad hoc
 tuning:
 
 ```bash
-EL_CLIENT_OVERRIDES_JSON='{"besu":{"hive_parallelism":4}}' scripts/run-hive-consume.sh
+EL_CLIENT_OVERRIDES_JSON='{"ethrex":{"hive_parallelism":4}}' scripts/run-hive-consume.sh
 ```
 
 Direct single-client worker runs can still set `HIVE_PARALLELISM` explicitly.
@@ -172,9 +175,9 @@ ZKEVM_WORKLOAD_RUNS=zesu:zisk,ethrex:zisk,ethrex:sp1 \
 scripts/list-zkevm-workload-runs.sh --github-matrix
 ```
 
-Zesu requires workload support for `--execution-client zesu` and
-`--guest-artifact-base-url`. The local default `v0.5.0` includes that support;
-if you override `ZKEVM_BENCHMARK_WORKLOAD_REF`, use `v0.5.0` or newer.
+Workload `v0.17.0` locks `ere-guests` to `v0.17.0`. Empty guest descriptors
+use that release automatically, including Zesu on ZisK; custom artifact URLs
+remain optional overrides. The pinned EEST source is `tests-zkevm@v0.8.4`.
 
 Prepare the workload checkout:
 
@@ -184,7 +187,7 @@ scripts/setup-zkevm-benchmark-workload.sh
 
 The default checkout is
 `https://github.com/eth-act/zkevm-benchmark-workload.git`
-at `v0.5.0`.
+at `v0.17.0`.
 
 Run one workload entry against prepared fixtures:
 
@@ -201,6 +204,88 @@ you need a temporary local override.
 This resets `ZKEVM_METRICS_DIR`, defaults `RAYON_NUM_THREADS` from
 `ZKEVM_RAYON_THREADS`, runs `cargo run --locked --release -p ere-hosts`, and
 requires at least one generated metrics JSON before returning successfully.
+
+### Local upgrade smoke
+
+`smoke-upgrade.sh` is a Bash entrypoint backed by standard-library Python 3.11+
+orchestration. It never calls the repository setup scripts or downloads inputs.
+Prepare these locally before running it:
+
+- Clean EEST, workload, and Hive checkouts at their configured refs, with those
+  refs available locally. Defaults are EEST `tests-zkevm@v0.8.4`, workload
+  `v0.17.0`, and Hive `master`. Checkouts are verified, never switched.
+- An installed Rust toolchain satisfying the workload (Rust 1.93+; CI uses
+  nightly), Go satisfying Hive's `go.mod`, Python 3.11+, uv, jq, and a local
+  Docker daemon accessible through a Unix socket.
+- Cached Cargo and Go dependencies and an already synced EEST environment.
+  Native packages match CI: `build-essential clang libclang-dev libssl-dev
+  pkg-config cmake libbenchmark-dev libgmp-dev libomp-dev libopenmpi-dev
+  libsodium-dev nasm nlohmann-json3-dev openmpi-bin openmpi-common`.
+- Local Hive-compatible devnet 8 client images, a `hive/hiveproxy:latest` image,
+  and the Ere server images selected by the workload's locked catalog. The
+  default ZisK server is `ghcr.io/eth-act/ere/ere-server-zisk:5023513`.
+- Guest ELF and VK files from `ere-guests@v0.17.0`, using their release names,
+  e.g. `stateless-validator-ethrex-zisk-v1.1.0-alpha.elf` and the matching `.vk`.
+
+The client-image file maps descriptor IDs to local image names or IDs:
+
+```json
+{
+  "go-ethereum": "hive/clients/go-ethereum_rlp-engineapi:latest",
+  "ethrex": "hive/clients/ethrex_rlp-engineapi:latest",
+  "nethermind": "hive/clients/nethermind_rlp-engineapi:latest"
+}
+```
+
+Supply images built from the selected devnet 8 refs. Existing image names alone
+do not prove source provenance. The script records IDs and available labels;
+CI supplies commit-labelled images and records the source commits separately.
+
+```bash
+scripts/smoke-upgrade.sh --guest-binaries /path/to/guests \
+  --client-images /path/to/client-images.json --check-only
+
+scripts/smoke-upgrade.sh --guest-binaries /path/to/guests \
+  --client-images /path/to/client-images.json
+
+scripts/smoke-upgrade.sh --guest-binaries /path/to/guests \
+  --client-images /path/to/client-images.json --fixtures /path/to/small-bundle \
+  --output-dir /tmp/my-smoke-run
+```
+
+The default preset fills `test_witness_headers_empty_block` and all four
+`test_witness_headers_blockhash_at_offset` variants, for both `blockchain_test`
+and `blockchain_test_engine`. Reused fixture bundles are copied before consume
+writes its reports. The fixture index must describe exactly the provided files,
+and every blockchain case must have canonical stateless input/output bytes in
+its last block.
+
+`EL_CLIENTS` and `ZKEVM_WORKLOAD_RUNS` select participants as usual. The local
+defaults remain three EL clients and `ethrex:zisk,reth:zisk`; add `zesu:zisk`
+explicitly to include Zesu. `SMOKE_RUN_TIMEOUT_SECONDS` defaults to `600` per
+workload. `SMOKE_HIVE_PROXY_IMAGE` overrides the local proxy reference;
+`ERE_IMAGE_REGISTRY` changes the local Ere image names, not the offline policy.
+
+`--check-only` reports missing prerequisites together without starting builds
+or workloads. Exit codes are `0` for success, `1` for execution/validation
+failures, and `2` for invalid arguments or missing prerequisites. Native build
+errors that cannot be detected without compiling appear in the build log.
+
+Each run writes `summary.md`, `summary.json`, `versions.json`, `expected.json`,
+logs, copied/generated fixtures, raw results, and converted metrics to a unique
+`smoke-results/run-*` directory. An explicit output directory must be absent or
+empty and must not overlap inputs. Interrupted runs retain diagnostics and
+remove only their own processes and labelled containers.
+
+The PR workflow runs local tests on a hosted runner and execution smoke on
+approved disposable XL runners. `prepare-smoke-ci.sh sources` resolves commits;
+`prepare-smoke-ci.sh assets` downloads dependencies/guests and builds images.
+These online entrypoints reject execution outside a `pull_request` job.
+The subsequent smoke script remains offline. The final `PR smoke` job requires
+both prior jobs to succeed, including real passing cases for all three clients
+and Ethrex/Reth/Zesu on ZisK. It creates diagnostic artifacts only.
+
+### Metrics conversion
 
 Convert `zkevm-benchmark-workload` metrics into Hive-compatible results:
 

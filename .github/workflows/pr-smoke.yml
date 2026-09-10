@@ -1,0 +1,145 @@
+name: PR execution witness smoke
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-smoke-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Local checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+      - name: Validate scripts and configuration
+        run: |
+          set -Eeuo pipefail
+          for script in scripts/*.sh scripts/lib/*.sh; do bash -n "$script"; done
+          jq -e '.clients | type == "object" and length == 3' config/el-clients.json
+          jq -e '.guests | type == "object"' config/el-guests.json
+          scripts/env.sh --validate-eest-source
+          scripts/list-el-clients.sh --json
+          ZKEVM_WORKLOAD_RUNS=ethrex:zisk,reth:zisk,zesu:zisk scripts/list-zkevm-workload-runs.sh --json
+          python3 -m unittest discover -s tests
+
+  smoke:
+    name: Execution smoke
+    needs: checks
+    runs-on: [self-hosted-ghr, size-xl-x64]
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      packages: read
+    env:
+      ROOT_DIR: ${{ github.workspace }}
+      EEST_DIR: ${{ github.workspace }}/execution-specs
+      HIVE_DIR: ${{ github.workspace }}/hive
+      ZKEVM_BENCHMARK_WORKLOAD_DIR: ${{ github.workspace }}/zkevm-benchmark-workload
+      EL_CLIENTS: go-ethereum,ethrex,nethermind
+      ZKEVM_WORKLOAD_RUNS: ethrex:zisk,reth:zisk,zesu:zisk
+      ZKEVM_RAYON_THREADS: "2"
+      ERE_IMAGE_REGISTRY: ghcr.io/eth-act/ere
+      UV_CACHE_DIR: ${{ runner.temp }}/uv-cache
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache: false
+      - uses: astral-sh/setup-uv@v8.1.0
+      - uses: dtolnay/rust-toolchain@nightly
+      - name: Install native prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential clang curl jq libclang-dev libssl-dev pkg-config \
+            cmake libbenchmark-dev libgmp-dev libomp-dev libopenmpi-dev libsodium-dev \
+            nasm nlohmann-json3-dev openmpi-bin openmpi-common
+      - name: Resolve and check out source commits
+        id: sources
+        run: scripts/prepare-smoke-ci.sh sources
+      - name: Cache Rust dependencies and build outputs
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: zkevm-benchmark-workload -> target
+          shared-key: pr-smoke-${{ steps.sources.outputs.source_key }}
+      - name: Cache Go and Python dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+            ${{ env.UV_CACHE_DIR }}
+          key: pr-smoke-${{ runner.os }}-${{ runner.arch }}-${{ steps.sources.outputs.source_key }}-${{ hashFiles('hive/go.sum', 'hive/hiveproxy/go.sum', 'execution-specs/uv.lock') }}
+      - name: Prepare local images and guest artifacts
+        env:
+          GHCR_READ_TOKEN: ${{ github.token }}
+        run: |
+          printf '%s' "$GHCR_READ_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          scripts/prepare-smoke-ci.sh assets
+      - name: Run offline smoke
+        run: |
+          scripts/smoke-upgrade.sh \
+            --guest-binaries smoke-results/ci-inputs/guests \
+            --client-images smoke-results/ci-inputs/client-images.json \
+            --output-dir smoke-results/run
+      - name: Summarize smoke result
+        if: always()
+        run: |
+          if [ -f smoke-results/run/summary.md ]; then
+            cat smoke-results/run/summary.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'Smoke did not complete preparation/preflight; inspect the failed step and preparation logs.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pr-smoke-${{ github.event.pull_request.number }}-${{ github.run_attempt }}
+          retention-days: 7
+          if-no-files-found: warn
+          include-hidden-files: true
+          path: |
+            smoke-results/run/summary.*
+            smoke-results/run/versions.json
+            smoke-results/run/expected.json
+            smoke-results/run/logs/
+            smoke-results/run/hive-results/
+            smoke-results/run/metrics/
+            smoke-results/run/converted/
+            smoke-results/ci-inputs/logs/
+            smoke-results/ci-inputs/resolved.json
+
+  gate:
+    name: PR smoke
+    needs: [checks, smoke]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Require every check to succeed
+        env:
+          CHECKS_RESULT: ${{ needs.checks.result }}
+          SMOKE_RESULT: ${{ needs.smoke.result }}
+        run: |
+          set -Eeuo pipefail
+          test "$CHECKS_RESULT" = success
+          test "$SMOKE_RESULT" = success

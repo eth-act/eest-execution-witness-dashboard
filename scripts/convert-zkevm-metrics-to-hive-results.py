@@ -280,7 +280,6 @@ def test_description(
     ]
     if success is not None:
         lines.append(f"Output matched: {format_json_bool(success['output_matched'])}")
-        lines.append(f"Total cycles: {success.get('total_num_cycles')}")
     if failure_reason:
         label = "Crash reason" if execution_status == "crashed" else "Failure reason"
         lines.append(f"{label}: {failure_reason}")
@@ -309,14 +308,7 @@ def test_log_body(
         f"execution_duration: {format_duration(duration_nanos_value)}",
     ]
     if success is not None:
-        lines.extend(
-            [
-                f"output_matched: {format_json_bool(success['output_matched'])}",
-                f"total_num_cycles: {success.get('total_num_cycles')}",
-                "region_cycles:",
-                json.dumps(success.get("region_cycles", {}), indent=2, sort_keys=True),
-            ]
-        )
+        lines.append(f"output_matched: {format_json_bool(success['output_matched'])}")
     if failure_reason:
         label = "crash_reason" if execution_status == "crashed" else "failure_reason"
         lines.append(f"{label}: {failure_reason}")
