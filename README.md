@@ -317,8 +317,36 @@ public result logs for common secret or private RPC URL patterns.
 
 ## GitHub Pages Publishing
 
-Publishing is split into three manually dispatched workflows so successful
-client results can be reused independently:
+The **Refresh execution witness dashboard** workflow
+(`.github/workflows/refresh-dashboard.yml`) prepares a fresh dataset, runs all
+four Hive clients and seven zkEVM combinations, and publishes the dashboard
+after every workload job succeeds. Run it manually from `main`:
+
+```bash
+gh workflow run refresh-dashboard.yml --ref main
+```
+
+It also runs every Monday and Thursday at 03:17 UTC. Manual dispatch runs
+anytime. GitHub may delay scheduled starts; the schedule becomes active once
+the workflow is on the default branch. Concurrent refreshes are serialized.
+
+The combined workflow uses the settings from workload run `34544630103`:
+
+- Prefilled EEST release `tests-zkevm@v0.8.4`, Hive `master`,
+  `zkevm-benchmark-workload` `v0.17.1`, and 10 Rayon threads.
+- Hive clients `ethrex,go-ethereum,nimbus-el,nethermind`, using the checked-in
+  descriptors without overrides.
+- Ethrex and Reth each on SP1, ZisK, and OpenVM, plus Zesu on ZisK.
+- Hive UI commit `b5441f735366a4f7d13575a020ccd6517d7ecaf3` and a 900 MiB site limit.
+
+Release mode uses the entire release fixture bundle; the filler path and fork
+inputs do not filter it. Hive and client branch refs resolve afresh on each run.
+The combined run ID is also its dataset ID, so its artifacts can be reused by
+the standalone workflows. Infrastructure failures prevent publication;
+ordinary test failures remain dashboard results.
+
+The three stages also remain independently dispatchable, so successful
+client results can be reused:
 
 1. `.github/workflows/prepare-dataset.yml` prepares fixtures and pins the
    shared EEST, Hive, and zkevm-benchmark-workload toolchains. Its workflow run

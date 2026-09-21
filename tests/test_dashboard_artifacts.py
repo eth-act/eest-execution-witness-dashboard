@@ -118,6 +118,25 @@ class DatasetManifestTests(unittest.TestCase):
 
         self.assertIs(dashboard_artifacts.validate_dataset(dataset), dataset)
 
+    def test_refresh_dataset_provenance(self):
+        for ref in ("refs/heads/main", "refs/heads/feature"):
+            with self.subTest(ref=ref):
+                dataset = dataset_manifest(ref=ref)
+                dataset["producer"] = producer(
+                    ".github/workflows/refresh-dashboard.yml", ref=ref
+                )
+                if ref == "refs/heads/main":
+                    self.assertIs(dashboard_artifacts.validate_dataset(dataset), dataset)
+                else:
+                    with self.assertRaisesRegex(ArtifactError, "refs/heads/main"):
+                        dashboard_artifacts.validate_dataset(dataset)
+
+    def test_unrelated_dataset_workflow_is_rejected(self):
+        dataset = dataset_manifest()
+        dataset["producer"] = producer(".github/workflows/other.yml")
+        with self.assertRaisesRegex(ArtifactError, "workflow_ref"):
+            dashboard_artifacts.validate_dataset(dataset)
+
     def test_non_main_dataset_is_rejected_for_consumption(self):
         dataset = dataset_manifest(ref="refs/heads/feature")
 
@@ -178,6 +197,17 @@ class ResultManifestTests(unittest.TestCase):
         )
 
         self.assertEqual(validated["workload"]["id"], "ethrex:zisk")
+
+    def test_refresh_results_share_dataset_run(self):
+        self.dataset["producer"] = producer(".github/workflows/refresh-dashboard.yml")
+        for kind in ("hive", "zkevm"):
+            with self.subTest(kind=kind):
+                result = result_manifest(self.dataset, self.payload, kind=kind)
+                result["producer"] = producer(".github/workflows/refresh-dashboard.yml")
+                validated = dashboard_artifacts.validate_result(
+                    result, dataset=self.dataset, payload=self.payload
+                )
+                self.assertIs(validated, result)
 
     def test_dataset_mismatch_is_rejected(self):
         result = result_manifest(self.dataset, self.payload)

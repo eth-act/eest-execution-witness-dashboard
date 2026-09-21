@@ -18,6 +18,27 @@ on:
         description: Comma-separated CLIENT:ZKVM pairs. Set to none to skip zkEVM workloads.
         required: true
         default: none
+  workflow_call:
+    inputs:
+      dataset_run_id:
+        type: string
+        description: Run ID produced by the Prepare execution witness dataset workflow.
+        required: true
+      el_clients:
+        type: string
+        description: Comma-separated EL client descriptor IDs. Set to none to skip Hive workloads.
+        required: false
+        default: ethrex
+      el_client_overrides_json:
+        type: string
+        description: 'JSON descriptor overrides, e.g. {"ethrex":{"ref":"branch"}}.'
+        required: false
+        default: "{}"
+      zkevm_workload_runs:
+        type: string
+        description: Comma-separated CLIENT:ZKVM pairs. Set to none to skip zkEVM workloads.
+        required: false
+        default: none
 
 jobs:
   resolve:

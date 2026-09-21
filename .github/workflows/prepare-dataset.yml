@@ -43,6 +43,58 @@ on:
         description: RAYON_NUM_THREADS shared by zkEVM runs in this dataset.
         required: true
         default: "10"
+  workflow_call:
+    inputs:
+      eest_release_tag:
+        type: string
+        description: Optional pre-filled EEST release tag. When set, eest_repo/eest_ref are ignored for fixture preparation.
+        required: false
+        default: ""
+      eest_repo:
+        type: string
+        description: execution-specs repository URL.
+        required: false
+        default: https://github.com/ethereum/execution-specs.git
+      eest_ref:
+        type: string
+        description: execution-specs branch, tag, or commit.
+        required: false
+        default: tests-zkevm@v0.8.4
+      filler_path:
+        type: string
+        description: execution-specs filler path to generate in fill mode; ignored when eest_release_tag is set.
+        required: false
+        default: tests/amsterdam/eip8025_optional_proofs
+      fork:
+        type: string
+        description: EEST fork name to generate in fill mode; ignored when eest_release_tag is set.
+        required: false
+        default: Amsterdam
+      hive_repo:
+        type: string
+        description: Hive repository URL shared by every workload in the dataset.
+        required: false
+        default: https://github.com/ethereum/hive.git
+      hive_ref:
+        type: string
+        description: Hive branch, tag, or commit to pin.
+        required: false
+        default: master
+      zkevm_benchmark_workload_repo:
+        type: string
+        description: zkevm-benchmark-workload repository URL shared by the dataset.
+        required: false
+        default: https://github.com/eth-act/zkevm-benchmark-workload.git
+      zkevm_benchmark_workload_ref:
+        type: string
+        description: zkevm-benchmark-workload branch, tag, or commit to pin.
+        required: false
+        default: v0.17.0
+      zkevm_rayon_threads:
+        type: string
+        description: RAYON_NUM_THREADS shared by zkEVM runs in this dataset.
+        required: false
+        default: "10"
 
 jobs:
   prepare:

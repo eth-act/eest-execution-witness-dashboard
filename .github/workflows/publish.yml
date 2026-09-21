@@ -26,6 +26,37 @@ on:
         description: Fail before upload if site/ is larger than this many MiB.
         required: true
         default: "900"
+  workflow_call:
+    inputs:
+      dataset_run_id:
+        type: string
+        description: Run ID produced by the Prepare execution witness dataset workflow.
+        required: true
+      el_clients:
+        type: string
+        description: Comma-separated Hive client IDs required on the site. Set to none to omit Hive results.
+        required: false
+        default: ethrex
+      zkevm_workload_runs:
+        type: string
+        description: Comma-separated CLIENT:ZKVM pairs required on the site. Set to none to omit.
+        required: false
+        default: none
+      hive_ui_repo:
+        type: string
+        description: hive-ui repository URL.
+        required: false
+        default: https://github.com/ethpandaops/hive-ui.git
+      hive_ui_ref:
+        type: string
+        description: hive-ui branch, tag, or commit.
+        required: false
+        default: b5441f735366a4f7d13575a020ccd6517d7ecaf3
+      max_site_size_mb:
+        type: string
+        description: Fail before upload if site/ is larger than this many MiB.
+        required: false
+        default: "900"
 
 concurrency:
   group: publish-execution-witness-pages

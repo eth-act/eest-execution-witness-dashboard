@@ -1,0 +1,84 @@
+name: Refresh execution witness dashboard
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Monday and Thursday at 03:17 UTC.
+    - cron: '17 3 * * 1,4'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: refresh-execution-witness-dashboard
+  cancel-in-progress: false
+
+jobs:
+  configure:
+    name: Validate source and select workloads
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      el_clients: ${{ steps.workloads.outputs.el_clients }}
+      zkevm_workload_runs: ${{ steps.workloads.outputs.zkevm_workload_runs }}
+    steps:
+      - name: Select workloads
+        id: workloads
+        env:
+          EL_CLIENTS: ethrex,go-ethereum,nimbus-el,nethermind
+          ZKEVM_WORKLOAD_RUNS: ethrex:sp1,ethrex:zisk,ethrex:openvm,reth:sp1,reth:zisk,reth:openvm,zesu:zisk
+        run: |
+          set -Eeuo pipefail
+          if [ "$GITHUB_REF" != refs/heads/main ]; then
+            echo "Dashboard refresh must run from refs/heads/main" >&2
+            exit 1
+          fi
+          {
+            echo "el_clients=$EL_CLIENTS"
+            echo "zkevm_workload_runs=$ZKEVM_WORKLOAD_RUNS"
+          } >> "$GITHUB_OUTPUT"
+
+  prepare:
+    name: Prepare dataset
+    needs: configure
+    uses: ./.github/workflows/prepare-dataset.yml
+    with:
+      # Consume the prefilled release asset without generating or filtering fixtures.
+      eest_release_tag: tests-zkevm@v0.8.4
+      hive_repo: https://github.com/ethereum/hive.git
+      hive_ref: master
+      zkevm_benchmark_workload_repo: https://github.com/eth-act/zkevm-benchmark-workload.git
+      zkevm_benchmark_workload_ref: v0.17.1
+      zkevm_rayon_threads: "10"
+
+  workloads:
+    name: Run all workloads
+    needs: [configure, prepare]
+    permissions:
+      actions: read
+      contents: read
+      packages: read
+    uses: ./.github/workflows/run-workloads.yml
+    with:
+      # Reusable workflows share the caller's run ID and artifact namespace.
+      dataset_run_id: ${{ format('{0}', github.run_id) }}
+      el_clients: ${{ needs.configure.outputs.el_clients }}
+      el_client_overrides_json: "{}"
+      zkevm_workload_runs: ${{ needs.configure.outputs.zkevm_workload_runs }}
+
+  publish:
+    name: Publish dashboard
+    needs: [configure, workloads]
+    permissions:
+      actions: read
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/publish.yml
+    with:
+      dataset_run_id: ${{ format('{0}', github.run_id) }}
+      el_clients: ${{ needs.configure.outputs.el_clients }}
+      zkevm_workload_runs: ${{ needs.configure.outputs.zkevm_workload_runs }}
+      hive_ui_repo: https://github.com/ethpandaops/hive-ui.git
+      hive_ui_ref: b5441f735366a4f7d13575a020ccd6517d7ecaf3
+      max_site_size_mb: "900"

@@ -16,6 +16,7 @@ from typing import Any, NoReturn
 SCHEMA_VERSION = 1
 DATASET_WORKFLOW = ".github/workflows/prepare-dataset.yml"
 RESULT_WORKFLOW = ".github/workflows/run-workloads.yml"
+REFRESH_WORKFLOW = ".github/workflows/refresh-dashboard.yml"
 SAFE_ID_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 SHA_RE = re.compile(r"^[0-9a-fA-F]{40}$")
 
@@ -157,10 +158,15 @@ def validate_producer(
 
     if require_main and ref != "refs/heads/main":
         fail(f"{label}.ref must be refs/heads/main, got {ref}")
-    expected_workflow_ref = f"{repository}/{workflow_path}@{ref}"
-    if workflow_ref != expected_workflow_ref:
+    # Reusable workflows report the caller's workflow_ref. Accept the combined
+    # refresh pipeline as well as the stage's standalone workflow.
+    expected_workflow_refs = (
+        f"{repository}/{workflow_path}@{ref}",
+        f"{repository}/{REFRESH_WORKFLOW}@{ref}",
+    )
+    if workflow_ref not in expected_workflow_refs:
         fail(
-            f"{label}.workflow_ref must be {expected_workflow_ref}, got {workflow_ref}"
+            f"{label}.workflow_ref must be one of {expected_workflow_refs}, got {workflow_ref}"
         )
     return producer
 
