@@ -41,7 +41,7 @@ Default EL descriptors use JSON-RPC+RLP. These clients use `glamsterdam-devnet-8
 - `nethermind`: `https://github.com/NethermindEth/nethermind.git`.
 
 Nimbus (`nimbus-el`) uses `https://github.com/status-im/nimbus-eth1.git` at
-`engine-new-payload-with-witness`, which provides `engine_newPayloadWithWitnessV5`
+`master`, which provides `engine_newPayloadWithWitnessV5`
 and generates witnesses on demand without extra startup flags.
 
 All four build through Hive's corresponding `Dockerfile.git`. Besu is omitted
