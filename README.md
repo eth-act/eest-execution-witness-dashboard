@@ -207,11 +207,15 @@ ZKEVM_WORKLOAD_ZKVM=zisk \
 scripts/run-zkevm-benchmark-workload.sh
 ```
 
-Zesu guest artifact URLs can be configured in `config/el-guests.json`. Run an
-opt-in Zesu workload entry:
+Zesu and Nimbus guest artifact URLs can be configured in
+`config/el-guests.json`. Run an opt-in Zesu or Nimbus workload entry:
 
 ```bash
 ZKEVM_WORKLOAD_EXECUTION_CLIENT=zesu \
+ZKEVM_WORKLOAD_ZKVM=zisk \
+scripts/run-zkevm-benchmark-workload.sh
+
+ZKEVM_WORKLOAD_EXECUTION_CLIENT=nimbus \
 ZKEVM_WORKLOAD_ZKVM=zisk \
 scripts/run-zkevm-benchmark-workload.sh
 ```
@@ -220,7 +224,8 @@ For one-off local testing, `ZKEVM_WORKLOAD_GUEST_ARTIFACT_BASE_URL` can override
 the URL from `config/el-guests.json`.
 
 Workload `v0.17.0` locks `ere-guests` to `v0.17.0`. Empty guest descriptors
-use that release automatically, including Zesu on ZisK; custom artifact URLs
+use that release automatically, including Zesu and Nimbus on ZisK; custom
+artifact URLs
 remain optional overrides. The pinned EEST source is `tests-zkevm@v0.8.4`.
 
 The run writes metrics under `ZKEVM_METRICS_DIR`, defaulting to

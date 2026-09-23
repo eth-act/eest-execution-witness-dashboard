@@ -32,7 +32,7 @@ jobs:
           jq -e '.guests | type == "object"' config/el-guests.json
           scripts/env.sh --validate-eest-source
           scripts/list-el-clients.sh --json
-          ZKEVM_WORKLOAD_RUNS=ethrex:zisk,reth:zisk,zesu:zisk scripts/list-zkevm-workload-runs.sh --json
+          ZKEVM_WORKLOAD_RUNS=ethrex:zisk,reth:zisk,zesu:zisk,nimbus:zisk scripts/list-zkevm-workload-runs.sh --json
           python3 -m unittest discover -s tests
 
   smoke:
