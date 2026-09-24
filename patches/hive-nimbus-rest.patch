@@ -1,0 +1,29 @@
+diff --git a/clients/nimbus-el/Dockerfile.git b/clients/nimbus-el/Dockerfile.git
+--- a/clients/nimbus-el/Dockerfile.git
++++ b/clients/nimbus-el/Dockerfile.git
+@@ -27,6 +27,10 @@
+ # --------------------------------- #
+ FROM debian:testing-slim AS deploy
+ 
++# eest-dashboard: select REST per image, including when both transports run.
++ARG engine_api_rest=false
++ENV HIVE_ENGINE_API_REST=$engine_api_rest
++
+ RUN apt-get clean && apt update \
+  && apt -y install build-essential jq curl
+ RUN apt update && apt -y upgrade
+diff --git a/clients/nimbus-el/nimbus.sh b/clients/nimbus-el/nimbus.sh
+--- a/clients/nimbus-el/nimbus.sh
++++ b/clients/nimbus-el/nimbus.sh
+@@ -119,6 +119,11 @@
+   echo "0x7365637265747365637265747365637265747365637265747365637265747365" > /jwtsecret
+   FLAGS="$FLAGS --engine-api:true --engine-api-address:0.0.0.0 --engine-api-port:8551 --jwt-secret:/jwtsecret"
+ fi
+ 
++# eest-dashboard: REST and JSON-RPC share the authenticated Engine port.
++if [ "${HIVE_ENGINE_API_REST:-false}" = "true" ]; then
++  FLAGS="$FLAGS --debug-engine-api-rest"
++fi
++
+ echo "Running nimbus with flags $FLAGS"
+ $nimbus $FLAGS
