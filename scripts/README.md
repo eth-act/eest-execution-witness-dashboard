@@ -161,8 +161,8 @@ scripts/list-zkevm-workload-runs.sh --github-matrix
 
 By default, `ZKEVM_WORKLOAD_RUNS=ethrex:zisk,reth:zisk`, producing the two
 explicit execution-client/zkVM pairs in the list. `ethrex`, `reth`, and opt-in
-`zesu` are accepted execution clients. Set `ZKEVM_WORKLOAD_RUNS` to an empty
-string, `none`, `skip`, or `empty` to skip workload runs.
+`zesu` and `nimbus` are accepted execution clients. Set `ZKEVM_WORKLOAD_RUNS`
+to an empty string, `none`, `skip`, or `empty` to skip workload runs.
 
 Workload guest descriptors live in `config/el-guests.json`. Descriptors can set
 `guest_artifact_base_url` at the guest level and may override it per zkVM under
@@ -174,9 +174,13 @@ ZKEVM_WORKLOAD_RUNS=zesu:zisk,ethrex:zisk,ethrex:sp1 \
 scripts/list-zkevm-workload-runs.sh --github-matrix
 ```
 
-Workload `v0.17.0` locks `ere-guests` to `v0.17.0`. Empty guest descriptors
-use that release automatically, including Zesu on ZisK; custom artifact URLs
-remain optional overrides. The pinned EEST source is `tests-zkevm@v0.8.4`.
+Workload `v0.17.2` locks `ere-guests` to `v0.17.1`. Empty guest descriptors
+use that release automatically, including Zesu and Nimbus on ZisK; custom
+artifact URLs remain optional overrides. Both Zesu and Nimbus support only
+ZisK. The pinned EEST source is `tests-zkevm@v0.8.4`.
+
+Select Nimbus with `ZKEVM_WORKLOAD_RUNS=nimbus:zisk`. Its guest ID is `nimbus`;
+the Hive client ID is `nimbus-el`.
 
 Prepare the workload checkout:
 
@@ -186,7 +190,7 @@ scripts/setup-zkevm-benchmark-workload.sh
 
 The default checkout is
 `https://github.com/eth-act/zkevm-benchmark-workload.git`
-at `v0.17.0`.
+at `v0.17.2`.
 
 Run one workload entry against prepared fixtures:
 

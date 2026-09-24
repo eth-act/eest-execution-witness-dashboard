@@ -124,7 +124,7 @@ HIVE_UI_DIR="$(_eest_dashboard_root_path "${HIVE_UI_DIR:-hive-ui}")"
 HIVE_UI_DISCOVERY_NAME="${HIVE_UI_DISCOVERY_NAME:-zkEVM}"
 
 ZKEVM_BENCHMARK_WORKLOAD_REPO="${ZKEVM_BENCHMARK_WORKLOAD_REPO:-https://github.com/eth-act/zkevm-benchmark-workload.git}"
-ZKEVM_BENCHMARK_WORKLOAD_REF="${ZKEVM_BENCHMARK_WORKLOAD_REF:-v0.17.0}"
+ZKEVM_BENCHMARK_WORKLOAD_REF="${ZKEVM_BENCHMARK_WORKLOAD_REF:-v0.17.2}"
 ZKEVM_BENCHMARK_WORKLOAD_DIR="$(_eest_dashboard_root_path "${ZKEVM_BENCHMARK_WORKLOAD_DIR:-zkevm-benchmark-workload}")"
 if [ -z "${ZKEVM_WORKLOAD_RUNS+x}" ]; then
   ZKEVM_WORKLOAD_RUNS="ethrex:zisk,reth:zisk"

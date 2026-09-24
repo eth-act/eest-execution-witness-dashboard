@@ -26,7 +26,7 @@ jobs:
         id: workloads
         env:
           EL_CLIENTS: ethrex,go-ethereum,nimbus-el,nethermind
-          ZKEVM_WORKLOAD_RUNS: ethrex:sp1,ethrex:zisk,ethrex:openvm,reth:sp1,reth:zisk,reth:openvm,zesu:zisk
+          ZKEVM_WORKLOAD_RUNS: ethrex:sp1,ethrex:zisk,ethrex:openvm,reth:sp1,reth:zisk,reth:openvm,zesu:zisk,nimbus:zisk
         run: |
           set -Eeuo pipefail
           if [ "$GITHUB_REF" != refs/heads/main ]; then
@@ -48,7 +48,7 @@ jobs:
       hive_repo: https://github.com/ethereum/hive.git
       hive_ref: master
       zkevm_benchmark_workload_repo: https://github.com/eth-act/zkevm-benchmark-workload.git
-      zkevm_benchmark_workload_ref: v0.17.1
+      zkevm_benchmark_workload_ref: v0.17.2
       zkevm_rayon_threads: "10"
 
   workloads:

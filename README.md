@@ -21,7 +21,7 @@ HIVE_UI_REF=b5441f735366a4f7d13575a020ccd6517d7ecaf3
 HIVE_UI_DISCOVERY_NAME=execution-witness
 
 ZKEVM_BENCHMARK_WORKLOAD_REPO=https://github.com/eth-act/zkevm-benchmark-workload.git
-ZKEVM_BENCHMARK_WORKLOAD_REF=v0.17.0
+ZKEVM_BENCHMARK_WORKLOAD_REF=v0.17.2
 ZKEVM_WORKLOAD_RUNS=ethrex:zisk,reth:zisk
 ZKEVM_RAYON_THREADS=10
 
@@ -219,9 +219,14 @@ scripts/run-zkevm-benchmark-workload.sh
 For one-off local testing, `ZKEVM_WORKLOAD_GUEST_ARTIFACT_BASE_URL` can override
 the URL from `config/el-guests.json`.
 
-Workload `v0.17.0` locks `ere-guests` to `v0.17.0`. Empty guest descriptors
-use that release automatically, including Zesu on ZisK; custom artifact URLs
-remain optional overrides. The pinned EEST source is `tests-zkevm@v0.8.4`.
+Workload `v0.17.2` locks `ere-guests` to `v0.17.1`. Empty guest descriptors
+use that release automatically, including Zesu and Nimbus on ZisK; custom
+artifact URLs remain optional overrides. Both Zesu and Nimbus support only
+ZisK. The pinned EEST source is `tests-zkevm@v0.8.4`.
+
+Run Nimbus with `scripts/run-zkevm-benchmark-workload.sh nimbus zisk`, or select
+`ZKEVM_WORKLOAD_RUNS=nimbus:zisk` for a workload matrix. The guest ID is `nimbus`;
+the Hive client ID is `nimbus-el`.
 
 The run writes metrics under `ZKEVM_METRICS_DIR`, defaulting to
 `zkevm-metrics/`, in the shape expected by the converter:
@@ -330,13 +335,13 @@ It also runs every Monday and Thursday at 03:17 UTC. Manual dispatch runs
 anytime. GitHub may delay scheduled starts; the schedule becomes active once
 the workflow is on the default branch. Concurrent refreshes are serialized.
 
-The combined workflow uses the settings from workload run `34544630103`:
+The combined workflow uses these settings:
 
 - Prefilled EEST release `tests-zkevm@v0.8.4`, Hive `master`,
-  `zkevm-benchmark-workload` `v0.17.1`, and 10 Rayon threads.
+  `zkevm-benchmark-workload` `v0.17.2`, and 10 Rayon threads.
 - Hive clients `ethrex,go-ethereum,nimbus-el,nethermind`, using the checked-in
   descriptors without overrides.
-- Ethrex and Reth each on SP1, ZisK, and OpenVM, plus Zesu on ZisK.
+- Ethrex and Reth each on SP1, ZisK, and OpenVM, plus Zesu and Nimbus on ZisK.
 - Hive UI commit `b5441f735366a4f7d13575a020ccd6517d7ecaf3` and a 900 MiB site limit.
 
 Release mode uses the entire release fixture bundle; the filler path and fork
