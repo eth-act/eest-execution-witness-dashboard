@@ -404,7 +404,14 @@ _run_hive_client_wait_for_hive() {
 }
 
 _run_hive_client_run_consume() {
-  local status
+  local status transport
+  local -a transport_args=()
+  transport="$(eest_el_clients_descriptor_field "$_run_hive_client_descriptor" '.transport')"
+  case "${transport:-json-rpc-rlp}" in
+    json-rpc-rlp) ;;
+    rest-ssz) transport_args+=(--ssz) ;;
+    *) _run_hive_client_die "unsupported transport: $transport" ;;
+  esac
 
   _run_hive_client_log "Running execution-specs consume engine-witness for $_run_hive_client_full_name"
 
@@ -413,6 +420,7 @@ _run_hive_client_run_consume() {
     cd "$EEST_DIR"
     uv run consume engine-witness \
       --input "$FIXTURES_DIR" \
+      "${transport_args[@]}" \
       -s \
       --timing-data
   )
@@ -527,4 +535,6 @@ main() {
   _run_hive_client_log "Hive consume run complete for $_run_hive_client_full_name"
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi

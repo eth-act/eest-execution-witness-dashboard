@@ -40,6 +40,20 @@
       "github": "NethermindEth/nethermind",
       "ref": "glamsterdam-devnet-8",
       "transport": "json-rpc-rlp"
+    },
+    "nimbus-el-rest": {
+      "hive_client": "nimbus-el",
+      "dockerfile": "git",
+      "nametag": "rest-ssz",
+      "hive_parallelism": 8,
+      "repo": "https://github.com/status-im/nimbus-eth1.git",
+      "github": "status-im/nimbus-eth1",
+      "ref": "witness-rest-ssz-endpoint",
+      "managed_patch": "nimbus-skip-lfs",
+      "transport": "rest-ssz",
+      "build_args": {
+        "engine_api_rest": "true"
+      }
     }
   }
 }

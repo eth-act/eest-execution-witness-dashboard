@@ -21,7 +21,23 @@ RUN apt-get clean && apt update \\
 ARG tag=master
 ARG github=status-im/nimbus-eth1
 RUN git clone --branch "$tag" https://github.com/$github
+# --------------------------------- #
 FROM debian:testing-slim AS deploy
+
+RUN apt-get clean && apt update \\
+ && apt -y install build-essential jq curl
+RUN apt update && apt -y upgrade
+'''
+
+LAUNCHER = '''#!/bin/sh
+FLAGS=""
+if [ "$HIVE_TERMINAL_TOTAL_DIFFICULTY" != "" ]; then
+  echo "0x7365637265747365637265747365637265747365637265747365637265747365" > /jwtsecret
+  FLAGS="$FLAGS --engine-api:true --engine-api-address:0.0.0.0 --engine-api-port:8551 --jwt-secret:/jwtsecret"
+fi
+
+echo "Running nimbus with flags $FLAGS"
+$nimbus $FLAGS
 '''
 
 
@@ -42,6 +58,7 @@ class SetupHiveTests(unittest.TestCase):
         source = self.remote / DOCKERFILE
         source.parent.mkdir(parents=True)
         source.write_text(UPSTREAM)
+        (source.parent / "nimbus.sh").write_text(LAUNCHER)
         other = self.remote / "clients/ethrex/Dockerfile.git"
         other.parent.mkdir(parents=True)
         other.write_text("FROM scratch\n")
@@ -85,6 +102,33 @@ class SetupHiveTests(unittest.TestCase):
         else:
             self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
         return result
+
+    def test_rest_setup_selects_branch_flags_and_both_transports(self):
+        self.setup_hive(EL_CLIENTS="nimbus-el,nimbus-el-rest")
+        dockerfile = (self.checkout / DOCKERFILE).read_text()
+        launcher = (self.checkout / "clients/nimbus-el/nimbus.sh").read_text()
+        clients = (self.checkout / "clients-local.yaml").read_text()
+        self.assertIn("ARG engine_api_rest=false", dockerfile)
+        self.assertIn("ENV HIVE_ENGINE_API_REST=$engine_api_rest", dockerfile)
+        self.assertEqual(launcher.count("--debug-engine-api-rest"), 1)
+        self.assertIn("witness-rest-ssz-endpoint", clients)
+        self.assertIn("nametag: 'rest-ssz'", clients)
+        self.assertIn("engine_api_rest: 'true'", clients)
+        self.assertIn("nametag: 'rlp-engineapi'", clients)
+        self.setup_hive(EL_CLIENTS="nimbus-el,nimbus-el-rest")
+        self.assertEqual((self.checkout / DOCKERFILE).read_text(), dockerfile)
+        self.setup_hive(EL_CLIENTS="nimbus-el")
+        self.assertNotIn("engine_api_rest", (self.checkout / DOCKERFILE).read_text())
+        self.assertEqual((self.checkout / "clients/nimbus-el/nimbus.sh").read_text(), LAUNCHER)
+
+    def test_rest_patch_preserves_edited_launcher(self):
+        self.setup_hive(EL_CLIENTS="nimbus-el-rest")
+        path = self.checkout / "clients/nimbus-el/nimbus.sh"
+        edited = path.read_text().replace("--debug-engine-api-rest", "--custom-rest")
+        path.write_text(edited)
+        result = self.setup_hive(success=False)
+        self.assertIn("unable to remove managed Nimbus REST patch", result.stderr)
+        self.assertEqual(path.read_text(), edited)
 
     def test_repeated_setup_applies_once_inside_build_stage(self):
         self.setup_hive()
