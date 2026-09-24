@@ -28,7 +28,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           for script in scripts/*.sh scripts/lib/*.sh; do bash -n "$script"; done
-          jq -e '.clients | type == "object" and length == 4' config/el-clients.json
+          jq -e '.clients | type == "object" and length == 5' config/el-clients.json
           jq -e '.guests | type == "object"' config/el-guests.json
           scripts/env.sh --validate-eest-source
           scripts/list-el-clients.sh --json
