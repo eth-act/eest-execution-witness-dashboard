@@ -31,7 +31,7 @@ jobs:
           jq -e '.clients | type == "object" and length == 5' config/el-clients.json
           jq -e '.guests | type == "object"' config/el-guests.json
           scripts/env.sh --validate-eest-source
-          scripts/list-el-clients.sh --json
+          EL_CLIENTS=go-ethereum,ethrex,nethermind,nimbus-el,nimbus-el-rest scripts/list-el-clients.sh --github-matrix
           ZKEVM_WORKLOAD_RUNS=ethrex:zisk,reth:zisk,zesu:zisk,nimbus:zisk scripts/list-zkevm-workload-runs.sh --json
           python3 -m unittest discover -s tests
 
@@ -54,7 +54,7 @@ jobs:
       FIXTURES_DIR: ${{ github.workspace }}/smoke-results/fixtures
       HIVE_CLIENT_RESULTS_DIR: ${{ github.workspace }}/smoke-results/hive-results
       ZKEVM_METRICS_DIR: ${{ github.workspace }}/smoke-results/metrics
-      EL_CLIENTS: go-ethereum
+      EL_CLIENTS: go-ethereum,nimbus-el-rest
       HIVE_PARALLELISM: "1"
       HIVE_CONSUME_ALLOW_FAILURE: "0"
       HIVE_PRUNE_SKIPPED: "0"
@@ -110,6 +110,8 @@ jobs:
         run: scripts/prepare-fixtures.sh
       - name: Run Geth through Hive
         run: scripts/run-hive-consume-client.sh go-ethereum
+      - name: Run Nimbus REST/SSZ through Hive
+        run: scripts/run-hive-consume-client.sh nimbus-el-rest
       - name: Run Ethrex on ZisK
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -124,6 +126,7 @@ jobs:
           python3 scripts/check-smoke-results.py \
             --fixtures "$FIXTURES_DIR" \
             --hive-results "$HIVE_CLIENT_RESULTS_DIR/go-ethereum" \
+            --nimbus-hive-results "$HIVE_CLIENT_RESULTS_DIR/nimbus-el-rest" \
             --metrics "$ZKEVM_METRICS_DIR" \
             --converted-results smoke-results/converted
       - name: Summarize smoke result
@@ -134,7 +137,7 @@ jobs:
           DEPENDENCY_CACHE_HIT: ${{ steps.dependency-cache.outputs.cache-hit }}
         run: |
           {
-            echo "Geth/Hive and Ethrex/ZisK empty-block smoke: $SMOKE_STATUS"
+            echo "Geth/Hive, Nimbus REST/SSZ/Hive, and Ethrex/ZisK empty-block smoke: $SMOKE_STATUS"
             if [ -n "${SMOKE_STARTED_AT:-}" ]; then
               echo "Elapsed: $(( $(date +%s) - SMOKE_STARTED_AT )) seconds"
             fi
