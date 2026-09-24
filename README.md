@@ -44,6 +44,26 @@ Nimbus (`nimbus-el`) uses `https://github.com/status-im/nimbus-eth1.git` at
 `master`, which provides `engine_newPayloadWithWitnessV5`
 and generates witnesses on demand without extra startup flags.
 
+Nimbus REST+SSZ is available as the `nimbus-el-rest` descriptor, selected by CI
+and opt-in for local runs. It builds `status-im/nimbus-eth1` at
+`witness-rest-ssz-endpoint`, enables
+`--debug-engine-api-rest`, and runs `consume engine-witness --ssz`. Results use
+`nimbus-el_rest-ssz`, so both Nimbus transports can be selected together.
+The consumer must include the REST witness changes for execution-apis PR #885;
+the default EELS release predates them. To use the edited sibling checkout with
+an existing witness fixture directory:
+
+```sh
+EEST_DIR="$PWD/../execution-specs" \
+FIXTURES_DIR=/absolute/path/to/witness-fixtures \
+HIVE_CONSUME_ALLOW_FAILURE=0 \
+scripts/run-hive-consume-client.sh nimbus-el-rest
+```
+
+This command uses the checkout directly. For CI, set `EEST_REPO` and `EEST_REF`
+to a published revision containing the consumer changes before selecting
+`nimbus-el-rest` (or select a release containing them).
+
 All four build through Hive's corresponding `Dockerfile.git`. Besu is omitted
 until its devnet 8 branch includes the required witness RPC.
 
@@ -260,19 +280,21 @@ scripts/build-site.sh
 ## PR smoke check
 
 The **PR smoke** check runs the unit tests, then fills one empty-block test in
-both fixture formats and runs it through Geth/Hive and Ethrex/ZisK. It uses the
-same setup and workload scripts as `run-workloads.yml`, then converts the
-zkEVM metrics and checks that both workloads produced exactly one passing
+both fixture formats and runs it through Geth/Hive, Nimbus REST/SSZ/Hive, and
+Ethrex/ZisK. It uses the same setup and workload scripts as `run-workloads.yml`,
+then converts the zkEVM metrics and checks that all three workloads produced exactly one passing
 case. Missing, skipped, duplicate, failed, or timed-out cases fail the check.
 
 See [the local commands](scripts/README.md#pr-smoke-check) to reproduce the run.
 The execution job uses a disposable XL runner with a 60-minute timeout.
 Dependency caches reduce repeat build time; cold runs still compile the
-benchmark and build Geth. The job summary records elapsed time and cache hits.
+benchmark and build Geth and Nimbus. The job summary records elapsed time and
+cache hits.
 Fixtures, results, and Hive logs are retained for seven days; build output is
 in the Actions step logs.
 
-This check covers Geth/Hive, Ethrex/ZisK execution, and metrics conversion.
+This check covers Geth/Hive, Nimbus REST/SSZ/Hive, Ethrex/ZisK execution, and
+metrics conversion.
 It does not generate proofs, publish datasets, or deploy the dashboard.
 Use `PR smoke` as the required check name when configuring branch protection.
 
@@ -324,7 +346,7 @@ public result logs for common secret or private RPC URL patterns.
 
 The **Refresh execution witness dashboard** workflow
 (`.github/workflows/refresh-dashboard.yml`) prepares a fresh dataset, runs all
-four Hive clients and seven zkEVM combinations, and publishes the dashboard
+five Hive client configurations and eight zkEVM combinations, and publishes the dashboard
 after every workload job succeeds. Run it manually from `main`:
 
 ```bash
@@ -339,7 +361,7 @@ The combined workflow uses these settings:
 
 - Prefilled EEST release `tests-zkevm@v0.8.4`, Hive `master`,
   `zkevm-benchmark-workload` `v0.17.2`, and 10 Rayon threads.
-- Hive clients `ethrex,go-ethereum,nimbus-el,nethermind`, using the checked-in
+- Hive clients `ethrex,go-ethereum,nimbus-el,nethermind,nimbus-el-rest`, using the checked-in
   descriptors without overrides.
 - Ethrex and Reth each on SP1, ZisK, and OpenVM, plus Zesu and Nimbus on ZisK.
 - Hive UI commit `b5441f735366a4f7d13575a020ccd6517d7ecaf3` and a 900 MiB site limit.

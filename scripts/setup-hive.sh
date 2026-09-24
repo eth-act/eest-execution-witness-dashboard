@@ -18,6 +18,7 @@ fi
 . "$_setup_hive_script_dir/lib/el-clients.sh"
 
 _setup_hive_client_file="$HIVE_DIR/clients-local.yaml"
+_setup_hive_nimbus_rest_patch="$_setup_hive_script_dir/../patches/hive-nimbus-rest.patch"
 _setup_hive_nimbus_lfs_patch="$_setup_hive_script_dir/../patches/hive-nimbus-skip-lfs.patch"
 
 _setup_hive_usage() {
@@ -116,6 +117,7 @@ _setup_hive_prepare_git_checkout() {
       _setup_hive_die "$label directory exists but is not a git checkout root: $checkout_dir"
     fi
 
+    _setup_hive_restore_nimbus_rest_patch
     _setup_hive_restore_nimbus_lfs_patch
 
     if git -C "$checkout_dir" remote get-url origin >/dev/null 2>&1; then
@@ -144,6 +146,29 @@ _setup_hive_build_hive() {
   if [ ! -x "$HIVE_DIR/hive" ]; then
     _setup_hive_die "Hive binary was not created: $HIVE_DIR/hive"
   fi
+}
+
+_setup_hive_restore_nimbus_rest_patch() {
+  local dockerfile
+  dockerfile="$HIVE_DIR/clients/nimbus-el/Dockerfile.git"
+  if ! { [ -f "$dockerfile" ] && grep -q 'eest-dashboard: select REST' "$dockerfile"; } &&
+     ! { [ -f "$HIVE_DIR/clients/nimbus-el/nimbus.sh" ] && grep -q 'eest-dashboard: REST' "$HIVE_DIR/clients/nimbus-el/nimbus.sh"; }; then
+    return
+  fi
+  if ! git -C "$HIVE_DIR" apply --reverse --check "$_setup_hive_nimbus_rest_patch"; then
+    _setup_hive_die 'unable to remove managed Nimbus REST patch; preserve or resolve local edits first'
+  fi
+  git -C "$HIVE_DIR" apply --reverse "$_setup_hive_nimbus_rest_patch"
+}
+
+_setup_hive_patch_nimbus_rest() {
+  if git -C "$HIVE_DIR" apply --reverse --check "$_setup_hive_nimbus_rest_patch" >/dev/null 2>&1; then
+    return
+  fi
+  if ! git -C "$HIVE_DIR" apply --check "$_setup_hive_nimbus_rest_patch"; then
+    _setup_hive_die 'managed Nimbus REST patch does not apply to this Hive checkout'
+  fi
+  git -C "$HIVE_DIR" apply "$_setup_hive_nimbus_rest_patch"
 }
 
 _setup_hive_restore_nimbus_lfs_patch() {
@@ -274,9 +299,9 @@ _setup_hive_validate_hive_client() {
   fi
 
   case "${transport:-json-rpc-rlp}" in
-    json-rpc-rlp) ;;
+    json-rpc-rlp | rest-ssz) ;;
     *)
-      _setup_hive_die "unsupported transport for $id: $transport (only json-rpc-rlp is supported in this pipeline)"
+      _setup_hive_die "unsupported transport for $id: $transport (expected json-rpc-rlp or rest-ssz)"
       ;;
   esac
 
@@ -409,6 +434,10 @@ _setup_hive_configure_clients() {
     seen_clients[$full_name]=1
 
     _setup_hive_apply_descriptor_setup "$descriptor"
+    if [ "$(eest_el_clients_descriptor_field "$descriptor" '.hive_client')" = nimbus-el ] &&
+       [ "$(eest_el_clients_descriptor_field "$descriptor" '.transport')" = rest-ssz ]; then
+      _setup_hive_patch_nimbus_rest
+    fi
   done < <(jq -c '.[]' <<< "$resolved")
 
   _setup_hive_write_client_file "$resolved"
