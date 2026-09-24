@@ -18,6 +18,7 @@ fi
 . "$_setup_hive_script_dir/lib/el-clients.sh"
 
 _setup_hive_client_file="$HIVE_DIR/clients-local.yaml"
+_setup_hive_nimbus_lfs_patch="$_setup_hive_script_dir/../patches/hive-nimbus-skip-lfs.patch"
 
 _setup_hive_usage() {
   printf '%s\n' \
@@ -115,6 +116,8 @@ _setup_hive_prepare_git_checkout() {
       _setup_hive_die "$label directory exists but is not a git checkout root: $checkout_dir"
     fi
 
+    _setup_hive_restore_nimbus_lfs_patch
+
     if git -C "$checkout_dir" remote get-url origin >/dev/null 2>&1; then
       git -C "$checkout_dir" remote set-url origin "$repo"
     else
@@ -141,6 +144,41 @@ _setup_hive_build_hive() {
   if [ ! -x "$HIVE_DIR/hive" ]; then
     _setup_hive_die "Hive binary was not created: $HIVE_DIR/hive"
   fi
+}
+
+_setup_hive_restore_nimbus_lfs_patch() {
+  local dockerfile
+
+  dockerfile="$HIVE_DIR/clients/nimbus-el/Dockerfile.git"
+  if [ ! -f "$dockerfile" ] ||
+    ! grep -Fq '# eest-dashboard: skip unused LFS network data during Nimbus builds.' "$dockerfile"; then
+    return 0
+  fi
+
+  if ! git -C "$HIVE_DIR" apply --reverse --check "$_setup_hive_nimbus_lfs_patch"; then
+    _setup_hive_die "unable to remove managed Nimbus LFS patch before updating Hive; check local edits to $dockerfile"
+  fi
+  _setup_hive_log "Removing managed Nimbus LFS patch before updating Hive"
+  git -C "$HIVE_DIR" apply --reverse "$_setup_hive_nimbus_lfs_patch"
+}
+
+_setup_hive_patch_nimbus_lfs() {
+  local descriptor
+
+  descriptor="$1"
+  if [ "$(eest_el_clients_descriptor_field "$descriptor" '.hive_client')" != nimbus-el ] ||
+    [ "$(eest_el_clients_dockerfile_ext "$descriptor")" != git ]; then
+    _setup_hive_die 'nimbus-skip-lfs requires hive_client=nimbus-el and dockerfile=git'
+  fi
+
+  if git -C "$HIVE_DIR" apply --reverse --check "$_setup_hive_nimbus_lfs_patch" >/dev/null 2>&1; then
+    return 0
+  fi
+  if ! git -C "$HIVE_DIR" apply --check "$_setup_hive_nimbus_lfs_patch"; then
+    _setup_hive_die "managed Nimbus LFS patch does not apply to Hive at $HIVE_REF; check clients/nimbus-el/Dockerfile.git"
+  fi
+  _setup_hive_log "Disabling LFS downloads in the Nimbus Docker build"
+  git -C "$HIVE_DIR" apply "$_setup_hive_nimbus_lfs_patch"
 }
 
 _setup_hive_validate_extra_flags() {
@@ -272,6 +310,9 @@ _setup_hive_apply_descriptor_setup() {
     geth-extra-flags)
       extra_flags="$(eest_el_clients_descriptor_field "$descriptor" '.hive_extra_flags')"
       _setup_hive_patch_geth_flags "$extra_flags"
+      ;;
+    nimbus-skip-lfs)
+      _setup_hive_patch_nimbus_lfs "$descriptor"
       ;;
     *)
       _setup_hive_die "unsupported managed_patch for $(eest_el_clients_descriptor_field "$descriptor" '.id'): $managed_patch"

@@ -1,0 +1,12 @@
+diff --git a/clients/nimbus-el/Dockerfile.git b/clients/nimbus-el/Dockerfile.git
+--- a/clients/nimbus-el/Dockerfile.git
++++ b/clients/nimbus-el/Dockerfile.git
+@@ -2,6 +2,8 @@
+ 
+ FROM debian:testing-slim AS build
+ 
++# eest-dashboard: skip unused LFS network data during Nimbus builds.
++ENV GIT_LFS_SKIP_SMUDGE=1
+ SHELL ["/bin/bash", "-c"]
+ 
+ RUN apt-get clean && apt update \

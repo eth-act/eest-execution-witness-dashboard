@@ -126,6 +126,22 @@ this clears its extra flags:
 EL_CLIENT_OVERRIDES_JSON='{"go-ethereum":{"hive_extra_flags":""}}' scripts/setup-hive.sh
 ```
 
+Nimbus uses `managed_patch=nimbus-skip-lfs`. Setup applies
+`patches/hive-nimbus-skip-lfs.patch` to Hive's `clients/nimbus-el/Dockerfile.git`,
+setting `GIT_LFS_SKIP_SMUDGE=1` inside the build stage before cloning. This avoids
+downloading unused network data from nested submodules, including the
+`glamsterdam-devnets` consensus genesis file whose upstream Git LFS budget
+blocked the [September 24, 2026 run](https://github.com/eth-act/eest-execution-witness-dashboard/actions/runs/36032246820/job/107744808338).
+Setup removes this patch before updating Hive and reapplies it when Nimbus is
+selected. It fails clearly if the patch no longer matches the upstream
+Dockerfile. To disable it for a custom build, override Nimbus's `managed_patch`
+with an empty string.
+
+Locally verified with Hive `43ea47be`, Nimbus `4dc018eb`, and execution-specs
+`8cd0018e`: the Docker image built successfully with LFS downloads disabled,
+and the Amsterdam empty-block witness smoke test passed (one case, no skips
+or timeouts). This validation did not run the full witness suite.
+
 Run Hive and consume the generated fixtures once per selected EL:
 
 ```bash
