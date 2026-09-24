@@ -63,6 +63,25 @@ generates witnesses on demand and needs no extra startup flags.
 Hive builds each client from its `Dockerfile.git`, which clones the descriptor
 `ref` with `git clone --branch`. Use a branch or tag name, not a commit SHA.
 
+Nimbus REST+SSZ is available as the opt-in `nimbus-el-rest` descriptor. It
+builds `status-im/nimbus-eth1` at `witness-rest-ssz-endpoint`, enables
+`--debug-engine-api-rest`, and runs `consume engine-witness --ssz`. Results use
+`nimbus-el_rest-ssz`, so both Nimbus transports can be selected together.
+The consumer must include the REST witness changes for execution-apis PR #885;
+the default EELS release predates them. To use the edited sibling checkout with
+an existing witness fixture directory:
+
+```sh
+EEST_DIR="$PWD/../execution-specs" \
+FIXTURES_DIR=/absolute/path/to/witness-fixtures \
+HIVE_CONSUME_ALLOW_FAILURE=0 \
+scripts/run-hive-consume-client.sh nimbus-el-rest
+```
+
+This command uses the checkout directly. For CI, set `EEST_REPO` and `EEST_REF`
+to a published revision containing the consumer changes before selecting
+`nimbus-el-rest` (or select a release containing them).
+
 ### zkEVM guests
 
 Workload `v0.18.0` downloads guests from the `ere-guests` `v0.18.0` release.
