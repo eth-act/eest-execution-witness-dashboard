@@ -9,7 +9,7 @@ on:
       el_clients:
         description: Comma-separated EL client descriptor IDs. Set to none to skip Hive workloads.
         required: true
-        default: ethrex
+        default: ethrex,go-ethereum,nimbus-el,nethermind,besu
       el_client_overrides_json:
         description: 'JSON descriptor overrides, e.g. {"ethrex":{"ref":"branch"}}.'
         required: false
@@ -28,7 +28,7 @@ on:
         type: string
         description: Comma-separated EL client descriptor IDs. Set to none to skip Hive workloads.
         required: false
-        default: ethrex
+        default: ethrex,go-ethereum,nimbus-el,nethermind,besu
       el_client_overrides_json:
         type: string
         description: 'JSON descriptor overrides, e.g. {"ethrex":{"ref":"branch"}}.'

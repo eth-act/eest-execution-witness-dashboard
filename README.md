@@ -25,7 +25,7 @@ ZKEVM_BENCHMARK_WORKLOAD_REF=v0.17.2
 ZKEVM_WORKLOAD_RUNS=ethrex:zisk,reth:zisk
 ZKEVM_RAYON_THREADS=10
 
-EL_CLIENTS=go-ethereum,ethrex,nethermind,nimbus-el
+EL_CLIENTS=go-ethereum,ethrex,nethermind,nimbus-el,besu
 EL_CLIENT_CONFIG=config/el-clients.json
 EL_GUEST_CONFIG=config/el-guests.json
 EL_CLIENT_OVERRIDES_JSON={}
@@ -44,8 +44,10 @@ Nimbus (`nimbus-el`) uses `https://github.com/status-im/nimbus-eth1.git` at
 `master`, which provides `engine_newPayloadWithWitnessV5`
 and generates witnesses on demand without extra startup flags.
 
-All four build through Hive's corresponding `Dockerfile.git`. Besu is omitted
-until its devnet 8 branch includes the required witness RPC.
+Besu (`besu`) uses `https://github.com/besu-eth/besu.git` at
+`glamsterdam-devnet-8-zkevm`, which includes the witness RPC.
+
+All five build through Hive's corresponding `Dockerfile.git`.
 
 Generated work directories are ignored by git:
 
@@ -127,7 +129,7 @@ Prepare Hive and generate `hive/clients-local.yaml`:
 scripts/setup-hive.sh
 ```
 
-The default `EL_CLIENTS=go-ethereum,ethrex,nethermind,nimbus-el` selects every default
+The default `EL_CLIENTS=go-ethereum,ethrex,nethermind,nimbus-el,besu` selects every default
 execution client, but the dashboard now runs each selected EL independently.
 This produces one Hive result entry per EL client, matching the shape expected
 by hive-ui's grouping views. Use a comma-separated subset, such as
@@ -324,7 +326,7 @@ public result logs for common secret or private RPC URL patterns.
 
 The **Refresh execution witness dashboard** workflow
 (`.github/workflows/refresh-dashboard.yml`) prepares a fresh dataset, runs all
-four Hive clients and seven zkEVM combinations, and publishes the dashboard
+five Hive clients and eight zkEVM combinations, and publishes the dashboard
 after every workload job succeeds. Run it manually from `main`:
 
 ```bash
@@ -339,7 +341,7 @@ The combined workflow uses these settings:
 
 - Prefilled EEST release `tests-zkevm@v0.8.4`, Hive `master`,
   `zkevm-benchmark-workload` `v0.17.2`, and 10 Rayon threads.
-- Hive clients `ethrex,go-ethereum,nimbus-el,nethermind`, using the checked-in
+- Hive clients `ethrex,go-ethereum,nimbus-el,nethermind,besu`, using the checked-in
   descriptors without overrides.
 - Ethrex and Reth each on SP1, ZisK, and OpenVM, plus Zesu and Nimbus on ZisK.
 - Hive UI commit `b5441f735366a4f7d13575a020ccd6517d7ecaf3` and a 900 MiB site limit.

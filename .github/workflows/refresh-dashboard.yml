@@ -25,7 +25,7 @@ jobs:
       - name: Select workloads
         id: workloads
         env:
-          EL_CLIENTS: ethrex,go-ethereum,nimbus-el,nethermind
+          EL_CLIENTS: ethrex,go-ethereum,nimbus-el,nethermind,besu
           ZKEVM_WORKLOAD_RUNS: ethrex:sp1,ethrex:zisk,ethrex:openvm,reth:sp1,reth:zisk,reth:openvm,zesu:zisk,nimbus:zisk
         run: |
           set -Eeuo pipefail

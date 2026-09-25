@@ -9,7 +9,7 @@ on:
       el_clients:
         description: Comma-separated Hive client IDs required on the site. Set to none to omit Hive results.
         required: true
-        default: ethrex
+        default: ethrex,go-ethereum,nimbus-el,nethermind,besu
       zkevm_workload_runs:
         description: Comma-separated CLIENT:ZKVM pairs required on the site. Set to none to omit.
         required: true
@@ -36,7 +36,7 @@ on:
         type: string
         description: Comma-separated Hive client IDs required on the site. Set to none to omit Hive results.
         required: false
-        default: ethrex
+        default: ethrex,go-ethereum,nimbus-el,nethermind,besu
       zkevm_workload_runs:
         type: string
         description: Comma-separated CLIENT:ZKVM pairs required on the site. Set to none to omit.

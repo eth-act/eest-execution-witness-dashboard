@@ -104,7 +104,7 @@ Prepare Hive and generate `clients-local.yaml`:
 scripts/setup-hive.sh
 ```
 
-By default, `EL_CLIENTS=go-ethereum,ethrex,nethermind,nimbus-el` selects every default
+By default, `EL_CLIENTS=go-ethereum,ethrex,nethermind,nimbus-el,besu` selects every default
 client from `config/el-clients.json`. The consume orchestration runs selected
 clients independently so the final dashboard has one listing entry per EL. Use
 a comma-separated subset to run fewer clients:

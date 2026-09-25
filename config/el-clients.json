@@ -1,5 +1,15 @@
 {
   "clients": {
+    "besu": {
+      "hive_client": "besu",
+      "dockerfile": "git",
+      "nametag": "rlp-engineapi",
+      "hive_parallelism": 8,
+      "repo": "https://github.com/besu-eth/besu.git",
+      "github": "besu-eth/besu",
+      "ref": "glamsterdam-devnet-8-zkevm",
+      "transport": "json-rpc-rlp"
+    },
     "ethrex": {
       "hive_client": "ethrex",
       "dockerfile": "git",
