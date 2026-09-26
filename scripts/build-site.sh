@@ -32,7 +32,7 @@ _build_site_usage() {
     '' \
     'Additional overrides:' \
     '  HIVEVIEW_LIST_LIMIT        Number of test runs in listing.jsonl. Default: 200' \
-    '  SITE_INCLUDE_CLIENT_LOGS   Copy per-test client logs into Pages. Default: 0'
+    '  SITE_INCLUDE_CLIENT_LOGS   Include full descriptions and logs for local debugging. Default: 0'
 }
 
 _build_site_log() {
@@ -445,17 +445,7 @@ _build_site_listed_suite_files() {
   jq -r 'select(type == "object" and .fileName != null and .fileName != "") | .fileName' "$SITE_DIR/listing.jsonl"
 }
 
-_build_site_referenced_public_result_files() {
-  local suite_file
-
-  suite_file="$1"
-  jq -r '[
-    .simLog,
-    .testDetailsLog
-  ] | map(select(. != null and . != "")) | .[]' "$suite_file"
-}
-
-_build_site_referenced_all_result_files() {
+_build_site_referenced_result_files() {
   local suite_file
 
   suite_file="$1"
@@ -464,14 +454,6 @@ _build_site_referenced_all_result_files() {
     .testDetailsLog,
     (.testCases[]? | .clientInfo? // {} | to_entries[]? | .value.logFile?)
   ] | map(select(. != null and . != "")) | .[]' "$suite_file"
-}
-
-_build_site_referenced_result_files() {
-  if [ "$SITE_INCLUDE_CLIENT_LOGS" -eq 1 ]; then
-    _build_site_referenced_all_result_files "$1"
-  else
-    _build_site_referenced_public_result_files "$1"
-  fi
 }
 
 _build_site_copy_result_file() {
@@ -511,7 +493,15 @@ _build_site_copy_suite_file() {
   fi
 
   tmp="$destination.tmp"
-  jq 'del(.testCases[]?.clientInfo?[]?.logFile, .testCases[]?.clientInfo?[]?.logOffsets)' "$source" > "$tmp"
+  jq 'del(
+    .simLog,
+    .testDetailsLog,
+    .testCases[]?.description,
+    .testCases[]?.summaryResult.details,
+    .testCases[]?.summaryResult.log,
+    .testCases[]?.clientInfo?[]?.logFile,
+    .testCases[]?.clientInfo?[]?.logOffsets
+  )' "$source" > "$tmp"
   mv "$tmp" "$destination"
 }
 
@@ -535,7 +525,8 @@ _build_site_copy_results() {
   : > "$asset_list"
   while IFS= read -r relpath; do
     [ -n "$relpath" ] || continue
-    _build_site_referenced_result_files "$HIVE_RESULTS_DIR/$relpath" >> "$asset_list"
+    # Only publish assets still referenced by the transformed suite JSON.
+    _build_site_referenced_result_files "$SITE_DIR/results/$relpath" >> "$asset_list"
   done < "$suite_list"
   sort -u -o "$asset_list" "$asset_list"
   asset_count="$(wc -l < "$asset_list" | tr -d ' ')"
@@ -550,7 +541,9 @@ _build_site_copy_results() {
   if [ "$SITE_INCLUDE_CLIENT_LOGS" -eq 1 ]; then
     _build_site_log "Copied $suite_count listed suite result(s) and $asset_count referenced result asset(s)"
   else
-    _build_site_log "Copied $suite_count listed suite result(s) and $asset_count public result asset(s); omitted per-test client logs"
+    jq -c 'del(.simLog)' "$SITE_DIR/listing.jsonl" > "$SITE_DIR/listing.jsonl.tmp"
+    mv "$SITE_DIR/listing.jsonl.tmp" "$SITE_DIR/listing.jsonl"
+    _build_site_log "Copied $suite_count listed suite result(s); omitted per-test descriptions and all result logs"
   fi
 }
 
@@ -604,7 +597,7 @@ _build_site_validate_result_references() {
       if [ ! -f "$SITE_DIR/results/$referenced" ]; then
         _build_site_die "result entry references a public asset that was not copied: results/$referenced"
       fi
-    done < <(_build_site_referenced_public_result_files "$suite_path")
+    done < <(_build_site_referenced_result_files "$suite_path")
   done < <(_build_site_listed_suite_files)
 }
 
@@ -675,4 +668,6 @@ main() {
   _build_site_validate_output
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi

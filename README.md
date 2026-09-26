@@ -288,14 +288,20 @@ scripts/build-site.sh
 
 The script recreates `SITE_DIR`, builds the pinned `HIVE_UI_REF`, writes
 `site/discovery.json`, writes `site/listing.jsonl`, copies the listed suite
-JSON files and public detail/simulator logs into `site/results/`, writes hive-ui
+JSON files into `site/results/`, writes hive-ui
 license/source notices, fails if any listing entry has more than one client,
 and fails if the generated site exceeds `SITE_MAX_SIZE_MB`.
 
-Per-test client logs are omitted from the Pages site by default because large
-EEST runs can exceed GitHub Pages' supported site size. Set
-`SITE_INCLUDE_CLIENT_LOGS=1` for local debugging when you need the per-test log
-links and are not publishing to Pages.
+The Pages build removes per-test descriptions, inline log details, and all
+simulator, test-detail, and client logs and their references. Test names,
+pass/fail results, timing, and client metadata remain available for tables and
+comparisons. Rows without descriptions or detail logs do not expand, and log
+links are hidden when the corresponding logs are omitted.
+
+Full descriptions and logs remain in the original results and the
+`hive-combined-results-*` Actions artifact. Set `SITE_INCLUDE_CLIENT_LOGS=1`
+for a local build with full descriptions and logs; these builds can exceed
+GitHub Pages' supported site size.
 
 ## Local Preview and Smoke Test
 

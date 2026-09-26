@@ -328,17 +328,19 @@ scripts/build-site.sh
 ```
 
 The script cleans `SITE_DIR`, builds the pinned `HIVE_UI_REF`, generates
-`discovery.json` and `listing.jsonl`, copies listed suite JSON files plus
-public detail/simulator logs into `SITE_DIR/results/`, writes hive-ui
+`discovery.json` and `listing.jsonl`, copies listed suite JSON files into
+`SITE_DIR/results/`, writes hive-ui
 license/source notices, fails if any listing entry contains more than one
 client, and fails if the output is larger than `SITE_MAX_SIZE_MB` (default:
 `900`).
 
-By default, the Pages site omits per-test client logs and removes their
-`clientInfo.*.logFile` pointers from the published suite JSON. This keeps large
-EEST runs under GitHub Pages' supported site size while preserving summary
-pages and detail-log excerpts. Set `SITE_INCLUDE_CLIENT_LOGS=1` for local
-debugging when full per-test log links are needed.
+By default, the Pages site removes per-test descriptions, inline log details,
+and all simulator, test-detail, and client logs and their references. Summary
+pages, test names, pass/fail results, timing, and comparisons remain available.
+Rows without descriptions or detail logs do not expand, and unavailable log
+links are hidden. Original result files and the full combined-results Actions
+artifact are unchanged. Set `SITE_INCLUDE_CLIENT_LOGS=1` for local debugging
+with full descriptions and logs; this can exceed the Pages size limit.
 
 Preview the generated static site with a simple HTTP server:
 
