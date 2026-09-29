@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the Geth/Hive and Ethrex/ZisK empty-block smoke results."""
+"""Check the Geth, Nimbus REST/SSZ, and Ethrex/ZisK empty-block smoke results."""
 
 import argparse
 import importlib.util
@@ -57,7 +57,7 @@ def hive_case(directory):
     return case["name"], client
 
 
-def check(fixtures, hive_results, metrics, converted_results):
+def check(fixtures, hive_results, nimbus_hive_results, metrics, converted_results):
     index = prune.load_json(fixtures / ".meta/index.json")["test_cases"]
     engine_name, _, _ = fixture(
         fixtures, index, "blockchain_tests_engine", "blockchain_test_engine"
@@ -74,6 +74,10 @@ def check(fixtures, hive_results, metrics, converted_results):
     require(engine_name in name, f"unexpected Hive case: {name}")
     require(client == "go-ethereum" or client.startswith("go-ethereum_"),
             f"unexpected Hive client: {client}")
+
+    name, client = hive_case(nimbus_hive_results)
+    require(engine_name in name, f"unexpected Nimbus Hive case: {name}")
+    require(client == "nimbus-el_rest-ssz", f"unexpected Nimbus Hive client: {client}")
 
     path = one((path for path in metrics.glob("*/*/*.json") if path.name != "hardware.json"),
                "Ethrex/ZisK metric")
@@ -95,7 +99,7 @@ def check(fixtures, hive_results, metrics, converted_results):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    for name in ("fixtures", "hive-results", "metrics", "converted-results"):
+    for name in ("fixtures", "hive-results", "nimbus-hive-results", "metrics", "converted-results"):
         parser.add_argument("--" + name, type=Path, required=True)
     args = parser.parse_args()
     try:
@@ -103,7 +107,8 @@ def main():
     except (OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
         print(f"smoke failed: {exc}", file=sys.stderr)
         return 1
-    print("Smoke passed: one Geth/Hive case and one Ethrex/ZisK case, including conversion.")
+    print("Smoke passed: one Geth/Hive case, one Nimbus REST/SSZ/Hive case, "
+          "and one Ethrex/ZisK case, including conversion.")
     return 0
 
 

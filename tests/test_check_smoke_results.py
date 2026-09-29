@@ -29,7 +29,7 @@ class CheckSmokeResultsTests(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
         self.paths = {name: self.root / name for name in
-                      ("fixtures", "hive_results", "metrics", "converted_results")}
+                      ("fixtures", "hive_results", "nimbus_hive_results", "metrics", "converted_results")}
         index = []
         for directory, format_name in (
             ("blockchain_tests", "blockchain_test"),
@@ -49,6 +49,14 @@ class CheckSmokeResultsTests(unittest.TestCase):
             "clientVersions": {"go-ethereum_rlp-engineapi": "version"},
             "testCases": {"1": {
                 "name": f"test_engine_witness[go-ethereum-{index[1]['id']}]",
+                "summaryResult": {"pass": True},
+            }},
+        })
+        self.nimbus_path = self.paths["nimbus_hive_results"] / "suite.json"
+        write_json(self.nimbus_path, {
+            "clientVersions": {"nimbus-el_rest-ssz": "version"},
+            "testCases": {"1": {
+                "name": f"test_engine_witness[nimbus-el_rest-ssz-{index[1]['id']}]",
                 "summaryResult": {"pass": True},
             }},
         })
@@ -85,7 +93,7 @@ class CheckSmokeResultsTests(unittest.TestCase):
         self.assertIn("Smoke passed", result.stdout)
 
     def test_missing_outputs_fail_including_hardware_only_metrics(self):
-        for path in (self.hive_path, self.metric_path, self.converted_path):
+        for path in (self.hive_path, self.nimbus_path, self.metric_path, self.converted_path):
             with self.subTest(path=path):
                 content = path.read_bytes()
                 path.unlink()
@@ -94,7 +102,7 @@ class CheckSmokeResultsTests(unittest.TestCase):
                 path.write_bytes(content)
 
     def test_duplicate_outputs_fail(self):
-        for path in (self.hive_path, self.metric_path, self.converted_path):
+        for path in (self.hive_path, self.nimbus_path, self.metric_path, self.converted_path):
             with self.subTest(path=path):
                 duplicate = path.with_name("duplicate.json")
                 duplicate.write_bytes(path.read_bytes())
@@ -103,7 +111,7 @@ class CheckSmokeResultsTests(unittest.TestCase):
                 duplicate.unlink()
 
     def test_missing_or_duplicate_suite_cases_fail(self):
-        for path in (self.hive_path, self.converted_path):
+        for path in (self.hive_path, self.nimbus_path, self.converted_path):
             suite = read_json(path)
             for count in (0, 2):
                 with self.subTest(path=path, count=count):
@@ -114,7 +122,7 @@ class CheckSmokeResultsTests(unittest.TestCase):
             write_json(path, suite)
 
     def test_skipped_pass_and_timeout_fail(self):
-        for path in (self.hive_path, self.converted_path):
+        for path in (self.hive_path, self.nimbus_path, self.converted_path):
             original = path.read_bytes()
             for summary in ({"pass": False}, {"pass": True, "timeout": True},
                             {"pass": True, "details": "Test skipped. unsupported fork"}):
@@ -139,7 +147,7 @@ class CheckSmokeResultsTests(unittest.TestCase):
             self.check()
 
     def test_wrong_suite_case_or_client_fails(self):
-        for path in (self.hive_path, self.converted_path):
+        for path in (self.hive_path, self.nimbus_path, self.converted_path):
             original = path.read_bytes()
             for field in ("name", "clientVersions"):
                 with self.subTest(path=path, field=field):
@@ -152,6 +160,13 @@ class CheckSmokeResultsTests(unittest.TestCase):
                     with self.assertRaises(ValueError):
                         self.check()
             path.write_bytes(original)
+
+    def test_nimbus_rlp_result_cannot_satisfy_rest_smoke(self):
+        suite = read_json(self.nimbus_path)
+        suite["clientVersions"] = {"nimbus-el_rlp-engineapi": "version"}
+        write_json(self.nimbus_path, suite)
+        with self.assertRaisesRegex(ValueError, "unexpected Nimbus Hive client"):
+            self.check()
 
     def test_guest_crash_mismatch_or_missing_execution_fails(self):
         metric = read_json(self.metric_path)
