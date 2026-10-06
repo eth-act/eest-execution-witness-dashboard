@@ -39,7 +39,7 @@ jobs:
     name: Execution smoke
     needs: checks
     runs-on: [self-hosted-ghr, size-xl-x64]
-    timeout-minutes: 60
+    timeout-minutes: 90
     permissions:
       contents: read
       packages: read
@@ -56,6 +56,8 @@ jobs:
       ZKEVM_METRICS_DIR: ${{ github.workspace }}/smoke-results/metrics
       EL_CLIENTS: go-ethereum,nimbus-el-rest
       HIVE_PARALLELISM: "1"
+      # A cold Nimbus image build exceeds the default 20-minute readiness wait.
+      HIVE_READY_ATTEMPTS: "1800"
       HIVE_CONSUME_ALLOW_FAILURE: "0"
       HIVE_PRUNE_SKIPPED: "0"
       HIVE_LOG_TO_STDOUT: "1"

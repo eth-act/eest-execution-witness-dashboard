@@ -67,21 +67,8 @@ Nimbus REST+SSZ is available as the `nimbus-el-rest` descriptor, selected by CI
 and opt-in for local runs. It builds `status-im/nimbus-eth1` at
 `witness-rest-ssz-endpoint`, enables `--debug-engine-api-rest`, and runs
 `consume engine-witness --ssz`. Results use `nimbus-el_rest-ssz`, so both
-Nimbus transports can be selected together.
-The consumer must include the REST witness changes for execution-apis PR #885;
-the default EELS release predates them. To use the edited sibling checkout with
-an existing witness fixture directory:
-
-```sh
-EEST_DIR="$PWD/../execution-specs" \
-FIXTURES_DIR=/absolute/path/to/witness-fixtures \
-HIVE_CONSUME_ALLOW_FAILURE=0 \
-scripts/run-hive-consume-client.sh nimbus-el-rest
-```
-
-This command uses the checkout directly. For CI, set `EEST_REPO` and `EEST_REF`
-to a published revision containing the consumer changes before selecting
-`nimbus-el-rest` (or select a release containing them).
+Nimbus transports can be selected together. The REST consumer ships in the
+default EEST pin, `tests-zkevm@v21.0.1`; older refs lack `--ssz`.
 
 ### zkEVM guests
 
@@ -373,7 +360,7 @@ Ethrex runs it on ZisK, using the same scripts as `run-workloads.yml`. The check
 converts the zkEVM metrics and fails unless each workload produces exactly one
 passing case. It does not generate proofs, publish datasets, or deploy the site.
 
-The check runs on a disposable XL runner with a 60-minute timeout. Caches speed
+The check runs on a disposable XL runner with a 90-minute timeout. Caches speed
 up repeat runs, but cold runs still compile the benchmark and build Geth and
 Nimbus. The job summary records elapsed time and cache hits. Fixtures, results,
 and Hive logs stay available for seven days.

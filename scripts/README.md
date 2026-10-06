@@ -231,10 +231,6 @@ The PR workflow runs the production scripts against one empty-block
 Hive; Ethrex executes it on ZisK. The benchmark downloads its guest
 and runtime image using its own dependency versions.
 
-Nimbus REST/SSZ requires a published EEST consumer revision containing the
-REST witness changes. Updating the CI EEST pin is still pending; see the
-[consumer prerequisite](../README.md#execution-clients) before running.
-
 Run these commands from the dashboard repository root with the
 [local prerequisites](../README.md#local-prerequisites) installed. They update
 the generated source checkouts and replace outputs under `smoke-results/`.
@@ -276,7 +272,7 @@ result files; it does not prepare or execute workloads.
 CI installs Python, Go, Rust nightly, uv, and the native packages listed in
 `.github/workflows/pr-smoke.yml`. It authenticates to GHCR with the job token,
 caches dependencies and Rust build outputs, and runs on a disposable XL
-runner with a 60-minute timeout. The summary records elapsed time and cache
+runner with a 90-minute timeout. The summary records elapsed time and cache
 hits. Cold runs can take longer because they build Geth, Nimbus, and the
 benchmark.
 Fixtures, results, and Hive logs are uploaded for seven days, with build output
