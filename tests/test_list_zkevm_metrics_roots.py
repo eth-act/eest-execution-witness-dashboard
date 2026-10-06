@@ -37,7 +37,7 @@ class ListZkevmMetricsRootsTests(unittest.TestCase):
             artifacts_dir = Path(tmp) / "zkevm-metrics-artifacts"
             write_json(artifacts_dir / "hardware.json", {"cpu_model": "Test CPU"})
             write_json(
-                artifacts_dir / "zesu-bal-devnet-7-2026-06-12" / "zisk-v0.18.0" / "result.json",
+                artifacts_dir / "nimbus-v0.2.1-alpha" / "zisk-v0.18.0" / "result.json",
                 {"execution": {"success": {"output_matched": True}}},
             )
 
@@ -53,10 +53,10 @@ class ListZkevmMetricsRootsTests(unittest.TestCase):
     def test_discovers_artifact_wrapper_layout(self):
         with TemporaryDirectory() as tmp:
             artifacts_dir = Path(tmp) / "zkevm-metrics-artifacts"
-            artifact_dir = artifacts_dir / "zkevm-metrics-zesu-zisk"
+            artifact_dir = artifacts_dir / "zkevm-metrics-nimbus-zisk"
             write_json(artifact_dir / "hardware.json", {"cpu_model": "Test CPU"})
             write_json(
-                artifact_dir / "zesu-bal-devnet-7-2026-06-12" / "zisk-v0.18.0" / "result.json",
+                artifact_dir / "nimbus-v0.2.1-alpha" / "zisk-v0.18.0" / "result.json",
                 {"execution": {"success": {"output_matched": True}}},
             )
 
@@ -72,10 +72,10 @@ class ListZkevmMetricsRootsTests(unittest.TestCase):
     def test_discovers_multiple_artifact_wrappers_in_sorted_order(self):
         with TemporaryDirectory() as tmp:
             artifacts_dir = Path(tmp) / "zkevm-metrics-artifacts"
-            zesu_dir = artifacts_dir / "zkevm-metrics-zesu-zisk"
+            nimbus_dir = artifacts_dir / "zkevm-metrics-nimbus-zisk"
             ethrex_dir = artifacts_dir / "zkevm-metrics-ethrex-zisk"
             write_json(
-                zesu_dir / "zesu-bal-devnet-7-2026-06-12" / "zisk-v0.18.0" / "result.json",
+                nimbus_dir / "nimbus-v0.2.1-alpha" / "zisk-v0.18.0" / "result.json",
                 {"execution": {"success": {"output_matched": True}}},
             )
             write_json(
@@ -92,7 +92,7 @@ class ListZkevmMetricsRootsTests(unittest.TestCase):
         )
         self.assertEqual(
             self.parse_null_paths(completed.stdout),
-            [str(ethrex_dir.resolve()), str(zesu_dir.resolve())],
+            [str(ethrex_dir.resolve()), str(nimbus_dir.resolve())],
         )
 
     def test_ignores_directories_without_metrics_root_shape(self):

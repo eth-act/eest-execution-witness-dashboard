@@ -14,7 +14,7 @@ on:
       eest_ref:
         description: execution-specs branch, tag, or commit.
         required: false
-        default: tests-zkevm@v0.8.4
+        default: tests-zkevm@v21.0.1
       filler_path:
         description: execution-specs filler path to generate in fill mode; ignored when eest_release_tag is set.
         required: false
@@ -38,7 +38,7 @@ on:
       zkevm_benchmark_workload_ref:
         description: zkevm-benchmark-workload branch, tag, or commit to pin.
         required: true
-        default: v0.17.2
+        default: v0.18.0
       zkevm_rayon_threads:
         description: RAYON_NUM_THREADS shared by zkEVM runs in this dataset.
         required: true
@@ -59,7 +59,7 @@ on:
         type: string
         description: execution-specs branch, tag, or commit.
         required: false
-        default: tests-zkevm@v0.8.4
+        default: tests-zkevm@v21.0.1
       filler_path:
         type: string
         description: execution-specs filler path to generate in fill mode; ignored when eest_release_tag is set.
@@ -89,7 +89,7 @@ on:
         type: string
         description: zkevm-benchmark-workload branch, tag, or commit to pin.
         required: false
-        default: v0.17.2
+        default: v0.18.0
       zkevm_rayon_threads:
         type: string
         description: RAYON_NUM_THREADS shared by zkEVM runs in this dataset.

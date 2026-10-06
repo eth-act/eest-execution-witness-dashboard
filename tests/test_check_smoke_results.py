@@ -30,25 +30,22 @@ class CheckSmokeResultsTests(unittest.TestCase):
         self.root = Path(temporary.name)
         self.paths = {name: self.root / name for name in
                       ("fixtures", "hive_results", "metrics", "converted_results")}
-        index = []
-        for directory, format_name in (
-            ("blockchain_tests", "blockchain_test"),
-            ("blockchain_tests_engine", "blockchain_test_engine"),
-        ):
-            name = ("tests/amsterdam/eip8025_optional_proofs/test_witness_headers.py"
-                    f"::test_witness_headers_empty_block[fork_Amsterdam-{format_name}]")
-            entry = {"id": name, "format": format_name, "json_path": f"{directory}/empty.json"}
-            index.append(entry)
-            write_json(self.paths["fixtures"] / entry["json_path"], {
-                name: {"blocks": [{"statelessInputBytes": "0x0102", "statelessOutputBytes": "0x0304"}]}
-            })
+        name = ("tests/amsterdam/eip8025_optional_proofs/test_witness_headers.py"
+                "::test_witness_headers_empty_block[fork_Amsterdam-blockchain_test_engine]")
+        entry = {"id": name, "format": "blockchain_test_engine",
+                 "json_path": "blockchain_tests_engine/for_amsterdam/empty.json"}
+        index = [entry]
+        self.fixture_path = self.paths["fixtures"] / entry["json_path"]
+        write_json(self.fixture_path, {name: {"engineNewPayloads": [
+            {"statelessInputBytes": "0x0102", "statelessOutputBytes": "0x0304"}
+        ]}})
         self.index_path = self.paths["fixtures"] / ".meta/index.json"
         write_json(self.index_path, {"test_cases": index})
         self.hive_path = self.paths["hive_results"] / "suite.json"
         write_json(self.hive_path, {
             "clientVersions": {"go-ethereum_rlp-engineapi": "version"},
             "testCases": {"1": {
-                "name": f"test_engine_witness[go-ethereum-{index[1]['id']}]",
+                "name": f"test_engine_witness[go-ethereum-{name}]",
                 "summaryResult": {"pass": True},
             }},
         })
@@ -56,8 +53,8 @@ class CheckSmokeResultsTests(unittest.TestCase):
         write_json(self.metric_path, {
             "name": "eest__witness_headers_empty_block__block0",
             "timestamp_completed": "2026-09-10T12:00:00Z",
-            "metadata": {"original_test_name": index[0]["id"],
-                         "source_path": index[0]["json_path"], "block_index": 0},
+            "metadata": {"original_test_name": name,
+                         "source_path": "for_amsterdam/empty.json", "block_index": 0},
             "execution": {"success": {"output_matched": True,
                                       "execution_duration": {"secs": 1, "nanos": 0}}},
         })
@@ -184,7 +181,7 @@ class CheckSmokeResultsTests(unittest.TestCase):
 
     def test_missing_or_duplicate_fixture_index_entry_fails(self):
         index = read_json(self.index_path)
-        for entries in (index["test_cases"][1:], index["test_cases"] + [index["test_cases"][0]]):
+        for entries in ([], index["test_cases"] * 2):
             with self.subTest(entries=entries):
                 write_json(self.index_path, {"test_cases": entries})
                 with self.assertRaisesRegex(ValueError, "expected exactly one"):
@@ -198,22 +195,21 @@ class CheckSmokeResultsTests(unittest.TestCase):
             self.check()
 
     def test_extra_fixture_fails(self):
-        fixture = self.paths["fixtures"] / "blockchain_tests/empty.json"
-        fixture.with_name("extra.json").write_bytes(fixture.read_bytes())
+        self.fixture_path.with_name("extra.json").write_bytes(self.fixture_path.read_bytes())
         with self.assertRaisesRegex(ValueError, "expected exactly one, found 2"):
             self.check()
 
-    def test_fixture_requires_one_block_and_stateless_bytes(self):
-        path = self.paths["fixtures"] / "blockchain_tests/empty.json"
+    def test_fixture_requires_one_payload_and_stateless_bytes(self):
+        path = self.fixture_path
         original = path.read_bytes()
-        for invalid in ("blocks", "statelessInputBytes", "statelessOutputBytes"):
+        for invalid in ("engineNewPayloads", "statelessInputBytes", "statelessOutputBytes"):
             with self.subTest(invalid=invalid):
                 data = json.loads(original)
                 case = next(iter(data.values()))
-                if invalid == "blocks":
-                    case["blocks"] *= 2
+                if invalid == "engineNewPayloads":
+                    case["engineNewPayloads"] *= 2
                 else:
-                    case["blocks"][0][invalid] = "0x"
+                    case["engineNewPayloads"][0][invalid] = "0x"
                 write_json(path, data)
                 with self.assertRaises(ValueError):
                     self.check()

@@ -356,7 +356,7 @@ class ArtifactSelectionTests(unittest.TestCase):
             self.select([])
 
     def test_hive_and_zkevm_requirements_are_both_resolved(self):
-        zkevm_name = "zkevm-metrics-v1-100-zesu-zisk"
+        zkevm_name = "zkevm-metrics-v1-100-nimbus-zisk"
         selected = dashboard_artifacts.select_artifacts(
             [
                 {"artifacts": [artifact(self.name, artifact_id=10, run_id=100)]},
@@ -364,7 +364,7 @@ class ArtifactSelectionTests(unittest.TestCase):
             ],
             dataset_id="100",
             hive_clients=["ethrex"],
-            zkevm_runs=["zesu:zisk"],
+            zkevm_runs=["nimbus:zisk"],
             branch="main",
         )
 

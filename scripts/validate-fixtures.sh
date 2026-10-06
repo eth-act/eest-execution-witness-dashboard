@@ -15,13 +15,13 @@ fi
 # shellcheck source=scripts/env.sh
 . "$_validate_fixtures_script_dir/env.sh"
 
-_validate_fixtures_formats=(blockchain_test blockchain_test_engine)
+_validate_fixtures_formats=(blockchain_test_engine)
 
 _validate_fixtures_usage() {
   printf '%s\n' \
     'Usage: scripts/validate-fixtures.sh' \
     '' \
-    'Validate that FIXTURES_DIR contains blockchain_test and blockchain_test_engine fixtures.' \
+    'Validate that FIXTURES_DIR contains blockchain_test_engine fixtures.' \
     '' \
     'Environment overrides from scripts/env.sh:' \
     '  FIXTURES_DIR'
@@ -65,9 +65,6 @@ _validate_fixtures_parse_args() {
 
 _validate_fixtures_dir_for_format() {
   case "$1" in
-    blockchain_test)
-      printf '%s\n' "$FIXTURES_DIR/blockchain_tests"
-      ;;
     blockchain_test_engine)
       printf '%s\n' "$FIXTURES_DIR/blockchain_tests_engine"
       ;;

@@ -9,11 +9,8 @@ from tempfile import TemporaryDirectory
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_PATH = REPO_ROOT / "scripts" / "list-zkevm-workload-runs.sh"
-ZESU_URL = (
-    "https://github.com/Consensys/zesu-zkvm/releases/download/"
-    "bal-devnet-7-2026-06-12"
-)
-ZESU_OPENVM_URL = "https://example.com/zesu-openvm-release"
+GUEST_URL = "https://example.com/guests/nimbus"
+GUEST_OPENVM_URL = "https://example.com/guests/nimbus-openvm"
 
 
 def write_json(path: Path, data: dict) -> None:
@@ -72,7 +69,7 @@ class ListZkevmWorkloadRunsTests(unittest.TestCase):
 
     def test_explicit_pairs_preserve_order_without_cartesian_product(self):
         completed = self.run_matrix(
-            runs=" zesu : zisk , ethrex:zisk , ethrex : sp1 "
+            runs=" nimbus : zisk , ethrex:zisk , ethrex : sp1 "
         )
         matrix = self.assert_success(completed)
 
@@ -82,9 +79,9 @@ class ListZkevmWorkloadRunsTests(unittest.TestCase):
         ]
         self.assertEqual(
             pairs,
-            [("zesu", "zisk"), ("ethrex", "zisk"), ("ethrex", "sp1")],
+            [("nimbus", "zisk"), ("ethrex", "zisk"), ("ethrex", "sp1")],
         )
-        self.assertNotIn(("zesu", "sp1"), pairs)
+        self.assertNotIn(("nimbus", "sp1"), pairs)
 
     def test_guest_level_artifact_base_url_is_included(self):
         with TemporaryDirectory() as tmp:
@@ -93,14 +90,14 @@ class ListZkevmWorkloadRunsTests(unittest.TestCase):
                 config_path,
                 {
                     "guests": {
-                        "zesu": {
-                            "guest_artifact_base_url": ZESU_URL,
+                        "nimbus": {
+                            "guest_artifact_base_url": GUEST_URL,
                         }
                     }
                 },
             )
             completed = self.run_matrix(
-                runs="zesu:zisk",
+                runs="nimbus:zisk",
                 guest_config_path=config_path,
             )
 
@@ -109,10 +106,10 @@ class ListZkevmWorkloadRunsTests(unittest.TestCase):
             matrix["include"],
             [
                 {
-                    "execution_client": "zesu",
+                    "execution_client": "nimbus",
                     "zkvm": "zisk",
-                    "guest_artifact_base_url": ZESU_URL,
-                    "artifact": "zkevm-metrics-zesu-zisk",
+                    "guest_artifact_base_url": GUEST_URL,
+                    "artifact": "zkevm-metrics-nimbus-zisk",
                 }
             ],
         )
@@ -167,21 +164,21 @@ class ListZkevmWorkloadRunsTests(unittest.TestCase):
             ["zkevm-metrics-ethrex-zisk", "zkevm-metrics-ethrex-sp1"],
         )
 
-    def test_zesu_requires_guest_artifact_base_url(self):
+    def test_guest_requires_guest_artifact_base_url(self):
         with TemporaryDirectory() as tmp:
             config_path = Path(tmp) / "el-guests.json"
             write_json(
                 config_path,
                 {
                     "guests": {
-                        "zesu": {
+                        "nimbus": {
                             "requires_guest_artifact_base_url": True,
                         }
                     }
                 },
             )
             completed = self.run_matrix(
-                runs="zesu:zisk",
+                runs="nimbus:zisk",
                 guest_config_path=config_path,
             )
 
@@ -198,11 +195,11 @@ class ListZkevmWorkloadRunsTests(unittest.TestCase):
                 config_path,
                 {
                     "guests": {
-                        "zesu2": {
-                            "guest_artifact_base_url": ZESU_URL,
+                        "custom": {
+                            "guest_artifact_base_url": GUEST_URL,
                             "zkvms": {
                                 "openvm": {
-                                    "guest_artifact_base_url": ZESU_OPENVM_URL,
+                                    "guest_artifact_base_url": GUEST_OPENVM_URL,
                                 }
                             },
                         }
@@ -210,14 +207,14 @@ class ListZkevmWorkloadRunsTests(unittest.TestCase):
                 },
             )
             completed = self.run_matrix(
-                runs="zesu2:zisk,zesu2:openvm",
+                runs="custom:zisk,custom:openvm",
                 guest_config_path=config_path,
             )
 
         matrix = self.assert_success(completed)
         by_zkvm = {entry["zkvm"]: entry for entry in matrix["include"]}
-        self.assertEqual(by_zkvm["zisk"]["guest_artifact_base_url"], ZESU_URL)
-        self.assertEqual(by_zkvm["openvm"]["guest_artifact_base_url"], ZESU_OPENVM_URL)
+        self.assertEqual(by_zkvm["zisk"]["guest_artifact_base_url"], GUEST_URL)
+        self.assertEqual(by_zkvm["openvm"]["guest_artifact_base_url"], GUEST_OPENVM_URL)
 
 
 if __name__ == "__main__":

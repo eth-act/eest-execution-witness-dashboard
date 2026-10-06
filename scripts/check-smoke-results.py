@@ -59,16 +59,16 @@ def hive_case(directory):
 
 def check(fixtures, hive_results, metrics, converted_results):
     index = prune.load_json(fixtures / ".meta/index.json")["test_cases"]
-    engine_name, _, _ = fixture(
+    engine_name, engine_path, engine_case = fixture(
         fixtures, index, "blockchain_tests_engine", "blockchain_test_engine"
     )
-    block_name, block_path, block_case = fixture(
-        fixtures, index, "blockchain_tests", "blockchain_test"
-    )
-    block = one(block_case["blocks"], "empty-block fixture block")
+    payload = one(engine_case["engineNewPayloads"], "empty-block fixture payload")
     for field in ("statelessInputBytes", "statelessOutputBytes"):
-        require(re.fullmatch(r"(?:0x)?(?:[0-9a-fA-F]{2})+", block.get(field, "")),
+        require(re.fullmatch(r"(?:0x)?(?:[0-9a-fA-F]{2})+", payload.get(field, "")),
                 f"fixture has no valid {field}")
+    # The workload reads blockchain_tests_engine directly, so its source paths
+    # are relative to that directory.
+    source_path = Path(engine_path).relative_to("blockchain_tests_engine").as_posix()
 
     name, client = hive_case(hive_results)
     require(engine_name in name, f"unexpected Hive case: {name}")
@@ -82,7 +82,7 @@ def check(fixtures, hive_results, metrics, converted_results):
     metric = prune.load_json(path)
     metadata = metric["metadata"]
     require((metadata["original_test_name"], metadata["source_path"], metadata["block_index"])
-            == (block_name, block_path, 0), f"unexpected metric case: {path}")
+            == (engine_name, source_path, 0), f"unexpected metric case: {path}")
     execution = metric.get("execution") or {}
     require("crashed" not in execution and
             (execution.get("success") or {}).get("output_matched") is True,

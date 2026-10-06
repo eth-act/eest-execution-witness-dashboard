@@ -10,10 +10,7 @@ from tempfile import TemporaryDirectory
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_PATH = REPO_ROOT / "scripts" / "run-zkevm-benchmark-workload.sh"
-ZESU_URL = (
-    "https://github.com/Consensys/zesu-zkvm/releases/download/"
-    "bal-devnet-7-2026-06-12"
-)
+GUEST_URL = "https://example.com/guests/nimbus"
 
 
 def write_json(path: Path, data: dict) -> None:
@@ -28,6 +25,7 @@ class RunZkevmBenchmarkWorkloadTests(unittest.TestCase):
         execution_client: str,
         guest_artifact_base_url: str = "",
         guest_config: dict | None = None,
+        engine_fixtures: bool = True,
     ) -> tuple[subprocess.CompletedProcess[str], Path]:
         if shutil.which("find") is None:
             self.skipTest("find is required by run-zkevm-benchmark-workload.sh")
@@ -46,6 +44,8 @@ class RunZkevmBenchmarkWorkloadTests(unittest.TestCase):
 
         workload.mkdir()
         fixtures.mkdir()
+        if engine_fixtures:
+            (fixtures / "blockchain_tests_engine").mkdir()
         bin_dir.mkdir()
         (workload / "Cargo.toml").write_text("[workspace]\n", encoding="utf-8")
         (bin_dir / "cargo").write_text(
@@ -53,8 +53,8 @@ class RunZkevmBenchmarkWorkloadTests(unittest.TestCase):
                 f"""\
                 #!/usr/bin/env bash
                 printf '%s\\n' "$@" > {args_file}
-                mkdir -p "$ZKEVM_METRICS_DIR/zesu-test/zisk-test"
-                printf '{{}}\\n' > "$ZKEVM_METRICS_DIR/zesu-test/zisk-test/result.json"
+                mkdir -p "$ZKEVM_METRICS_DIR/guest-test/zisk-test"
+                printf '{{}}\\n' > "$ZKEVM_METRICS_DIR/guest-test/zisk-test/result.json"
                 """
             ),
             encoding="utf-8",
@@ -89,10 +89,32 @@ class RunZkevmBenchmarkWorkloadTests(unittest.TestCase):
         )
         return completed, args_file
 
+    def test_run_script_reads_engine_fixtures(self):
+        completed, args_file = self.run_script(execution_client="ethrex")
+
+        self.assertEqual(
+            completed.returncode,
+            0,
+            f"stdout:\n{completed.stdout}\nstderr:\n{completed.stderr}",
+        )
+        args = args_file.read_text(encoding="utf-8").splitlines()
+        input_folder = Path(args[args.index("--input-folder") + 1])
+        self.assertEqual(input_folder.name, "blockchain_tests_engine")
+
+    def test_run_script_fails_without_engine_fixtures(self):
+        completed, args_file = self.run_script(
+            execution_client="ethrex",
+            engine_fixtures=False,
+        )
+
+        self.assertNotEqual(completed.returncode, 0)
+        self.assertIn("does not contain blockchain_tests_engine", completed.stderr)
+        self.assertFalse(args_file.exists())
+
     def test_run_script_passes_guest_artifact_base_url_when_set(self):
         completed, args_file = self.run_script(
-            execution_client="zesu",
-            guest_artifact_base_url=ZESU_URL,
+            execution_client="nimbus",
+            guest_artifact_base_url=GUEST_URL,
         )
 
         self.assertEqual(
@@ -102,8 +124,8 @@ class RunZkevmBenchmarkWorkloadTests(unittest.TestCase):
         )
 
         args = args_file.read_text(encoding="utf-8")
-        self.assertIn("--guest-artifact-base-url\n" + ZESU_URL, args)
-        self.assertIn("--execution-client\nzesu", args)
+        self.assertIn("--guest-artifact-base-url\n" + GUEST_URL, args)
+        self.assertIn("--execution-client\nnimbus", args)
 
     def test_run_script_omits_guest_artifact_base_url_when_unset(self):
         completed, args_file = self.run_script(execution_client="ethrex")
@@ -118,13 +140,13 @@ class RunZkevmBenchmarkWorkloadTests(unittest.TestCase):
         self.assertNotIn("--guest-artifact-base-url", args)
         self.assertIn("--execution-client\nethrex", args)
 
-    def test_zesu_run_uses_configured_guest_artifact_base_url(self):
+    def test_run_uses_configured_guest_artifact_base_url(self):
         completed, args_file = self.run_script(
-            execution_client="zesu",
+            execution_client="nimbus",
             guest_config={
                 "guests": {
-                    "zesu": {
-                        "guest_artifact_base_url": ZESU_URL,
+                    "nimbus": {
+                        "guest_artifact_base_url": GUEST_URL,
                     }
                 }
             },
@@ -136,14 +158,14 @@ class RunZkevmBenchmarkWorkloadTests(unittest.TestCase):
             f"stdout:\n{completed.stdout}\nstderr:\n{completed.stderr}",
         )
         args = args_file.read_text(encoding="utf-8")
-        self.assertIn("--guest-artifact-base-url\n" + ZESU_URL, args)
+        self.assertIn("--guest-artifact-base-url\n" + GUEST_URL, args)
 
-    def test_zesu_run_fails_when_required_guest_artifact_base_url_is_unconfigured(self):
+    def test_run_fails_when_required_guest_artifact_base_url_is_unconfigured(self):
         completed, _args_file = self.run_script(
-            execution_client="zesu",
+            execution_client="nimbus",
             guest_config={
                 "guests": {
-                    "zesu": {
+                    "nimbus": {
                         "requires_guest_artifact_base_url": True,
                     }
                 }
