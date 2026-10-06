@@ -159,12 +159,8 @@ _run_zkevm_validate() {
   if [ ! -f "$ZKEVM_BENCHMARK_WORKLOAD_DIR/Cargo.toml" ]; then
     _run_zkevm_die "zkevm-benchmark-workload Cargo.toml does not exist: $ZKEVM_BENCHMARK_WORKLOAD_DIR/Cargo.toml"
   fi
-  if [ ! -d "$FIXTURES_DIR" ]; then
-    _run_zkevm_die "FIXTURES_DIR does not exist: $FIXTURES_DIR"
-  fi
-  if { [ -f "$FIXTURES_DIR/.meta/index.json" ] || [ -d "$FIXTURES_DIR/blockchain_tests_engine" ]; } &&
-    [ ! -d "$FIXTURES_DIR/blockchain_tests" ]; then
-    _run_zkevm_die "FIXTURES_DIR is an EEST fixture bundle but does not contain blockchain_tests; zkevm-benchmark-workload requires blockchain_test fixtures"
+  if [ ! -d "$FIXTURES_DIR/blockchain_tests_engine" ]; then
+    _run_zkevm_die "FIXTURES_DIR does not contain blockchain_tests_engine; zkevm-benchmark-workload runs blockchain_test_engine fixtures: $FIXTURES_DIR"
   fi
 }
 
@@ -191,7 +187,7 @@ _run_zkevm_run() {
     cargo_args+=(
       stateless-validator
       --execution-client "$ZKEVM_WORKLOAD_EXECUTION_CLIENT"
-      --input-folder "$FIXTURES_DIR"
+      --input-folder "$FIXTURES_DIR/blockchain_tests_engine"
     )
 
     RUST_LOG=info RAYON_NUM_THREADS="$ZKEVM_RAYON_THREADS" \

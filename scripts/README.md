@@ -13,7 +13,7 @@ Implemented scripts:
 - `fill-fixtures.sh`: clone or update `execution-specs`, run `uv sync`,
   generate witness fixtures into `FIXTURES_DIR`, and validate the fixture index.
 - `validate-fixtures.sh`: validate an existing fixture directory contains
-  both `blockchain_test` and `blockchain_test_engine` fixtures.
+  `blockchain_test_engine` fixtures.
 - `setup-hive.sh`: clone or update Hive, build `./hive`, and generate
   `clients-local.yaml` from the selected EL client descriptors.
 - `list-el-clients.sh`: resolve selected EL descriptors and emit table, JSON,
@@ -25,7 +25,7 @@ Implemented scripts:
   `zkevm-benchmark-workload` and check out the configured ref.
 - `run-zkevm-benchmark-workload.sh`: run one
   `zkevm-benchmark-workload` stateless-validator execution benchmark against
-  `FIXTURES_DIR`.
+  `FIXTURES_DIR/blockchain_tests_engine`.
 - `run-hive-consume-client.sh`: run one selected EL client against
   `consume engine-witness` into an isolated result directory.
 - `run-hive-consume.sh`: prepare Hive, run the single-client worker once per
@@ -73,8 +73,7 @@ Prepare execution witness fixtures in the default fill mode:
 scripts/prepare-fixtures.sh
 ```
 
-The generation command targets both `blockchain_test` and
-`blockchain_test_engine`.
+The generation command targets `blockchain_test_engine`.
 
 Prepare pre-filled release fixtures instead of filling locally:
 
@@ -177,23 +176,22 @@ scripts/list-zkevm-workload-runs.sh --github-matrix
 
 By default, `ZKEVM_WORKLOAD_RUNS=ethrex:zisk,reth:zisk`, producing the two
 explicit execution-client/zkVM pairs in the list. `ethrex`, `reth`, and opt-in
-`zesu` and `nimbus` are accepted execution clients. Set `ZKEVM_WORKLOAD_RUNS`
+`nimbus` are accepted execution clients. Set `ZKEVM_WORKLOAD_RUNS`
 to an empty string, `none`, `skip`, or `empty` to skip workload runs.
 
 Workload guest descriptors live in `config/el-guests.json`. Descriptors can set
 `guest_artifact_base_url` at the guest level and may override it per zkVM under
-`zkvms.<zkvm>.guest_artifact_base_url`. Zesu can use this to locate release ELF
-assets:
+`zkvms.<zkvm>.guest_artifact_base_url`. The matrix includes each resolved URL:
 
 ```bash
-ZKEVM_WORKLOAD_RUNS=zesu:zisk,ethrex:zisk,ethrex:sp1 \
+ZKEVM_WORKLOAD_RUNS=nimbus:zisk,ethrex:zisk,ethrex:sp1 \
 scripts/list-zkevm-workload-runs.sh --github-matrix
 ```
 
-Workload `v0.17.2` locks `ere-guests` to `v0.17.1`. Empty guest descriptors
-use that release automatically, including Zesu and Nimbus on ZisK; custom
-artifact URLs remain optional overrides. Both Zesu and Nimbus support only
-ZisK. The pinned EEST source is `tests-zkevm@v0.8.4`.
+Workload `v0.18.0` locks `ere-guests` to `v0.18.0`. Empty guest descriptors
+use that release automatically; custom artifact URLs remain optional
+overrides. Nimbus supports only ZisK. The pinned EEST source is
+`tests-zkevm@v21.0.1`.
 
 Select Nimbus with `ZKEVM_WORKLOAD_RUNS=nimbus:zisk`. Its guest ID is `nimbus`;
 the Hive client ID is `nimbus-el`.
@@ -206,7 +204,7 @@ scripts/setup-zkevm-benchmark-workload.sh
 
 The default checkout is
 `https://github.com/eth-act/zkevm-benchmark-workload.git`
-at `v0.17.2`.
+at `v0.18.0`.
 
 Run one workload entry against prepared fixtures:
 
@@ -216,19 +214,20 @@ ZKEVM_WORKLOAD_ZKVM=zisk \
 scripts/run-zkevm-benchmark-workload.sh
 ```
 
-For a single Zesu run, `run-zkevm-benchmark-workload.sh` reads the URL from
+For a single run, `run-zkevm-benchmark-workload.sh` reads the guest URL from
 `config/el-guests.json`. Set `ZKEVM_WORKLOAD_GUEST_ARTIFACT_BASE_URL` only when
 you need a temporary local override.
 
-This resets `ZKEVM_METRICS_DIR`, defaults `RAYON_NUM_THREADS` from
-`ZKEVM_RAYON_THREADS`, runs `cargo run --locked --release -p ere-hosts`, and
+This requires `FIXTURES_DIR/blockchain_tests_engine`, resets
+`ZKEVM_METRICS_DIR`, defaults `RAYON_NUM_THREADS` from `ZKEVM_RAYON_THREADS`,
+runs `cargo run --locked --release -p ere-hosts` on the engine fixtures, and
 requires at least one generated metrics JSON before returning successfully.
 
 ### PR smoke check
 
-The PR workflow runs the production scripts against one empty-block test in
-both fixture formats. Geth executes the engine fixture through Hive; Ethrex
-executes the blockchain fixture on ZisK. The benchmark downloads its guest
+The PR workflow runs the production scripts against one empty-block
+`blockchain_test_engine` test. Geth executes it through Hive; Ethrex executes
+it on ZisK. The benchmark downloads its guest
 and runtime image using its own dependency versions.
 
 Run these commands from the dashboard repository root with the
@@ -262,7 +261,7 @@ the generated source checkouts and replace outputs under `smoke-results/`.
 )
 ```
 
-The result checker exits nonzero unless each fixture format contains the
+The result checker exits nonzero unless the engine fixture contains the
 selected case, Hive passes it without skipping, the guest output matches,
 and conversion preserves the passing result. It reads the fixture index and
 result files; it does not prepare or execute workloads.
