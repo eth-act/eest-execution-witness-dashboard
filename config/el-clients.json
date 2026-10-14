@@ -64,6 +64,16 @@
       "build_args": {
         "engine_api_rest": "true"
       }
+    },
+    "reth-rest": {
+      "hive_client": "reth",
+      "dockerfile": "git",
+      "nametag": "rest-ssz",
+      "hive_parallelism": 8,
+      "repo": "https://github.com/paradigmxyz/reth.git",
+      "github": "paradigmxyz/reth",
+      "ref": "main",
+      "transport": "rest-ssz"
     }
   }
 }

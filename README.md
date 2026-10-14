@@ -70,6 +70,13 @@ and opt-in for local runs. It builds `status-im/nimbus-eth1` at
 Nimbus transports can be selected together. The REST consumer ships in the
 default EEST pin, `tests-zkevm@v21.0.1`; older refs lack `--ssz`.
 
+Reth runs over REST+SSZ only, as the `reth-rest` descriptor. The refresh
+selects it; local runs opt in. Reth's JSON-RPC witness method is still an open
+pull request. The descriptor builds `paradigmxyz/reth` at `main`, which serves
+the witness endpoint on the Engine API port without extra flags. Results use
+`reth_rest-ssz`. Reth `v2.7.0` has the endpoint but lacks a fix that keeps
+bytecode created during the block out of the witness.
+
 ### zkEVM guests
 
 Workload `v0.18.1` downloads guests from the `ere-guests` `v0.18.1` release.
@@ -89,7 +96,7 @@ Scripts write checkouts and outputs to git-ignored directories:
 ### Refresh workflow
 
 The **Refresh execution witness dashboard** workflow
-(`.github/workflows/refresh-dashboard.yml`) prepares a dataset, runs six Hive
+(`.github/workflows/refresh-dashboard.yml`) prepares a dataset, runs seven Hive
 client configurations and eight zkEVM runs, and publishes the site. It runs
 every Monday and Thursday at 03:17 UTC. To run it now:
 
@@ -102,14 +109,16 @@ Each refresh uses:
 
 - The prefilled EEST release `tests-zkevm@v21.0.1`, Hive `master`,
   `zkevm-benchmark-workload` `v0.18.1`, and 10 Rayon threads.
-- Hive clients `ethrex,go-ethereum,nimbus-el,nethermind,besu,nimbus-el-rest`,
+- Hive clients
+  `ethrex,go-ethereum,nimbus-el,nethermind,besu,nimbus-el-rest,reth-rest`,
   with the checked-in descriptors.
 - zkEVM runs for Ethrex and Reth on SP1, ZisK, and OpenVM, and Zesu and Nimbus
   on ZisK.
 - hive-ui commit `b5441f735366a4f7d13575a020ccd6517d7ecaf3` and a 900 MiB
   site limit.
 
-Branch refs, such as Hive `master` and Besu `main`, resolve on each run.
+Branch refs, such as Hive `master`, Besu `main`, and Reth `main`, resolve on
+each run.
 
 Failing tests and guest crashes are published as results. Infrastructure
 failures, such as a failed job, missing Hive result JSON, or missing zkEVM

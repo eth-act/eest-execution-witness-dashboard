@@ -267,7 +267,9 @@ the generated source checkouts and replace outputs under `smoke-results/`.
 For another guest, repeat the run, convert, and check commands with its client
 and zkVM. For Nimbus REST/SSZ, run
 `scripts/run-hive-consume-client.sh nimbus-el-rest` and check it with
-`--client nimbus-el_rest-ssz`.
+`--client nimbus-el_rest-ssz`. For Reth, run
+`scripts/run-hive-consume-client.sh reth-rest` and check it with
+`--client reth_rest-ssz`.
 
 The `hive` check exits nonzero unless the engine fixture contains the selected
 case and the named Hive client passes it without skipping. The `zkevm` check
