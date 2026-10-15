@@ -378,10 +378,10 @@ The **PR smoke** check runs the unit tests, then fills one empty-block
 scripts as `run-workloads.yml` and `publish.yml`:
 
 - Geth runs it on Hive.
-- Nimbus REST/SSZ runs it on Hive when the pull request changes the Hive
-  scripts or patches, `config/el-clients.json`, `scripts/env.sh`, the result
-  checker, or the smoke workflow. Its image takes about 30 minutes to build;
-  the refresh always runs it.
+- Nimbus REST/SSZ runs it on Hive when the pull request changes the Hive or
+  fixture preparation scripts, Hive patches, `config/el-clients.json`,
+  `scripts/env.sh`, the result checker, or the smoke workflow. Its image takes
+  about 30 minutes to build; the refresh always runs it.
 - One job per zkVM runs every guest that the refresh runs on that zkVM. The
   pairs come from `refresh-dashboard.yml`, so new refresh pairs join the smoke.
 - A site job merges the Geth and zkEVM results, builds the hive-ui site, and
