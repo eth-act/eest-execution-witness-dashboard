@@ -37,10 +37,10 @@ jobs:
         run: |
           set -Eeuo pipefail
           for script in scripts/*.sh scripts/lib/*.sh; do bash -n "$script"; done
-          jq -e '.clients | type == "object" and length == 7' config/el-clients.json
+          jq -e '.clients | type == "object" and length == 8' config/el-clients.json
           jq -e '.guests | type == "object"' config/el-guests.json
           scripts/env.sh --validate-eest-source
-          EL_CLIENTS=go-ethereum,ethrex,nethermind,nimbus-el,besu,nimbus-el-rest,reth-rest scripts/list-el-clients.sh --github-matrix
+          EL_CLIENTS=go-ethereum,ethrex,nethermind,nimbus-el,besu,nimbus-el-rest,reth-rest,nethermind-rest scripts/list-el-clients.sh --github-matrix
           python3 -m unittest discover -s tests
       - name: Group the refresh's zkEVM runs by zkVM
         id: zkevm

@@ -74,6 +74,16 @@
       "github": "paradigmxyz/reth",
       "ref": "main",
       "transport": "rest-ssz"
+    },
+    "nethermind-rest": {
+      "hive_client": "nethermind",
+      "dockerfile": "git",
+      "nametag": "rest-ssz",
+      "hive_parallelism": 8,
+      "repo": "https://github.com/NethermindEth/nethermind.git",
+      "github": "NethermindEth/nethermind",
+      "ref": "master",
+      "transport": "rest-ssz"
     }
   }
 }

@@ -77,6 +77,14 @@ the witness endpoint on the Engine API port without extra flags. Results use
 `reth_rest-ssz`. Reth `v2.7.0` has the endpoint but lacks a fix that keeps
 bytecode created during the block out of the witness.
 
+Nethermind REST+SSZ is available as the `nethermind-rest` descriptor. The
+refresh selects it; local runs opt in. The descriptor builds
+`NethermindEth/nethermind` at `master`, which serves the witness endpoint on the
+Engine API port without extra flags. Results use `nethermind_rest-ssz`, so both
+Nethermind transports can be selected together. Release `2.1.0` lacks two
+fixes: it omits the endpoint from `GET /engine/v1/capabilities`, so EEST skips
+every test, and it returns no witness for a payload it already knows.
+
 ### zkEVM guests
 
 Workload `v0.18.1` downloads guests from the `ere-guests` `v0.18.1` release.
@@ -96,7 +104,7 @@ Scripts write checkouts and outputs to git-ignored directories:
 ### Refresh workflow
 
 The **Refresh execution witness dashboard** workflow
-(`.github/workflows/refresh-dashboard.yml`) prepares a dataset, runs seven Hive
+(`.github/workflows/refresh-dashboard.yml`) prepares a dataset, runs eight Hive
 client configurations and eight zkEVM runs, and publishes the site. It runs
 every Monday and Thursday at 03:17 UTC. To run it now:
 
@@ -110,7 +118,7 @@ Each refresh uses:
 - The prefilled EEST release `tests-zkevm@v21.0.1`, Hive `master`,
   `zkevm-benchmark-workload` `v0.18.1`, and 10 Rayon threads.
 - Hive clients
-  `ethrex,go-ethereum,nimbus-el,nethermind,besu,nimbus-el-rest,reth-rest`,
+  `ethrex,go-ethereum,nimbus-el,nethermind,besu,nimbus-el-rest,reth-rest,nethermind-rest`,
   with the checked-in descriptors.
 - zkEVM runs for Ethrex and Reth on SP1, ZisK, and OpenVM, and Zesu and Nimbus
   on ZisK.

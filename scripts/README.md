@@ -269,7 +269,9 @@ and zkVM. For Nimbus REST/SSZ, run
 `scripts/run-hive-consume-client.sh nimbus-el-rest` and check it with
 `--client nimbus-el_rest-ssz`. For Reth, run
 `scripts/run-hive-consume-client.sh reth-rest` and check it with
-`--client reth_rest-ssz`.
+`--client reth_rest-ssz`. For Nethermind REST/SSZ, run
+`scripts/run-hive-consume-client.sh nethermind-rest` and check it with
+`--client nethermind_rest-ssz`.
 
 The `hive` check exits nonzero unless the engine fixture contains the selected
 case and the named Hive client passes it without skipping. The `zkevm` check

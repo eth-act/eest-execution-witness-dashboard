@@ -59,7 +59,7 @@ class SetupHiveTests(unittest.TestCase):
         source.parent.mkdir(parents=True)
         source.write_text(UPSTREAM)
         (source.parent / "nimbus.sh").write_text(LAUNCHER)
-        for client in ("ethrex", "reth"):
+        for client in ("ethrex", "reth", "nethermind"):
             other = self.remote / f"clients/{client}/Dockerfile.git"
             other.parent.mkdir(parents=True)
             other.write_text("FROM scratch\n")
@@ -122,14 +122,19 @@ class SetupHiveTests(unittest.TestCase):
         self.assertNotIn("engine_api_rest", (self.checkout / DOCKERFILE).read_text())
         self.assertEqual((self.checkout / "clients/nimbus-el/nimbus.sh").read_text(), LAUNCHER)
 
-    def test_reth_rest_setup_leaves_hive_clients_unpatched(self):
-        self.setup_hive(EL_CLIENTS="reth-rest")
-        clients = (self.checkout / "clients-local.yaml").read_text()
-        self.assertIn("client: 'reth'", clients)
-        self.assertIn("nametag: 'rest-ssz'", clients)
-        self.assertIn("github: 'paradigmxyz/reth'", clients)
-        self.assertNotIn("engine_api_rest", clients)
-        self.assertEqual(self.git(self.checkout, "status", "--porcelain", "clients"), "")
+    def test_rest_setup_leaves_hive_clients_unpatched(self):
+        for descriptor, client, github in (
+            ("reth-rest", "reth", "paradigmxyz/reth"),
+            ("nethermind-rest", "nethermind", "NethermindEth/nethermind"),
+        ):
+            with self.subTest(descriptor=descriptor):
+                self.setup_hive(EL_CLIENTS=descriptor)
+                clients = (self.checkout / "clients-local.yaml").read_text()
+                self.assertIn(f"client: '{client}'", clients)
+                self.assertIn("nametag: 'rest-ssz'", clients)
+                self.assertIn(f"github: '{github}'", clients)
+                self.assertNotIn("engine_api_rest", clients)
+                self.assertEqual(self.git(self.checkout, "status", "--porcelain", "clients"), "")
 
     def test_rest_patch_preserves_edited_launcher(self):
         self.setup_hive(EL_CLIENTS="nimbus-el-rest")
