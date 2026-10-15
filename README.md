@@ -52,13 +52,16 @@ SITE_MAX_SIZE_MB=900
 | --- | --- | --- |
 | `go-ethereum` | `ethereum/go-ethereum` | `v1.17.7` |
 | `ethrex` | `lambdaclass/ethrex` | `v29.0.0` |
-| `nethermind` | `NethermindEth/nethermind` | `2.1.0` |
+| `nethermind` | `NethermindEth/nethermind` | `master` |
 | `nimbus-el` | `status-im/nimbus-eth1` | `master` |
 | `besu` | `besu-eth/besu` | `main` |
 
 The tags are each client's release for the Glamsterdam upgrade on Sepolia.
-Besu uses `main` because its latest release lacks the witness RPC. Nimbus
-generates witnesses on demand and needs no extra startup flags.
+Besu uses `main` because its latest release lacks the witness RPC. Nethermind
+uses `master` because release `2.1.0` no longer builds: it pins .NET crypto
+packages with published security advisories, and Nethermind treats NuGet audit
+warnings as errors. Nimbus generates witnesses on demand and needs no extra
+startup flags.
 
 Hive builds each client from its `Dockerfile.git`, which clones the descriptor
 `ref` with `git clone --branch`. Use a branch or tag name, not a commit SHA.

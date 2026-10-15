@@ -48,7 +48,7 @@
       "hive_parallelism": 8,
       "repo": "https://github.com/NethermindEth/nethermind.git",
       "github": "NethermindEth/nethermind",
-      "ref": "2.1.0",
+      "ref": "master",
       "transport": "json-rpc-rlp"
     },
     "nimbus-el-rest": {
