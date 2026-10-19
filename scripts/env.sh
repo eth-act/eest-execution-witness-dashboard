@@ -103,7 +103,7 @@ if [ -z "${EEST_REPO+x}" ]; then
   EEST_REPO="https://github.com/ethereum/execution-specs.git"
 fi
 if [ -z "${EEST_REF+x}" ]; then
-  EEST_REF="tests-zkevm@v21.0.1"
+  EEST_REF="tests-zkevm@v21.0.6"
 fi
 if [ -n "$EEST_RELEASE_TAG" ]; then
   # workflow_dispatch text inputs with defaults can arrive populated even when

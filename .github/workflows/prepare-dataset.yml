@@ -14,7 +14,7 @@ on:
       eest_ref:
         description: execution-specs branch, tag, or commit.
         required: false
-        default: tests-zkevm@v21.0.1
+        default: tests-zkevm@v21.0.6
       filler_path:
         description: execution-specs filler path to generate in fill mode; ignored when eest_release_tag is set.
         required: false
@@ -59,7 +59,7 @@ on:
         type: string
         description: execution-specs branch, tag, or commit.
         required: false
-        default: tests-zkevm@v21.0.1
+        default: tests-zkevm@v21.0.6
       filler_path:
         type: string
         description: execution-specs filler path to generate in fill mode; ignored when eest_release_tag is set.

@@ -19,7 +19,7 @@ The dashboard combines two result sets built from the same EEST
 ```bash
 EEST_RELEASE_TAG=
 EEST_REPO=https://github.com/ethereum/execution-specs.git
-EEST_REF=tests-zkevm@v21.0.1
+EEST_REF=tests-zkevm@v21.0.6
 FILLER_PATH=tests/amsterdam/eip8025_optional_proofs
 FORK=Amsterdam
 
@@ -70,8 +70,8 @@ Nimbus REST+SSZ is available as the `nimbus-el-rest` descriptor, selected by CI
 and opt-in for local runs. It builds `status-im/nimbus-eth1` at
 `witness-rest-ssz-endpoint`, enables `--debug-engine-api-rest`, and runs
 `consume engine-witness --ssz`. Results use `nimbus-el_rest-ssz`, so both
-Nimbus transports can be selected together. The REST consumer ships in the
-default EEST pin, `tests-zkevm@v21.0.1`; older refs lack `--ssz`.
+Nimbus transports can be selected together. The REST consumer ships in
+`tests-zkevm@v21.0.1` and later; older refs lack `--ssz`.
 
 Reth runs over REST+SSZ only, as the `reth-rest` descriptor. The refresh
 selects it; local runs opt in. Reth's JSON-RPC witness method is still an open
@@ -118,7 +118,7 @@ gh workflow run refresh-dashboard.yml --ref main
 Only one refresh runs at a time; a new one waits for the current one to finish.
 Each refresh uses:
 
-- The prefilled EEST release `tests-zkevm@v21.0.1`, Hive `master`,
+- The prefilled EEST release `tests-zkevm@v21.0.6`, Hive `master`,
   `zkevm-benchmark-workload` `v0.18.1`, and 10 Rayon threads.
 - Hive clients
   `ethrex,go-ethereum,nimbus-el,nethermind,besu,nimbus-el-rest,reth-rest,nethermind-rest`,
@@ -186,7 +186,7 @@ workload. A release-mode dataset uses the whole fixture bundle; `filler_path`
 and `fork` do not filter it.
 
 The site's group title shows the release tag, for example
-`tests-zkevm v21.0.1`. Fill-mode datasets use `execution-witness`.
+`tests-zkevm v21.0.6`. Fill-mode datasets use `execution-witness`.
 
 `publish.yml` uploads the combined Hive results as a short-lived
 `hive-combined-results-*` artifact. Failed runs upload debug artifacts with
@@ -262,7 +262,7 @@ for `FILLER_PATH` and `FORK` into `FIXTURES_DIR` and checks that
 To use a release's prefilled fixtures instead, set `EEST_RELEASE_TAG`:
 
 ```bash
-EEST_RELEASE_TAG='tests-zkevm@v21.0.1' scripts/prepare-fixtures.sh
+EEST_RELEASE_TAG='tests-zkevm@v21.0.6' scripts/prepare-fixtures.sh
 ```
 
 Release mode ignores `EEST_REPO` and `EEST_REF`. It checks out that tag for the

@@ -192,7 +192,7 @@ scripts/list-zkevm-workload-runs.sh --github-matrix
 Workload `v0.18.1` locks `ere-guests` to `v0.18.1`. Empty guest descriptors
 use that release automatically; custom artifact URLs remain optional
 overrides. Zesu and Nimbus support only ZisK. The pinned EEST source is
-`tests-zkevm@v21.0.1`.
+`tests-zkevm@v21.0.6`.
 
 Select Nimbus with `ZKEVM_WORKLOAD_RUNS=nimbus:zisk`. Its guest ID is `nimbus`;
 the Hive client ID is `nimbus-el`.
