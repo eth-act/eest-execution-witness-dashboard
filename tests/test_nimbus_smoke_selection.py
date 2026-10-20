@@ -53,22 +53,24 @@ class NimbusSmokeSelectionTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             return output.read_text(encoding="utf-8").strip()
 
-    def test_fixture_helpers_trigger_nimbus(self):
+    def test_setup_eest_triggers_nimbus(self):
+        self.assertEqual(self.run_selection("scripts/setup-eest.sh"), "nimbus=true")
+
+    def test_fixture_scripts_covered_by_geth_skip_nimbus(self):
         for path in (
             "scripts/prepare-fixtures.sh",
             "scripts/fill-fixtures.sh",
-            "scripts/setup-eest.sh",
             "scripts/validate-fixtures.sh",
         ):
             with self.subTest(path=path):
-                self.assertEqual(self.run_selection(path), "nimbus=true")
+                self.assertEqual(self.run_selection(path), "nimbus=false")
 
     def test_unrelated_change_skips_nimbus(self):
         self.assertEqual(self.run_selection("README.md"), "nimbus=false")
 
-    def test_fixture_helper_among_other_changes_triggers_nimbus(self):
+    def test_setup_eest_among_other_changes_triggers_nimbus(self):
         self.assertEqual(
-            self.run_selection("README.md\nscripts/fill-fixtures.sh"),
+            self.run_selection("scripts/fill-fixtures.sh\nscripts/setup-eest.sh"),
             "nimbus=true",
         )
 
