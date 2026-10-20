@@ -44,7 +44,7 @@ jobs:
     uses: ./.github/workflows/prepare-dataset.yml
     with:
       # Consume the prefilled release asset without generating or filtering fixtures.
-      eest_release_tag: tests-zkevm@v21.0.1
+      eest_release_tag: tests-zkevm@v21.0.6
       hive_repo: https://github.com/ethereum/hive.git
       hive_ref: master
       zkevm_benchmark_workload_repo: https://github.com/eth-act/zkevm-benchmark-workload.git
