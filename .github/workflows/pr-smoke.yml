@@ -70,13 +70,15 @@ jobs:
           set -Eeuo pipefail
           # Nimbus takes about 30 minutes to build, so it runs only when a
           # change can affect Hive or REST/SSZ. The refresh always runs it.
+          # Geth already runs the fixture scripts, so only setup-eest.sh,
+          # which installs the consume engine-witness checkout, is listed.
           changed="$(git diff --name-only HEAD^1 HEAD)"
           nimbus=false
           while IFS= read -r path; do
             case "$path" in
               .github/actions/* | .github/workflows/pr-smoke.yml | config/el-clients.json | \
                 patches/hive-* | scripts/env.sh | scripts/lib/* | scripts/setup-hive.sh | \
-                scripts/run-hive-consume-client.sh | scripts/prepare-fixtures.sh | \
+                scripts/run-hive-consume-client.sh | scripts/setup-eest.sh | \
                 scripts/prune-skipped-hive-results.py | scripts/check-smoke-results.py)
                 echo "Nimbus runs because $path changed"
                 nimbus=true
