@@ -292,7 +292,7 @@ jobs:
             result-bundle
 
   zkevm:
-    name: zkEVM ${{ matrix.execution_client }} / ${{ matrix.zkvm }}
+    name: zkEVM ${{ matrix.execution_client }} on ${{ matrix.zkvm }}
     if: ${{ needs.resolve.outputs.zkevm_count != '0' }}
     needs: resolve
     runs-on: [self-hosted-ghr, size-xl-x64]
