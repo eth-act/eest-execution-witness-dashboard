@@ -1,8 +1,9 @@
 {
   "guests": {
     "ethrex": {},
+    "nethermind": {},
     "nimbus": {},
     "reth": {},
-    "zesu": {}
+    "zilkworm": {}
   }
 }
