@@ -40,6 +40,32 @@ echo "Running nimbus with flags $FLAGS"
 $nimbus $FLAGS
 '''
 
+RETH_DOCKERFILE = "clients/reth/Dockerfile.git"
+# Relevant structure of Hive e1ad8100's reth Dockerfile.
+RETH_UPSTREAM = '''
+### Build Reth From Git:
+## Pulls reth from a git repository and builds it from source.
+
+## Builder stage: Compiles reth from a git repository
+FROM rust:latest as builder
+
+ARG github=paradigmxyz/reth
+ARG tag=main
+
+RUN rustup update stable && rustup default stable
+RUN apt-get update && apt-get install -y libclang-dev pkg-config build-essential \\
+    && echo "Cloning: $github - $tag" \\
+    && git clone --depth 1 --branch $tag https://github.com/$github reth \\
+    && cd reth && cargo build --release -p reth --no-default-features \\
+        --features jemalloc,otlp,otlp-logs,reth-revm/portable,js-tracer,keccak-cache-global,asm-keccak,min-trace-logs \\
+    && cp target/release/reth /usr/local/bin/reth
+
+## Final stage: Sets up the environment for running reth
+FROM debian:latest
+RUN apt-get update && apt-get install -y bash curl jq \\
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+'''
+
 
 class SetupHiveTests(unittest.TestCase):
     def setUp(self):
@@ -59,10 +85,13 @@ class SetupHiveTests(unittest.TestCase):
         source.parent.mkdir(parents=True)
         source.write_text(UPSTREAM)
         (source.parent / "nimbus.sh").write_text(LAUNCHER)
-        for client in ("ethrex", "reth", "nethermind"):
+        for client in ("ethrex", "nethermind"):
             other = self.remote / f"clients/{client}/Dockerfile.git"
             other.parent.mkdir(parents=True)
             other.write_text("FROM scratch\n")
+        reth = self.remote / RETH_DOCKERFILE
+        reth.parent.mkdir(parents=True)
+        reth.write_text(RETH_UPSTREAM)
         self.commit()
         bin_dir = self.root / "bin"
         bin_dir.mkdir()
@@ -122,10 +151,10 @@ class SetupHiveTests(unittest.TestCase):
         self.assertNotIn("engine_api_rest", (self.checkout / DOCKERFILE).read_text())
         self.assertEqual((self.checkout / "clients/nimbus-el/nimbus.sh").read_text(), LAUNCHER)
 
-    def test_rest_setup_leaves_hive_clients_unpatched(self):
-        for descriptor, client, github in (
-            ("reth-rest", "reth", "paradigmxyz/reth"),
-            ("nethermind-rest", "nethermind", "NethermindEth/nethermind"),
+    def test_rest_setup_only_patches_reth_dockerfile(self):
+        for descriptor, client, github, changed in (
+            ("reth-rest", "reth", "paradigmxyz/reth", f"M {RETH_DOCKERFILE}"),
+            ("nethermind-rest", "nethermind", "NethermindEth/nethermind", ""),
         ):
             with self.subTest(descriptor=descriptor):
                 self.setup_hive(EL_CLIENTS=descriptor)
@@ -134,7 +163,41 @@ class SetupHiveTests(unittest.TestCase):
                 self.assertIn("nametag: 'rest-ssz'", clients)
                 self.assertIn(f"github: '{github}'", clients)
                 self.assertNotIn("engine_api_rest", clients)
-                self.assertEqual(self.git(self.checkout, "status", "--porcelain", "clients"), "")
+                self.assertEqual(self.git(self.checkout, "status", "--porcelain", "clients"), changed)
+
+    def test_reth_patch_swaps_portable_feature_once(self):
+        self.setup_hive(EL_CLIENTS="reth-rest")
+        first = (self.checkout / RETH_DOCKERFILE).read_text()
+        self.setup_hive(EL_CLIENTS="reth-rest")
+        self.assertEqual((self.checkout / RETH_DOCKERFILE).read_text(), first)
+        self.assertNotIn("reth-revm/portable", first)
+        self.assertEqual(first.count(",portable,"), 1)
+        self.assertEqual(first.count("# eest-dashboard:"), 1)
+
+    def test_deselecting_reth_removes_patch(self):
+        self.setup_hive(EL_CLIENTS="reth-rest")
+        self.setup_hive(EL_CLIENTS="nethermind-rest")
+        self.assertEqual((self.checkout / RETH_DOCKERFILE).read_text(), RETH_UPSTREAM)
+
+    def test_reth_patch_skipped_once_upstream_is_fixed(self):
+        fixed = RETH_UPSTREAM.replace("reth-revm/portable", "portable")
+        (self.remote / RETH_DOCKERFILE).write_text(fixed)
+        self.commit()
+        result = self.setup_hive(EL_CLIENTS="reth-rest")
+        self.assertIn("skipping managed reth portable patch", result.stdout)
+        self.assertEqual((self.checkout / RETH_DOCKERFILE).read_text(), fixed)
+
+    def test_reth_patch_fails_on_changed_upstream_structure(self):
+        (self.remote / RETH_DOCKERFILE).write_text(
+            RETH_UPSTREAM.replace("RUN rustup update stable", "RUN rustup update nightly")
+        )
+        self.commit()
+        result = self.setup_hive(success=False, EL_CLIENTS="reth-rest")
+        self.assertIn("managed reth portable patch does not apply", result.stderr)
+        self.assertEqual(
+            (self.checkout / RETH_DOCKERFILE).read_text(),
+            (self.remote / RETH_DOCKERFILE).read_text(),
+        )
 
     def test_rest_patch_preserves_edited_launcher(self):
         self.setup_hive(EL_CLIENTS="nimbus-el-rest")

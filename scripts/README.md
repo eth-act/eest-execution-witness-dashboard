@@ -142,6 +142,16 @@ Locally verified with Hive `43ea47be`, Nimbus `4dc018eb`, and execution-specs
 and the Amsterdam empty-block witness smoke test passed (one case, no skips
 or timeouts). This validation did not run the full witness suite.
 
+reth-rest uses `managed_patch=reth-portable-feature`. reth main removed the
+`reth-revm` crate in [paradigmxyz/reth#25002](https://github.com/paradigmxyz/reth/pull/25002),
+but Hive's `clients/reth/Dockerfile.git` still builds with `reth-revm/portable`,
+which broke the reth image build in the [October 26, 2026 run](https://github.com/eth-act/eest-execution-witness-dashboard/actions/runs/40297073604/job/121899790269).
+Setup applies `patches/hive-reth-portable-feature.patch` to use the reth
+binary's `portable` feature instead. As with the Nimbus patch, setup removes it
+before updating Hive and reapplies it when reth-rest is selected. Once Hive's
+Dockerfile stops using `reth-revm/portable`, setup skips the patch with a log
+line, and we can delete it.
+
 Run Hive and consume the generated fixtures once per selected EL:
 
 ```bash

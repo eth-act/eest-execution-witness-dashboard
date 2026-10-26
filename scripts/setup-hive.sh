@@ -20,6 +20,7 @@ fi
 _setup_hive_client_file="$HIVE_DIR/clients-local.yaml"
 _setup_hive_nimbus_rest_patch="$_setup_hive_script_dir/../patches/hive-nimbus-rest.patch"
 _setup_hive_nimbus_lfs_patch="$_setup_hive_script_dir/../patches/hive-nimbus-skip-lfs.patch"
+_setup_hive_reth_portable_patch="$_setup_hive_script_dir/../patches/hive-reth-portable-feature.patch"
 
 _setup_hive_usage() {
   printf '%s\n' \
@@ -119,6 +120,7 @@ _setup_hive_prepare_git_checkout() {
 
     _setup_hive_restore_nimbus_rest_patch
     _setup_hive_restore_nimbus_lfs_patch
+    _setup_hive_restore_reth_portable_patch
 
     if git -C "$checkout_dir" remote get-url origin >/dev/null 2>&1; then
       git -C "$checkout_dir" remote set-url origin "$repo"
@@ -204,6 +206,46 @@ _setup_hive_patch_nimbus_lfs() {
   fi
   _setup_hive_log "Disabling LFS downloads in the Nimbus Docker build"
   git -C "$HIVE_DIR" apply "$_setup_hive_nimbus_lfs_patch"
+}
+
+_setup_hive_restore_reth_portable_patch() {
+  local dockerfile
+
+  dockerfile="$HIVE_DIR/clients/reth/Dockerfile.git"
+  if [ ! -f "$dockerfile" ] ||
+    ! grep -Fq '# eest-dashboard: reth main moved portable from reth-revm to the reth binary.' "$dockerfile"; then
+    return 0
+  fi
+
+  if ! git -C "$HIVE_DIR" apply --reverse --check "$_setup_hive_reth_portable_patch"; then
+    _setup_hive_die "unable to remove managed reth portable patch before updating Hive; check local edits to $dockerfile"
+  fi
+  _setup_hive_log "Removing managed reth portable patch before updating Hive"
+  git -C "$HIVE_DIR" apply --reverse "$_setup_hive_reth_portable_patch"
+}
+
+_setup_hive_patch_reth_portable() {
+  local descriptor
+
+  descriptor="$1"
+  if [ "$(eest_el_clients_descriptor_field "$descriptor" '.hive_client')" != reth ] ||
+    [ "$(eest_el_clients_dockerfile_ext "$descriptor")" != git ]; then
+    _setup_hive_die 'reth-portable-feature requires hive_client=reth and dockerfile=git'
+  fi
+
+  if git -C "$HIVE_DIR" apply --reverse --check "$_setup_hive_reth_portable_patch" >/dev/null 2>&1; then
+    return 0
+  fi
+  # Once Hive catches up with reth, keep building instead of failing on a stale patch.
+  if ! grep -Fq 'reth-revm/portable' "$HIVE_DIR/clients/reth/Dockerfile.git"; then
+    _setup_hive_log "Hive's reth Dockerfile no longer uses reth-revm/portable; skipping managed reth portable patch"
+    return 0
+  fi
+  if ! git -C "$HIVE_DIR" apply --check "$_setup_hive_reth_portable_patch"; then
+    _setup_hive_die "managed reth portable patch does not apply to Hive at $HIVE_REF; check clients/reth/Dockerfile.git"
+  fi
+  _setup_hive_log "Switching the reth Docker build to the reth binary's portable feature"
+  git -C "$HIVE_DIR" apply "$_setup_hive_reth_portable_patch"
 }
 
 _setup_hive_validate_extra_flags() {
@@ -338,6 +380,9 @@ _setup_hive_apply_descriptor_setup() {
       ;;
     nimbus-skip-lfs)
       _setup_hive_patch_nimbus_lfs "$descriptor"
+      ;;
+    reth-portable-feature)
+      _setup_hive_patch_reth_portable "$descriptor"
       ;;
     *)
       _setup_hive_die "unsupported managed_patch for $(eest_el_clients_descriptor_field "$descriptor" '.id'): $managed_patch"

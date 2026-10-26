@@ -73,6 +73,7 @@
       "repo": "https://github.com/paradigmxyz/reth.git",
       "github": "paradigmxyz/reth",
       "ref": "main",
+      "managed_patch": "reth-portable-feature",
       "transport": "rest-ssz"
     },
     "nethermind-rest": {
