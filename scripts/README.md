@@ -14,6 +14,9 @@ Implemented scripts:
   generate witness fixtures into `FIXTURES_DIR`, and validate the fixture index.
 - `validate-fixtures.sh`: validate an existing fixture directory contains
   `blockchain_test_engine` fixtures.
+- `download-run-artifact.sh`: download one artifact from a workflow run, check
+  its digest, and extract it. A stalled or interrupted download resumes from the
+  bytes already on disk. Workload jobs use it for the dataset fixtures.
 - `setup-hive.sh`: clone or update Hive, build `./hive`, and generate
   `clients-local.yaml` from the selected EL client descriptors.
 - `list-el-clients.sh`: resolve selected EL descriptors and emit table, JSON,

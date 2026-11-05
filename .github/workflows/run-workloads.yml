@@ -207,14 +207,12 @@ jobs:
           repository: ${{ github.repository }}
           run-id: ${{ inputs.dataset_run_id }}
 
+      # actions/download-artifact restarts this ~600 MB zip from zero when the
+      # blob download stalls; the script resumes it instead.
       - name: Download dataset fixtures
-        uses: actions/download-artifact@v8
-        with:
-          name: dataset-fixtures-${{ inputs.dataset_run_id }}
-          path: dataset
-          github-token: ${{ github.token }}
-          repository: ${{ github.repository }}
-          run-id: ${{ inputs.dataset_run_id }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/download-run-artifact.sh "$DATASET_RUN_ID" "dataset-fixtures-$DATASET_RUN_ID" dataset
 
       - name: Validate and extract dataset
         run: |
@@ -346,14 +344,12 @@ jobs:
           repository: ${{ github.repository }}
           run-id: ${{ inputs.dataset_run_id }}
 
+      # actions/download-artifact restarts this ~600 MB zip from zero when the
+      # blob download stalls; the script resumes it instead.
       - name: Download dataset fixtures
-        uses: actions/download-artifact@v8
-        with:
-          name: dataset-fixtures-${{ inputs.dataset_run_id }}
-          path: dataset
-          github-token: ${{ github.token }}
-          repository: ${{ github.repository }}
-          run-id: ${{ inputs.dataset_run_id }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/download-run-artifact.sh "$DATASET_RUN_ID" "dataset-fixtures-$DATASET_RUN_ID" dataset
 
       - name: Validate and extract dataset
         run: |
