@@ -136,6 +136,10 @@ Failing tests and guest crashes are published as results. Infrastructure
 failures, such as a failed job, missing Hive result JSON, or missing zkEVM
 metrics, stop publication and leave the deployed site unchanged.
 
+When a refresh fails, `rerun-failed-refresh.yml` reruns its failed jobs once.
+If they fail again, the run stays failed so someone can look at it. Cancelled
+refreshes aren't rerun.
+
 ### Stages
 
 The refresh calls three workflows. You can also dispatch each one alone to
