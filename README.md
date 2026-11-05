@@ -1,16 +1,16 @@
 # eest-execution-witness-dashboard
 
-Publishes execution witness test results as a static
+This repository publishes execution witness test results as a static
 [hive-ui](https://github.com/ethpandaops/hive-ui) site on GitHub Pages:
 <https://eth-act.github.io/eest-execution-witness-dashboard/>.
 
 The dashboard combines two result sets built from the same EEST
 `blockchain_test_engine` fixtures:
 
-- **Hive:** each execution client runs EEST `consume engine-witness`, which
-  checks the execution witnesses the client returns.
-- **zkEVM:** `zkevm-benchmark-workload` runs stateless-validator guests on zkVMs.
-  A converter turns their metrics into Hive-shaped results.
+- Hive: each execution client runs EEST `consume engine-witness`, which checks
+  the execution witnesses the client returns.
+- zkEVM: `zkevm-benchmark-workload` runs stateless-validator guests on zkVMs,
+  and a converter turns their metrics into Hive-shaped results.
 
 ## Defaults
 
@@ -44,9 +44,14 @@ HIVE_CLIENT_RESULTS_DIR=hive/workspace/client-results
 SITE_MAX_SIZE_MB=900
 ```
 
+Scripts write checkouts and outputs to git-ignored directories:
+`execution-specs/`, `hive/`, `hive-ui/`, `go-ethereum-src/`,
+`zkevm-benchmark-workload/`, `zkevm-metrics/`, `fixtures/`, `site/`, and
+`smoke-results/`.
+
 ### Execution clients
 
-`config/el-clients.json` defines one JSON-RPC+RLP descriptor per client:
+`config/el-clients.json` has one descriptor per client. These use JSON-RPC+RLP:
 
 | Hive client | Repository | Ref |
 | --- | --- | --- |
@@ -56,59 +61,53 @@ SITE_MAX_SIZE_MB=900
 | `nimbus-el` | `status-im/nimbus-eth1` | `master` |
 | `besu` | `besu-eth/besu` | `main` |
 
-Each descriptor tracks the client's default branch, so every refresh tests
-current code and shows fixes and regressions as they land. Releases would not
-work for every client anyway: Besu's latest release lacks the witness RPC, and
-Nethermind release `2.1.0` no longer builds. It pins .NET crypto packages with
-published security advisories, and Nethermind treats NuGet audit warnings as
-errors. Nimbus generates witnesses on demand and needs no extra
-startup flags.
+These use REST+SSZ and run `consume engine-witness --ssz`. The refresh selects
+them, and local runs opt in:
+
+| Descriptor | Repository | Ref | Results |
+| --- | --- | --- | --- |
+| `nimbus-el-rest` | `status-im/nimbus-eth1` | `witness-rest-ssz-endpoint` | `nimbus-el_rest-ssz` |
+| `reth-rest` | `paradigmxyz/reth` | `main` | `reth_rest-ssz` |
+| `nethermind-rest` | `NethermindEth/nethermind` | `master` | `nethermind_rest-ssz` |
+
+The REST results have their own client name, so Nimbus and Nethermind can run
+both transports in the same site. The REST consumer ships in
+`tests-zkevm@v21.0.1` and later; older refs lack `--ssz`.
+
+Descriptors track each client's default branch, so every refresh tests current
+code and shows fixes and regressions as they land. Releases wouldn't work for
+every client anyway:
+
+- Besu's latest release lacks the witness RPC.
+- Nethermind `2.1.0` no longer builds. It pins .NET crypto packages with
+  published security advisories, and Nethermind treats NuGet audit warnings as
+  errors. Its REST endpoint also lacks two fixes: it's missing from
+  `GET /engine/v1/capabilities`, so EEST skips every test, and it returns no
+  witness for a payload it already knows.
+- Reth `v2.7.0` has the REST endpoint but lacks a fix that keeps bytecode
+  created during the block out of the witness. Reth's JSON-RPC witness method
+  is still an open pull request, so Reth only runs over REST+SSZ.
+
+Nimbus generates witnesses on demand and needs no extra startup flags;
+`nimbus-el-rest` enables `--debug-engine-api-rest`. Reth and Nethermind serve
+the REST witness endpoint on the Engine API port without extra flags.
 
 Hive builds each client from its `Dockerfile.git`, which clones the descriptor
 `ref` with `git clone --branch`. Use a branch or tag name, not a commit SHA.
-
-Nimbus REST+SSZ is available as the `nimbus-el-rest` descriptor, selected by CI
-and opt-in for local runs. It builds `status-im/nimbus-eth1` at
-`witness-rest-ssz-endpoint`, enables `--debug-engine-api-rest`, and runs
-`consume engine-witness --ssz`. Results use `nimbus-el_rest-ssz`, so both
-Nimbus transports can be selected together. The REST consumer ships in
-`tests-zkevm@v21.0.1` and later; older refs lack `--ssz`.
-
-Reth runs over REST+SSZ only, as the `reth-rest` descriptor. The refresh
-selects it; local runs opt in. Reth's JSON-RPC witness method is still an open
-pull request. The descriptor builds `paradigmxyz/reth` at `main`, which serves
-the witness endpoint on the Engine API port without extra flags. Results use
-`reth_rest-ssz`. Reth `v2.7.0` has the endpoint but lacks a fix that keeps
-bytecode created during the block out of the witness.
-
-Nethermind REST+SSZ is available as the `nethermind-rest` descriptor. The
-refresh selects it; local runs opt in. The descriptor builds
-`NethermindEth/nethermind` at `master`, which serves the witness endpoint on the
-Engine API port without extra flags. Results use `nethermind_rest-ssz`, so both
-Nethermind transports can be selected together. Release `2.1.0` lacks two
-fixes: it omits the endpoint from `GET /engine/v1/capabilities`, so EEST skips
-every test, and it returns no witness for a payload it already knows.
 
 ### zkEVM guests
 
 Workload `v0.19.1` downloads guests from the `ere-guests` `v0.19.1` release.
 It provides Ethrex, Reth, and Zesu on SP1, ZisK, and OpenVM, Nimbus and
-Nethermind on SP1 and ZisK, and Zilkworm on SP1 only.
-The Nimbus guest ID is `nimbus`; its Hive client ID is `nimbus-el`. Nethermind
-uses `nethermind` for both.
-
-### Generated directories
-
-Scripts write checkouts and outputs to git-ignored directories:
-`execution-specs/`, `hive/`, `hive-ui/`, `go-ethereum-src/`,
-`zkevm-benchmark-workload/`, `zkevm-metrics/`, `fixtures/`, `site/`, and
-`smoke-results/`.
+Nethermind on SP1 and ZisK, and Zilkworm on SP1 only. The Nimbus guest ID is
+`nimbus`, and its Hive client ID is `nimbus-el`. Nethermind uses `nethermind`
+for both.
 
 ## Publishing
 
 ### Refresh workflow
 
-The **Refresh execution witness dashboard** workflow
+The Refresh execution witness dashboard workflow
 (`.github/workflows/refresh-dashboard.yml`) prepares a dataset, runs eight Hive
 client configurations and fourteen zkEVM runs, and publishes the site. It runs
 every Monday and Thursday at 03:17 UTC. To run it now:
@@ -118,19 +117,11 @@ gh workflow run refresh-dashboard.yml --ref main
 ```
 
 Only one refresh runs at a time; a new one waits for the current one to finish.
-Each refresh uses:
-
-- The prefilled EEST release `tests-zkevm@v21.0.6`, Hive `master`,
-  `zkevm-benchmark-workload` `v0.19.1`, and 10 Rayon threads.
-- Hive clients
-  `ethrex,go-ethereum,nimbus-el,nethermind,besu,nimbus-el-rest,reth-rest,nethermind-rest`,
-  with the checked-in descriptors.
-- zkEVM runs for Ethrex, Reth, and Zesu on SP1, ZisK, and OpenVM, Nimbus and
-  Nethermind on SP1 and ZisK, and Zilkworm on SP1.
-- hive-ui commit `b5441f735366a4f7d13575a020ccd6517d7ecaf3` and a 900 MiB
-  site limit.
-
-Branch refs, such as Hive `master` and every client ref, resolve on each run.
+Each refresh uses the prefilled EEST release `tests-zkevm@v21.0.6`, every Hive
+client in the two tables above, and every guest/zkVM pair the workload
+provides. Hive, the workload, Rayon threads, hive-ui, and the site limit match
+the defaults. Branch refs, such as Hive `master` and every client ref, resolve
+on each run.
 
 Failing tests and guest crashes are published as results. Infrastructure
 failures, such as a failed job, missing Hive result JSON, or missing zkEVM
@@ -142,8 +133,8 @@ refreshes aren't rerun.
 
 ### Stages
 
-The refresh calls three workflows. You can also dispatch each one alone to
-reuse earlier results. All three must run from `main`.
+The refresh calls three workflows, which you can also dispatch alone to reuse
+earlier results. All three must run from `main`.
 
 1. `prepare-dataset.yml` prepares fixtures and pins EEST, Hive, and
    `zkevm-benchmark-workload`. Its run ID is the `dataset_run_id`.
@@ -171,24 +162,24 @@ gh workflow run publish.yml --ref main \
   -f zkevm_workload_runs=nimbus:zisk,ethrex:zisk,ethrex:sp1
 ```
 
-To refresh one client after changing its ref, run `run-workloads.yml` for that
-client with `zkevm_workload_runs=none`. Then run `publish.yml` with the full
-site selection; it combines the new artifact with the latest successful
-artifacts of the other workloads. Add a client the same way.
+To refresh or add one client, run `run-workloads.yml` for that client with
+`zkevm_workload_runs=none`. Then run `publish.yml` with the full site
+selection, and it combines the new artifact with the latest successful
+artifacts of the other workloads.
 
 Publication rules:
 
 - A failed run leaves the previous successful artifact in use. A new client
   with no successful artifact fails publication and leaves the site unchanged.
-- `el_clients=none` publishes only zkEVM results; `zkevm_workload_runs=none`
-  publishes only Hive results.
+- `el_clients=none` publishes only zkEVM results, and
+  `zkevm_workload_runs=none` publishes only Hive results.
 - `publish.yml` rejects result bundles from another dataset, expired
   artifacts, and runs outside `main`.
 
 Datasets and result bundles last 90 days. When they expire, or when the shared
 EEST, Hive, or benchmark settings change, prepare a new dataset and rerun every
 workload. A release-mode dataset uses the whole fixture bundle; `filler_path`
-and `fork` do not filter it.
+and `fork` don't filter it.
 
 The site's group title shows the release tag, for example
 `tests-zkevm v21.0.6`. Fill-mode datasets use `execution-witness`.
@@ -203,13 +194,17 @@ After the site passes `scripts/smoke-site.sh`, the workflow deploys it to
 GitHub Pages and reruns the smoke test against the deployed `page_url`. Treat
 `page_url` as the source of truth if the repository gets a custom domain.
 
-Check a deployed site manually:
+To check a deployed site manually:
 
 ```bash
 scripts/smoke-site.sh --url https://OWNER.github.io/REPOSITORY/
 ```
 
 ## Running locally
+
+A full local run goes through the sections below in order.
+[`scripts/README.md`](scripts/README.md) lists every script and covers the
+details left out here.
 
 ### Local prerequisites
 
@@ -224,7 +219,7 @@ Local runs use the same tools as CI:
 ### Environment
 
 Scripts resolve paths from the repository root, so you can `cd` into
-`execution-specs/` or `hive/` without moving outputs. Load or check the
+`execution-specs/` or `hive/` without moving outputs. To load or check the
 defaults:
 
 ```bash
@@ -235,22 +230,6 @@ eest_dashboard_check_prereqs
 scripts/env.sh --print
 scripts/env.sh --check
 scripts/env.sh --validate-eest-source
-```
-
-### Pipeline
-
-A full local run calls these scripts in order:
-
-```text
-scripts/prepare-fixtures.sh
-scripts/setup-eest.sh
-scripts/run-hive-consume-client.sh CLIENT_ID
-scripts/setup-zkevm-benchmark-workload.sh
-scripts/run-zkevm-benchmark-workload.sh
-scripts/convert-zkevm-metrics-to-hive-results.py
-scripts/merge-hive-results.sh --source hive/workspace/zkevm-converted-results
-scripts/build-site.sh
-scripts/smoke-site.sh
 ```
 
 ### Fixtures
@@ -270,8 +249,10 @@ To use a release's prefilled fixtures instead, set `EEST_RELEASE_TAG`:
 EEST_RELEASE_TAG='tests-zkevm@v21.0.6' scripts/prepare-fixtures.sh
 ```
 
-Release mode ignores `EEST_REPO` and `EEST_REF`. It checks out that tag for the
-matching `consume` CLI and extracts the release's single `.tar.gz` asset.
+Release mode ignores `EEST_REPO` and `EEST_REF`. It checks out
+`ethereum/execution-specs` at that tag for the matching `consume` CLI, then
+downloads the release's single `.tar.gz` asset, extracts it into
+`FIXTURES_DIR`, and validates it.
 
 ### Hive
 
@@ -309,8 +290,8 @@ client. When a client fails, the script prints the tail of its
 These variables control failure handling and logs:
 
 - `HIVE_CONSUME_ALLOW_FAILURE=1` (default) continues after
-  `consume engine-witness` fails, so failures still reach the dashboard. Set
-  it to `0` to stop before merging.
+  `consume engine-witness` fails, so failing tests still reach the dashboard.
+  Set it to `0` to stop before merging.
 - `HIVE_DOCKER_OUTPUT=build` (default) limits Docker output to build logs.
 - `HIVE_LOG_TO_STDOUT=1` streams Hive output to the console as well as to
   `hive-dev-<client>.log`. The default, `0`, writes only the log file.
@@ -353,18 +334,18 @@ scripts/build-site.sh
 `scripts/build-site.sh` builds hive-ui at `HIVE_UI_REF` into a fresh
 `SITE_DIR`. It uses Hive's `hiveview` to write `listing.jsonl`, writes
 `discovery.json`, copies the listed suite JSON files into `results/`, and adds
-hive-ui license notices. It fails if a listing entry names more than one client
-or the site exceeds `SITE_MAX_SIZE_MB`.
+hive-ui license and source notices. It fails if a listing entry names more than
+one client or the site exceeds `SITE_MAX_SIZE_MB`.
 
 To fit GitHub Pages, the build drops per-test descriptions and all logs. The
-site keeps test names, results, timings, and client metadata; rows no longer
-expand, and log links are hidden. The source results and the
-`hive-combined-results-*` artifact keep everything. Set
+site keeps summary pages, test names, results, timings, comparisons, and client
+metadata, but rows no longer expand and log links are hidden. The source
+results and the `hive-combined-results-*` artifact keep everything. Set
 `SITE_INCLUDE_CLIENT_LOGS=1` to keep descriptions and logs in a local build;
 such builds can exceed the Pages size limit.
 
 Preview the site over HTTP, not `file://`, so the browser fetches
-`discovery.json`, `listing.jsonl`, and `results/`:
+`discovery.json`, `listing.jsonl`, and `results/` like the published site:
 
 ```bash
 source scripts/env.sh
@@ -381,7 +362,7 @@ for secrets and private RPC URLs.
 
 ## PR smoke check
 
-The **PR smoke** check runs the unit tests, then fills one empty-block
+The PR smoke check runs the unit tests, then fills one empty-block
 `blockchain_test_engine` test and runs it in parallel jobs. They use the same
 scripts as `run-workloads.yml` and `publish.yml`:
 
@@ -389,22 +370,31 @@ scripts as `run-workloads.yml` and `publish.yml`:
 - Nimbus REST/SSZ runs it on Hive when the pull request changes the Hive
   scripts or patches, `scripts/setup-eest.sh`, `config/el-clients.json`,
   `scripts/env.sh`, the result checker, or the smoke workflow. Its image takes
-  about 30 minutes to build; the refresh always runs it. Geth already covers
-  the fixture preparation scripts, so they don't trigger it.
+  about 30 minutes to build, and the refresh always runs it. Geth
+  already covers the fixture preparation scripts, so they don't trigger it.
 - One job per zkVM runs every guest that the refresh runs on that zkVM. The
   pairs come from `refresh-dashboard.yml`, so new refresh pairs join the smoke.
+  The benchmark downloads its guests and runtime images using its own
+  dependency versions.
 - A site job merges the Geth and zkEVM results, builds the hive-ui site, and
   runs `scripts/smoke-site.sh`.
 
 Each workload must produce exactly one passing case, and the site must list
-every result. The check does not generate proofs, publish datasets, or deploy
+every result. The check doesn't generate proofs, publish datasets, or deploy
 the site.
 
-The jobs run on disposable XL runners. Pushes to `main` build the benchmark
-and save its Rust cache, which pull requests and refreshes restore. Both use
-stable Rust, so the cache lasts until the next Rust release or workload
-version. Results, fixtures, Hive logs, and the built site stay available for
-seven days.
+The jobs run on disposable XL runners. CI installs Python, Go, Rust stable,
+uv, and the native packages listed in `.github/workflows/pr-smoke.yml` and
+`.github/actions/smoke-setup`. The zkEVM jobs log in to GHCR with the job
+token, and each one lists its guest results and Rust cache hit in its summary.
 
-Use `PR smoke` as the required check name in branch protection. To reproduce
-the run, see [the local commands](scripts/README.md#pr-smoke-check).
+Pushes to `main` build the benchmark and save its Rust cache, which pull
+requests and refreshes restore. Both use stable Rust, so the cache lasts until
+the next Rust release or workload version. Cold runs take longer because they
+build Geth, Nimbus, and the benchmark and pull the zkVM images. Results,
+fixtures, Hive logs, and the built site stay available for seven days.
+
+The final PR smoke gate requires every selected job to pass and notes when it
+skipped Nimbus. Use `PR smoke` as the required check name in branch
+protection. To reproduce the run locally, see
+[the local commands](scripts/README.md#pr-smoke-check).

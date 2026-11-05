@@ -1,253 +1,164 @@
 # Scripts
 
-This directory is reserved for local and CI automation used to generate the
-execution witness fixtures, run Hive, and build the static hive-ui site.
+These scripts prepare fixtures, run Hive and `zkevm-benchmark-workload`, and
+build the hive-ui site, both locally and in CI. They load their defaults from
+`env.sh`, which you can source from any working directory, and resolve paths
+from the repository root.
 
-Implemented scripts:
+For a full local run, see [Running locally](../README.md#running-locally) in
+the main README. This file lists what each script does and the details the
+main README leaves out.
 
 - `env.sh`: shared defaults and prerequisite checks.
-- `setup-eest.sh`: clone or update `execution-specs` and run `uv sync`.
-  Release mode checks out `EEST_RELEASE_TAG`.
-- `prepare-fixtures.sh`: choose fill mode or release mode and prepare
-  validated fixtures in `FIXTURES_DIR`.
-- `fill-fixtures.sh`: clone or update `execution-specs`, run `uv sync`,
-  generate witness fixtures into `FIXTURES_DIR`, and validate the fixture index.
-- `validate-fixtures.sh`: validate an existing fixture directory contains
+- `prepare-fixtures.sh`: fills fixtures (fill mode) or downloads a release's
+  prefilled fixtures (release mode) into `FIXTURES_DIR`, then validates them.
+- `fill-fixtures.sh`: clones or updates `execution-specs`, runs `uv sync`,
+  fills witness fixtures into `FIXTURES_DIR`, and validates the fixture index.
+- `validate-fixtures.sh`: checks that an existing fixture directory contains
   `blockchain_test_engine` fixtures.
-- `download-run-artifact.sh`: download one artifact from a workflow run, check
-  its digest, and extract it. A stalled or interrupted download resumes from the
-  bytes already on disk. Workload jobs use it for the dataset fixtures.
-- `setup-hive.sh`: clone or update Hive, build `./hive`, and generate
-  `clients-local.yaml` from the selected EL client descriptors.
-- `list-el-clients.sh`: resolve selected EL descriptors and emit table, JSON,
-  ids, or a GitHub Actions matrix.
-- `list-zkevm-workload-runs.sh`: validate selected
-  `zkevm-benchmark-workload` execution-client/zkVM runs and emit a GitHub
-  Actions matrix.
-- `setup-zkevm-benchmark-workload.sh`: clone or update
-  `zkevm-benchmark-workload` and check out the configured ref.
-- `run-zkevm-benchmark-workload.sh`: run one
-  `zkevm-benchmark-workload` stateless-validator execution benchmark against
-  `FIXTURES_DIR/blockchain_tests_engine`.
-- `run-hive-consume-client.sh`: run one selected EL client against
-  `consume engine-witness` into an isolated result directory.
-- `run-hive-consume.sh`: prepare Hive, run the single-client worker once per
-  selected EL, and merge per-client results into `HIVE_RESULTS_DIR`.
-- `merge-hive-results.sh`: validate and merge isolated per-client Hive result
-  directories plus optional Hive-shaped sources in one pass without
-  overwriting conflicting files.
-- `merge-hive-result-dirs.py`: shared in-process validator and merge engine.
-- `merge-hive-result-dirs.sh`: compatibility entrypoint for merging arbitrary
-  directories that already contain Hive-shaped result JSON/log files.
-- `list-zkevm-metrics-roots.sh`: discover downloaded zkEVM metrics roots across
-  both artifact-wrapper and flattened GitHub Actions download layouts.
-- `dashboard-artifacts.py`: create and validate immutable dataset/result
-  manifests and deterministically select reusable cross-run artifacts.
-- `convert-zkevm-metrics-to-hive-results.py`: convert `zkevm-benchmark-workload`
-  `zkevm-metrics/` output into Hive-compatible result files.
-- `check-smoke-results.py`: require one passing smoke case from one Hive
-  client (`hive`) or one zkEVM guest, including metrics conversion (`zkevm`);
-  see PR smoke check below.
-- `build-site.sh`: generate a static hive-ui site in `SITE_DIR`, write
-  `discovery.json` and `listing.jsonl`, copy Hive logs into `results/`, and
-  enforce `SITE_MAX_SIZE_MB`.
-- `smoke-site.sh`: serve `SITE_DIR` over local HTTP under a non-root project
-  path, verify `discovery.json`, `listing.jsonl`, and `results/...` fetches,
-  check relative paths, and scan public logs for suspicious secret strings.
+- `setup-eest.sh`: clones or updates `execution-specs` and runs `uv sync`
+  without filling fixtures. In release mode, it checks out `EEST_RELEASE_TAG`.
+  CI consume jobs run it after downloading the shared fixtures artifact.
+- `download-run-artifact.sh`: downloads one artifact from a workflow run,
+  checks its digest, and extracts it. A stalled or interrupted download resumes
+  from the bytes already on disk. Workload jobs use it for the dataset
+  fixtures.
+- `setup-hive.sh`: clones or updates Hive, builds `./hive`, applies the
+  managed patches, and generates `clients-local.yaml` from the selected client
+  descriptors.
+- `list-el-clients.sh`: resolves the selected client descriptors and prints a
+  table, JSON, IDs, or a GitHub Actions matrix.
+- `run-hive-consume-client.sh`: runs `consume engine-witness` for one client
+  into its own result directory.
+- `run-hive-consume.sh`: cleans `HIVE_CLIENT_RESULTS_DIR`, prepares Hive, runs
+  `run-hive-consume-client.sh` once per selected client, and merges the results
+  into `HIVE_RESULTS_DIR`. Each client's Hive stdout and stderr go to
+  `hive-dev-<client>.log`.
+- `list-zkevm-workload-runs.sh`: validates the selected `CLIENT:ZKVM` runs and
+  prints them, or a GitHub Actions matrix with `--github-matrix`.
+- `setup-zkevm-benchmark-workload.sh`: clones or updates
+  `zkevm-benchmark-workload` and checks out `ZKEVM_BENCHMARK_WORKLOAD_REF`.
+- `run-zkevm-benchmark-workload.sh`: runs one stateless-validator benchmark
+  against `FIXTURES_DIR/blockchain_tests_engine`.
+- `list-zkevm-metrics-roots.sh`: finds downloaded zkEVM metrics roots in either
+  GitHub Actions download layout.
+- `convert-zkevm-metrics-to-hive-results.py`: converts `zkevm-metrics/` output
+  into Hive-shaped result files.
+- `merge-hive-results.sh`: validates and merges the per-client Hive results and
+  any extra Hive-shaped sources in one pass, without overwriting conflicting
+  files.
+- `merge-hive-result-dirs.py`: the validator and merge engine behind both merge
+  scripts.
+- `merge-hive-result-dirs.sh`: a compatibility entrypoint that merges arbitrary
+  directories of Hive-shaped result JSON and logs.
+- `dashboard-artifacts.py`: creates and validates immutable dataset and result
+  manifests, and deterministically picks reusable artifacts across runs.
+- `check-smoke-results.py`: requires one passing smoke case from one Hive
+  client (`hive`) or one zkEVM guest, including metrics conversion (`zkevm`).
+- `build-site.sh`: cleans `SITE_DIR` and builds the static hive-ui site into
+  it.
+- `smoke-site.sh`: checks a local site before publishing, or a deployed one
+  after.
 
-Load the shared defaults from any working directory:
+## Hive patches
 
-```bash
-source /path/to/eest-execution-witness-dashboard/scripts/env.sh
-eest_dashboard_print_env
-eest_dashboard_check_prereqs
-```
+`setup-hive.sh` applies the patch named in a descriptor's `managed_patch`
+field. It removes managed patches before updating Hive and reapplies them when
+the client is selected. Override `managed_patch` with an empty string to build
+a custom descriptor without its patch.
 
-The same file can be executed directly:
+`nimbus-skip-lfs` applies `patches/hive-nimbus-skip-lfs.patch` to Hive's
+`clients/nimbus-el/Dockerfile.git`. It sets `GIT_LFS_SKIP_SMUDGE=1` in the
+build stage before cloning, so the build skips unused network data in nested
+submodules. One of those files, the `glamsterdam-devnets` consensus genesis,
+ran out of its upstream Git LFS budget and blocked the
+[September 24, 2026 run](https://github.com/eth-act/eest-execution-witness-dashboard/actions/runs/36032246820/job/107744808338).
+Setup fails if the patch no longer matches the upstream Dockerfile. With Hive
+`43ea47be`, Nimbus `4dc018eb`, and execution-specs `8cd0018e`, the image built
+with LFS downloads disabled and the Amsterdam empty-block witness smoke test
+passed (one case, no skips or timeouts). We didn't run the full witness suite
+on it.
 
-```bash
-scripts/env.sh --print
-scripts/env.sh --check
-scripts/env.sh --validate-eest-source
-```
+`reth-portable-feature` applies `patches/hive-reth-portable-feature.patch`.
+Reth `main` removed the `reth-revm` crate in
+[paradigmxyz/reth#25002](https://github.com/paradigmxyz/reth/pull/25002), but
+Hive's `clients/reth/Dockerfile.git` still builds with `reth-revm/portable`,
+which broke the Reth image build in the
+[October 26, 2026 run](https://github.com/eth-act/eest-execution-witness-dashboard/actions/runs/40297073604/job/121899790269).
+The patch uses the Reth binary's `portable` feature instead. Once Hive's
+Dockerfile stops using `reth-revm/portable`, setup logs that it's skipping the
+patch, and we can delete it.
 
-Prepare execution witness fixtures in the default fill mode:
+## zkEVM workload
 
-```bash
-scripts/prepare-fixtures.sh
-```
+`ZKEVM_WORKLOAD_RUNS` defaults to `ethrex:zisk,reth:zisk` and also accepts
+`zesu`, `nimbus`, `nethermind`, and `zilkworm` as execution clients. Set it to
+an empty string, `none`, `skip`, or `empty` to skip workload runs.
 
-The generation command targets `blockchain_test_engine`.
+Guest descriptors in `config/el-guests.json` can set `guest_artifact_base_url`
+for a guest and override it per zkVM under
+`zkvms.<zkvm>.guest_artifact_base_url`. The `--github-matrix` output includes
+each resolved URL. Empty descriptors use the `ere-guests` release that the
+workload locks. `ZKEVM_WORKLOAD_GUEST_ARTIFACT_BASE_URL` is only meant for a
+temporary override of a single local run.
 
-Prepare pre-filled release fixtures instead of filling locally:
+`run-zkevm-benchmark-workload.sh` takes the client and zkVM as two arguments,
+or from `ZKEVM_WORKLOAD_EXECUTION_CLIENT` and `ZKEVM_WORKLOAD_ZKVM`. It resets
+`ZKEVM_METRICS_DIR`, sets `RAYON_NUM_THREADS` from `ZKEVM_RAYON_THREADS` by
+default, and runs `cargo run --locked --release -p ere-hosts` on the engine
+fixtures. It fails unless that produces at least one metrics JSON.
 
-```bash
-EEST_RELEASE_TAG='tests-zkevm@v0.4.2' scripts/prepare-fixtures.sh
-```
+## Merging results
 
-When `EEST_RELEASE_TAG` is set, the script ignores `EEST_REPO` and `EEST_REF`.
-It uses the exact tag supplied by `EEST_RELEASE_TAG`: it checks out
-`ethereum/execution-specs` at that tag for the matching `consume` CLI, downloads
-the single `.tar.gz` asset attached to that GitHub release, extracts it into
-`FIXTURES_DIR`, and validates the downloaded fixtures.
-
-Prepare `execution-specs` without regenerating fixtures:
-
-```bash
-scripts/setup-eest.sh
-```
-
-This is used by CI consume jobs after they download the shared fixtures
-artifact. In release mode, the checkout ref is exactly `EEST_RELEASE_TAG`, for
-example `tests-zkevm@v0.4.2`.
-
-Prepare Hive and generate `clients-local.yaml`:
-
-```bash
-scripts/setup-hive.sh
-```
-
-By default, `EL_CLIENTS=go-ethereum,ethrex,nethermind,nimbus-el,besu` selects every default
-client from `config/el-clients.json`. The consume orchestration runs selected
-clients independently so the final dashboard has one listing entry per EL. Use
-a comma-separated subset to run fewer clients:
-
-```bash
-EL_CLIENTS=ethrex scripts/setup-hive.sh
-```
-
-Use `EL_CLIENT_OVERRIDES_JSON` for temporary repo/ref changes:
+In CI, `list-zkevm-metrics-roots.sh` runs after the metrics artifacts download.
+It prints the directories that contain `<execution-client>/<zkvm>/*.json`,
+whether GitHub Actions kept each artifact in its own directory or flattened a
+single artifact into the download path:
 
 ```bash
-EL_CLIENT_OVERRIDES_JSON='{"ethrex":{"ref":"other-branch"}}' scripts/setup-hive.sh
+scripts/list-zkevm-metrics-roots.sh zkevm-metrics-artifacts
 ```
 
-For a custom go-ethereum descriptor using `managed_patch=geth-extra-flags`,
-this clears its extra flags:
+The converter writes one result JSON per execution-client/zkVM pair and a
+generated details log for each. To build a site from only the converted
+results:
 
 ```bash
-EL_CLIENT_OVERRIDES_JSON='{"go-ethereum":{"hive_extra_flags":""}}' scripts/setup-hive.sh
+HIVE_RESULTS_DIR=hive/workspace/zkevm-converted-results scripts/build-site.sh
 ```
 
-Nimbus uses `managed_patch=nimbus-skip-lfs`. Setup applies
-`patches/hive-nimbus-skip-lfs.patch` to Hive's `clients/nimbus-el/Dockerfile.git`,
-setting `GIT_LFS_SKIP_SMUDGE=1` inside the build stage before cloning. This avoids
-downloading unused network data from nested submodules, including the
-`glamsterdam-devnets` consensus genesis file whose upstream Git LFS budget
-blocked the [September 24, 2026 run](https://github.com/eth-act/eest-execution-witness-dashboard/actions/runs/36032246820/job/107744808338).
-Setup removes this patch before updating Hive and reapplies it when Nimbus is
-selected. It fails clearly if the patch no longer matches the upstream
-Dockerfile. To disable it for a custom build, override Nimbus's `managed_patch`
-with an empty string.
-
-Locally verified with Hive `43ea47be`, Nimbus `4dc018eb`, and execution-specs
-`8cd0018e`: the Docker image built successfully with LFS downloads disabled,
-and the Amsterdam empty-block witness smoke test passed (one case, no skips
-or timeouts). This validation did not run the full witness suite.
-
-reth-rest uses `managed_patch=reth-portable-feature`. reth main removed the
-`reth-revm` crate in [paradigmxyz/reth#25002](https://github.com/paradigmxyz/reth/pull/25002),
-but Hive's `clients/reth/Dockerfile.git` still builds with `reth-revm/portable`,
-which broke the reth image build in the [October 26, 2026 run](https://github.com/eth-act/eest-execution-witness-dashboard/actions/runs/40297073604/job/121899790269).
-Setup applies `patches/hive-reth-portable-feature.patch` to use the reth
-binary's `portable` feature instead. As with the Nimbus patch, setup removes it
-before updating Hive and reapplies it when reth-rest is selected. Once Hive's
-Dockerfile stops using `reth-revm/portable`, setup skips the patch with a log
-line, and we can delete it.
-
-Run Hive and consume the generated fixtures once per selected EL:
+`merge-hive-results.sh` merges the selected per-client results and every
+`--source` directory straight into `HIVE_RESULTS_DIR`. It skips empty sources.
+A non-empty source must contain valid top-level suite JSON, holds one client by
+default, and can't overwrite a conflicting path. When every input is already
+Hive-shaped, `merge-hive-result-dirs.sh` merges arbitrary directories:
 
 ```bash
-scripts/run-hive-consume.sh
+scripts/merge-hive-result-dirs.sh \
+  --output hive/workspace/combined-results \
+  --clean-output \
+  hive/workspace/logs \
+  hive/workspace/zkevm-converted-results
 ```
 
-Each selected EL descriptor must define `hive_parallelism`, which runs multiple
-consume tests at once through pytest-xdist. Use descriptor overrides for ad hoc
-tuning:
+## Site smoke test
 
-```bash
-EL_CLIENT_OVERRIDES_JSON='{"ethrex":{"hive_parallelism":4}}' scripts/run-hive-consume.sh
-```
+`smoke-site.sh` serves `SITE_DIR` at
+`http://127.0.0.1:8765/eest-execution-witness-dashboard/` and checks that
+`discovery.json`, `listing.jsonl`, the first suite result, and a result asset
+it references load over HTTP. It fails on root-relative paths, which break
+GitHub Pages project URLs, and scans `SITE_DIR/results/` for common secret,
+credential, and private RPC URL patterns. `SITE_SMOKE_PORT` and
+`SITE_SMOKE_BASE_PATH` override the port and project path.
 
-Direct single-client worker runs can still set `HIVE_PARALLELISM` explicitly.
+With `--url`, it fetches `discovery.json`, `listing.jsonl`, the first listed
+result, and one referenced result asset, if there is one, from a deployed site
+instead.
 
-This script cleans `HIVE_CLIENT_RESULTS_DIR`, writes each worker's Hive
-stdout/stderr to `hive-dev-<client>.log`, requires every selected EL to produce
-at least one top-level result JSON, then merges everything into
-`HIVE_RESULTS_DIR`. By default, `HIVE_CONSUME_ALLOW_FAILURE=1` keeps going
-after `consume engine-witness` exits non-zero, which is useful when publishing a
-dashboard of failing tests. Set it to `0` to stop before merge/build on consume
-failure. Set `HIVE_DOCKER_OUTPUT=build` and
-`HIVE_LOG_TO_STDOUT=1` to stream Docker build output into the console while
-still writing the per-client Hive log.
+## PR smoke check
 
-Resolve selected `zkevm-benchmark-workload` runs:
-
-```bash
-scripts/list-zkevm-workload-runs.sh
-scripts/list-zkevm-workload-runs.sh --github-matrix
-```
-
-By default, `ZKEVM_WORKLOAD_RUNS=ethrex:zisk,reth:zisk`, producing the two
-explicit execution-client/zkVM pairs in the list. `ethrex`, `reth`, and opt-in
-`zesu`, `nimbus`, `nethermind`, and `zilkworm` are accepted execution clients.
-Set `ZKEVM_WORKLOAD_RUNS` to an empty string, `none`, `skip`, or `empty` to skip
-workload runs.
-
-Workload guest descriptors live in `config/el-guests.json`. Descriptors can set
-`guest_artifact_base_url` at the guest level and may override it per zkVM under
-`zkvms.<zkvm>.guest_artifact_base_url`. The matrix includes each resolved URL:
-
-```bash
-ZKEVM_WORKLOAD_RUNS=nimbus:zisk,ethrex:zisk,ethrex:sp1 \
-scripts/list-zkevm-workload-runs.sh --github-matrix
-```
-
-Workload `v0.19.1` locks `ere-guests` to `v0.19.1`. Empty guest descriptors
-use that release automatically; custom artifact URLs remain optional
-overrides. Ethrex, Reth, and Zesu support SP1, ZisK, and OpenVM, Nimbus and
-Nethermind support SP1 and ZisK, and Zilkworm supports only SP1. The pinned
-EEST source is `tests-zkevm@v21.0.6`.
-
-Select Nimbus with `ZKEVM_WORKLOAD_RUNS=nimbus:zisk`. Its guest ID is `nimbus`;
-the Hive client ID is `nimbus-el`. Nethermind uses `nethermind` for both.
-
-Prepare the workload checkout:
-
-```bash
-scripts/setup-zkevm-benchmark-workload.sh
-```
-
-The default checkout is
-`https://github.com/eth-act/zkevm-benchmark-workload.git`
-at `v0.19.1`.
-
-Run one workload entry against prepared fixtures:
-
-```bash
-ZKEVM_WORKLOAD_EXECUTION_CLIENT=ethrex \
-ZKEVM_WORKLOAD_ZKVM=zisk \
-scripts/run-zkevm-benchmark-workload.sh
-```
-
-For a single run, `run-zkevm-benchmark-workload.sh` reads the guest URL from
-`config/el-guests.json`. Set `ZKEVM_WORKLOAD_GUEST_ARTIFACT_BASE_URL` only when
-you need a temporary local override.
-
-This requires `FIXTURES_DIR/blockchain_tests_engine`, resets
-`ZKEVM_METRICS_DIR`, defaults `RAYON_NUM_THREADS` from `ZKEVM_RAYON_THREADS`,
-runs `cargo run --locked --release -p ere-hosts` on the engine fixtures, and
-requires at least one generated metrics JSON before returning successfully.
-
-### PR smoke check
-
-The PR workflow runs the production scripts against one empty-block
-`blockchain_test_engine` test. Geth executes it through Hive, and so does
-Nimbus REST/SSZ when Hive-related files change. Every guest pair in
-`refresh-dashboard.yml` executes it on its zkVM. The benchmark downloads its
-guests and runtime images using its own dependency versions.
-
-Run these commands from the dashboard repository root with the
+To reproduce the [PR smoke check](../README.md#pr-smoke-check), run these
+commands from the repository root with the
 [local prerequisites](../README.md#local-prerequisites) installed. They update
 the generated source checkouts and replace outputs under `smoke-results/`.
 
@@ -280,125 +191,13 @@ the generated source checkouts and replace outputs under `smoke-results/`.
 ```
 
 For another guest, repeat the run, convert, and check commands with its client
-and zkVM. For Nimbus REST/SSZ, run
-`scripts/run-hive-consume-client.sh nimbus-el-rest` and check it with
-`--client nimbus-el_rest-ssz`. For Reth, run
-`scripts/run-hive-consume-client.sh reth-rest` and check it with
-`--client reth_rest-ssz`. For Nethermind REST/SSZ, run
-`scripts/run-hive-consume-client.sh nethermind-rest` and check it with
-`--client nethermind_rest-ssz`.
+and zkVM. For a REST+SSZ client, pass its descriptor to
+`run-hive-consume-client.sh` and its result name to `--client`, for example
+`nimbus-el-rest` and `nimbus-el_rest-ssz`, `reth-rest` and `reth_rest-ssz`, or
+`nethermind-rest` and `nethermind_rest-ssz`.
 
 The `hive` check exits nonzero unless the engine fixture contains the selected
 case and the named Hive client passes it without skipping. The `zkevm` check
-also requires the guest output to match and the conversion to preserve the
-passing result. Both read the fixture index and result files; they do not
-prepare or execute workloads.
-
-CI installs Python, Go, Rust stable, uv, and the native packages listed in
-`.github/workflows/pr-smoke.yml` and `.github/actions/smoke-setup`. The zkEVM
-jobs authenticate to GHCR with the job token, and each lists its guest results
-and Rust cache hit in its summary. Cold runs take longer because they build
-Geth, Nimbus, and the benchmark and pull the zkVM images. Every job uploads its
-fixtures, results, and Hive logs for seven days. The final **PR smoke** gate
-requires every selected job to pass and notes when it skipped Nimbus.
-
-### Metrics conversion
-
-Convert `zkevm-benchmark-workload` metrics into Hive-compatible results:
-
-```bash
-scripts/list-zkevm-metrics-roots.sh zkevm-metrics-artifacts
-python3 scripts/convert-zkevm-metrics-to-hive-results.py \
-  --input zkevm-metrics \
-  --output hive/workspace/zkevm-converted-results \
-  --clean-output
-```
-
-`list-zkevm-metrics-roots.sh` is used by CI after downloading metrics artifacts.
-It emits directories that contain `<execution-client>/<zkvm>/*.json`, whether
-GitHub Actions preserved each artifact under its own directory or flattened a
-single artifact directly into the download path. The converter writes one result
-JSON per execution-client/zkVM combination and a
-generated details log for each result. To build a HiveUI site from only those
-converted results:
-
-```bash
-HIVE_RESULTS_DIR=hive/workspace/zkevm-converted-results scripts/build-site.sh
-```
-
-Merge normal Hive results with converted zkEVM metrics:
-
-```bash
-scripts/merge-hive-results.sh \
-  --source hive/workspace/zkevm-converted-results
-```
-
-The selected per-client results and every `--source` directory are validated
-and merged directly into `HIVE_RESULTS_DIR`. Empty sources are skipped;
-non-empty sources must contain valid top-level suite JSON, are single-client by
-default, and may not overwrite a conflicting path. The generic compatibility
-entrypoint remains available when all inputs are already Hive-shaped:
-
-```bash
-scripts/merge-hive-result-dirs.sh \
-  --output hive/workspace/combined-results \
-  --clean-output \
-  hive/workspace/logs \
-  hive/workspace/zkevm-converted-results
-```
-
-Build the static hive-ui site:
-
-```bash
-scripts/build-site.sh
-```
-
-The script cleans `SITE_DIR`, builds the pinned `HIVE_UI_REF`, generates
-`discovery.json` and `listing.jsonl`, copies listed suite JSON files into
-`SITE_DIR/results/`, writes hive-ui
-license/source notices, fails if any listing entry contains more than one
-client, and fails if the output is larger than `SITE_MAX_SIZE_MB` (default:
-`900`).
-
-By default, the Pages site removes per-test descriptions, inline log details,
-and all simulator, test-detail, and client logs and their references. Summary
-pages, test names, pass/fail results, timing, and comparisons remain available.
-Rows without descriptions or detail logs do not expand, and unavailable log
-links are hidden. Original result files and the full combined-results Actions
-artifact are unchanged. Set `SITE_INCLUDE_CLIENT_LOGS=1` for local debugging
-with full descriptions and logs; this can exceed the Pages size limit.
-
-Preview the generated static site with a simple HTTP server:
-
-```bash
-source scripts/env.sh
-cd "$SITE_DIR"
-python3 -m http.server 8081 --bind 127.0.0.1
-```
-
-Open `http://127.0.0.1:8081/`. Use HTTP, not `file://`, so browser requests
-for `listing.jsonl` and `results/...` behave like the published site.
-
-Smoke test the generated site before publishing:
-
-```bash
-scripts/smoke-site.sh
-```
-
-The smoke test serves `SITE_DIR` at
-`http://127.0.0.1:8765/eest-execution-witness-dashboard/`, verifies that
-`discovery.json`, `listing.jsonl`, the first suite result, and a referenced
-result asset load over HTTP, fails on root-relative paths that would break
-GitHub Pages project URLs, and scans `SITE_DIR/results/` for common secret,
-credential, and private RPC URL patterns. Override the port or project path
-with `SITE_SMOKE_PORT` and `SITE_SMOKE_BASE_PATH`.
-
-The same script can smoke test a deployed GitHub Pages URL without local
-serving:
-
-```bash
-scripts/smoke-site.sh --url https://OWNER.github.io/REPOSITORY/
-```
-
-Remote mode fetches `discovery.json`, `listing.jsonl`, the first listed result
-under `results/...`, and one referenced result asset when present.
+also requires the guest output to match and the conversion to keep the passing
+result. Both only read the fixture index and result files; they don't prepare
+or run workloads.
