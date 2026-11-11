@@ -19,7 +19,7 @@ The dashboard combines two result sets built from the same EEST
 ```bash
 EEST_RELEASE_TAG=
 EEST_REPO=https://github.com/ethereum/execution-specs.git
-EEST_REF=tests-zkevm@v21.0.7
+EEST_REF=tests-zkevm@v21.0.6
 FILLER_PATH=tests/amsterdam/eip8025_optional_proofs
 FORK=Amsterdam
 
@@ -117,7 +117,7 @@ gh workflow run refresh-dashboard.yml --ref main
 ```
 
 Only one refresh runs at a time; a new one waits for the current one to finish.
-Each refresh uses the prefilled EEST release `tests-zkevm@v21.0.7`, every Hive
+Each refresh uses the prefilled EEST release `tests-zkevm@v21.0.6`, every Hive
 client in the two tables above, and every guest/zkVM pair the workload
 provides. Hive, the workload, Rayon threads, hive-ui, and the site limit match
 the defaults. Branch refs, such as Hive `master` and every client ref, resolve
@@ -182,7 +182,7 @@ workload. A release-mode dataset uses the whole fixture bundle; `filler_path`
 and `fork` don't filter it.
 
 The site's group title shows the release tag, for example
-`tests-zkevm v21.0.7`. Fill-mode datasets use `execution-witness`.
+`tests-zkevm v21.0.6`. Fill-mode datasets use `execution-witness`.
 
 `publish.yml` uploads the combined Hive results as a short-lived
 `hive-combined-results-*` artifact. Failed runs upload debug artifacts with
@@ -246,7 +246,7 @@ for `FILLER_PATH` and `FORK` into `FIXTURES_DIR` and checks that
 To use a release's prefilled fixtures instead, set `EEST_RELEASE_TAG`:
 
 ```bash
-EEST_RELEASE_TAG='tests-zkevm@v21.0.7' scripts/prepare-fixtures.sh
+EEST_RELEASE_TAG='tests-zkevm@v21.0.6' scripts/prepare-fixtures.sh
 ```
 
 Release mode ignores `EEST_REPO` and `EEST_REF`. It checks out
