@@ -66,6 +66,18 @@ RUN apt-get update && apt-get install -y bash curl jq \\
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 '''
 
+ERIGON_DOCKERFILE = "clients/erigon/Dockerfile.git"
+# Relevant structure of Hive 46fb6f4d's Erigon Dockerfile.
+ERIGON_UPSTREAM = '''### Build Erigon From Git:
+
+## Builder stage: Compiles erigon from a git repository
+FROM golang:1.25.7-trixie as builder
+
+ARG github=erigontech/erigon
+ARG tag=main
+ARG GOPROXY
+'''
+
 
 class SetupHiveTests(unittest.TestCase):
     def setUp(self):
@@ -92,6 +104,9 @@ class SetupHiveTests(unittest.TestCase):
         reth = self.remote / RETH_DOCKERFILE
         reth.parent.mkdir(parents=True)
         reth.write_text(RETH_UPSTREAM)
+        erigon = self.remote / ERIGON_DOCKERFILE
+        erigon.parent.mkdir(parents=True)
+        erigon.write_text(ERIGON_UPSTREAM)
         self.commit()
         bin_dir = self.root / "bin"
         bin_dir.mkdir()
@@ -151,10 +166,11 @@ class SetupHiveTests(unittest.TestCase):
         self.assertNotIn("engine_api_rest", (self.checkout / DOCKERFILE).read_text())
         self.assertEqual((self.checkout / "clients/nimbus-el/nimbus.sh").read_text(), LAUNCHER)
 
-    def test_rest_setup_only_patches_reth_dockerfile(self):
+    def test_rest_setup_only_patches_selected_dockerfile(self):
         for descriptor, client, github, changed in (
             ("reth-rest", "reth", "paradigmxyz/reth", f"M {RETH_DOCKERFILE}"),
             ("nethermind-rest", "nethermind", "NethermindEth/nethermind", ""),
+            ("erigon-rest", "erigon", "erigontech/erigon", f"M {ERIGON_DOCKERFILE}"),
         ):
             with self.subTest(descriptor=descriptor):
                 self.setup_hive(EL_CLIENTS=descriptor)
@@ -264,6 +280,41 @@ class SetupHiveTests(unittest.TestCase):
         result = self.setup_hive(success=False)
         self.assertIn("unable to remove managed Nimbus LFS patch", result.stderr)
         self.assertEqual(path.read_text(), edited)
+
+
+    def test_erigon_patch_bumps_go_once(self):
+        self.setup_hive(EL_CLIENTS="erigon-rest")
+        first = (self.checkout / ERIGON_DOCKERFILE).read_text()
+        self.setup_hive(EL_CLIENTS="erigon-rest")
+        self.assertEqual((self.checkout / ERIGON_DOCKERFILE).read_text(), first)
+        self.assertNotIn("golang:1.25.7", first)
+        self.assertEqual(first.count("FROM golang:1.26.8-trixie as builder"), 1)
+        self.assertEqual(first.count("# eest-dashboard:"), 1)
+
+    def test_deselecting_erigon_removes_patch(self):
+        self.setup_hive(EL_CLIENTS="erigon-rest")
+        self.setup_hive(EL_CLIENTS="nethermind-rest")
+        self.assertEqual((self.checkout / ERIGON_DOCKERFILE).read_text(), ERIGON_UPSTREAM)
+
+    def test_erigon_patch_skipped_once_upstream_is_fixed(self):
+        fixed = ERIGON_UPSTREAM.replace("golang:1.25.7", "golang:1.26.8")
+        (self.remote / ERIGON_DOCKERFILE).write_text(fixed)
+        self.commit()
+        result = self.setup_hive(EL_CLIENTS="erigon-rest")
+        self.assertIn("skipping managed Erigon Go patch", result.stdout)
+        self.assertEqual((self.checkout / ERIGON_DOCKERFILE).read_text(), fixed)
+
+    def test_erigon_patch_fails_on_changed_upstream_structure(self):
+        (self.remote / ERIGON_DOCKERFILE).write_text(
+            ERIGON_UPSTREAM.replace("## Builder stage", "## Build stage")
+        )
+        self.commit()
+        result = self.setup_hive(success=False, EL_CLIENTS="erigon-rest")
+        self.assertIn("managed Erigon Go patch does not apply", result.stderr)
+        self.assertEqual(
+            (self.checkout / ERIGON_DOCKERFILE).read_text(),
+            (self.remote / ERIGON_DOCKERFILE).read_text(),
+        )
 
 
 if __name__ == "__main__":

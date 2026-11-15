@@ -21,6 +21,7 @@ _setup_hive_client_file="$HIVE_DIR/clients-local.yaml"
 _setup_hive_nimbus_rest_patch="$_setup_hive_script_dir/../patches/hive-nimbus-rest.patch"
 _setup_hive_nimbus_lfs_patch="$_setup_hive_script_dir/../patches/hive-nimbus-skip-lfs.patch"
 _setup_hive_reth_portable_patch="$_setup_hive_script_dir/../patches/hive-reth-portable-feature.patch"
+_setup_hive_erigon_go_patch="$_setup_hive_script_dir/../patches/hive-erigon-go.patch"
 
 _setup_hive_usage() {
   printf '%s\n' \
@@ -121,6 +122,7 @@ _setup_hive_prepare_git_checkout() {
     _setup_hive_restore_nimbus_rest_patch
     _setup_hive_restore_nimbus_lfs_patch
     _setup_hive_restore_reth_portable_patch
+    _setup_hive_restore_erigon_go_patch
 
     if git -C "$checkout_dir" remote get-url origin >/dev/null 2>&1; then
       git -C "$checkout_dir" remote set-url origin "$repo"
@@ -246,6 +248,46 @@ _setup_hive_patch_reth_portable() {
   fi
   _setup_hive_log "Switching the reth Docker build to the reth binary's portable feature"
   git -C "$HIVE_DIR" apply "$_setup_hive_reth_portable_patch"
+}
+
+_setup_hive_restore_erigon_go_patch() {
+  local dockerfile
+
+  dockerfile="$HIVE_DIR/clients/erigon/Dockerfile.git"
+  if [ ! -f "$dockerfile" ] ||
+    ! grep -Fq '# eest-dashboard: erigon main requires Go 1.26.8' "$dockerfile"; then
+    return 0
+  fi
+
+  if ! git -C "$HIVE_DIR" apply --reverse --check "$_setup_hive_erigon_go_patch"; then
+    _setup_hive_die "unable to remove managed Erigon Go patch before updating Hive; check local edits to $dockerfile"
+  fi
+  _setup_hive_log "Removing managed Erigon Go patch before updating Hive"
+  git -C "$HIVE_DIR" apply --reverse "$_setup_hive_erigon_go_patch"
+}
+
+_setup_hive_patch_erigon_go() {
+  local descriptor
+
+  descriptor="$1"
+  if [ "$(eest_el_clients_descriptor_field "$descriptor" '.hive_client')" != erigon ] ||
+    [ "$(eest_el_clients_dockerfile_ext "$descriptor")" != git ]; then
+    _setup_hive_die 'erigon-go requires hive_client=erigon and dockerfile=git'
+  fi
+
+  if git -C "$HIVE_DIR" apply --reverse --check "$_setup_hive_erigon_go_patch" >/dev/null 2>&1; then
+    return 0
+  fi
+  # Once Hive bumps the builder image, keep building instead of failing on a stale patch.
+  if ! grep -Fq 'FROM golang:1.25.7-trixie as builder' "$HIVE_DIR/clients/erigon/Dockerfile.git"; then
+    _setup_hive_log "Hive's Erigon Dockerfile no longer builds with Go 1.25.7; skipping managed Erigon Go patch"
+    return 0
+  fi
+  if ! git -C "$HIVE_DIR" apply --check "$_setup_hive_erigon_go_patch"; then
+    _setup_hive_die "managed Erigon Go patch does not apply to Hive at $HIVE_REF; check clients/erigon/Dockerfile.git"
+  fi
+  _setup_hive_log "Building Erigon with Go 1.26.8"
+  git -C "$HIVE_DIR" apply "$_setup_hive_erigon_go_patch"
 }
 
 _setup_hive_validate_extra_flags() {
@@ -383,6 +425,9 @@ _setup_hive_apply_descriptor_setup() {
       ;;
     reth-portable-feature)
       _setup_hive_patch_reth_portable "$descriptor"
+      ;;
+    erigon-go)
+      _setup_hive_patch_erigon_go "$descriptor"
       ;;
     *)
       _setup_hive_die "unsupported managed_patch for $(eest_el_clients_descriptor_field "$descriptor" '.id'): $managed_patch"

@@ -89,6 +89,15 @@ The patch uses the Reth binary's `portable` feature instead. Once Hive's
 Dockerfile stops using `reth-revm/portable`, setup logs that it's skipping the
 patch, and we can delete it.
 
+`erigon-go` applies `patches/hive-erigon-go.patch`. Erigon `main` requires Go
+1.26.8, but Hive's `clients/erigon/Dockerfile.git` still builds with
+`golang:1.25.7-trixie`, which sets `GOTOOLCHAIN=local`, so Erigon's Makefile
+stops with `minimum required Golang version is 1.26`. The patch moves the
+builder to `golang:1.26.8-trixie`, as
+[ethereum/hive#1645](https://github.com/ethereum/hive/pull/1645) does upstream.
+Once Hive's Dockerfile stops using Go 1.25.7, setup logs that it's skipping the
+patch, and we can delete it.
+
 ## zkEVM workload
 
 `ZKEVM_WORKLOAD_RUNS` defaults to `ethrex:zisk,reth:zisk` and also accepts
@@ -193,8 +202,9 @@ the generated source checkouts and replace outputs under `smoke-results/`.
 For another guest, repeat the run, convert, and check commands with its client
 and zkVM. For a REST+SSZ client, pass its descriptor to
 `run-hive-consume-client.sh` and its result name to `--client`, for example
-`nimbus-el-rest` and `nimbus-el_rest-ssz`, `reth-rest` and `reth_rest-ssz`, or
-`nethermind-rest` and `nethermind_rest-ssz`.
+`nimbus-el-rest` and `nimbus-el_rest-ssz`, `reth-rest` and `reth_rest-ssz`,
+`nethermind-rest` and `nethermind_rest-ssz`, or `erigon-rest` and
+`erigon_rest-ssz`.
 
 The `hive` check exits nonzero unless the engine fixture contains the selected
 case and the named Hive client passes it without skipping. The `zkevm` check
