@@ -85,6 +85,17 @@
       "github": "NethermindEth/nethermind",
       "ref": "master",
       "transport": "rest-ssz"
+    },
+    "erigon-rest": {
+      "hive_client": "erigon",
+      "dockerfile": "git",
+      "nametag": "rest-ssz",
+      "hive_parallelism": 8,
+      "repo": "https://github.com/erigontech/erigon.git",
+      "github": "erigontech/erigon",
+      "ref": "main",
+      "managed_patch": "erigon-go",
+      "transport": "rest-ssz"
     }
   }
 }

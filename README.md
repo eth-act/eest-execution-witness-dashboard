@@ -69,6 +69,7 @@ them, and local runs opt in:
 | `nimbus-el-rest` | `status-im/nimbus-eth1` | `witness-rest-ssz-endpoint` | `nimbus-el_rest-ssz` |
 | `reth-rest` | `paradigmxyz/reth` | `main` | `reth_rest-ssz` |
 | `nethermind-rest` | `NethermindEth/nethermind` | `master` | `nethermind_rest-ssz` |
+| `erigon-rest` | `erigontech/erigon` | `main` | `erigon_rest-ssz` |
 
 The REST results have their own client name, so Nimbus and Nethermind can run
 both transports in the same site. The REST consumer ships in
@@ -87,10 +88,13 @@ every client anyway:
 - Reth `v2.7.0` has the REST endpoint but lacks a fix that keeps bytecode
   created during the block out of the witness. Reth's JSON-RPC witness method
   is still an open pull request, so Reth only runs over REST+SSZ.
+- No Erigon release has the REST witness endpoint yet. It landed on `main` in
+  erigontech/erigon#26085.
 
 Nimbus generates witnesses on demand and needs no extra startup flags;
-`nimbus-el-rest` enables `--debug-engine-api-rest`. Reth and Nethermind serve
-the REST witness endpoint on the Engine API port without extra flags.
+`nimbus-el-rest` enables `--debug-engine-api-rest`. Reth, Nethermind, and
+Erigon serve the REST witness endpoint on the Engine API port without extra
+flags.
 
 Hive builds each client from its `Dockerfile.git`, which clones the descriptor
 `ref` with `git clone --branch`. Use a branch or tag name, not a commit SHA.
@@ -108,7 +112,7 @@ for both.
 ### Refresh workflow
 
 The Refresh execution witness dashboard workflow
-(`.github/workflows/refresh-dashboard.yml`) prepares a dataset, runs eight Hive
+(`.github/workflows/refresh-dashboard.yml`) prepares a dataset, runs nine Hive
 client configurations and fourteen zkEVM runs, and publishes the site. It runs
 every Monday and Thursday at 03:17 UTC. To run it now:
 
