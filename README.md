@@ -19,7 +19,7 @@ The dashboard combines two result sets built from the same EEST
 ```bash
 EEST_RELEASE_TAG=
 EEST_REPO=https://github.com/ethereum/execution-specs.git
-EEST_REF=tests-zkevm@v21.0.6
+EEST_REF=tests-zkevm@v21.0.7
 FILLER_PATH=tests/amsterdam/eip8025_optional_proofs
 FORK=Amsterdam
 
@@ -31,7 +31,7 @@ HIVE_UI_REF=b5441f735366a4f7d13575a020ccd6517d7ecaf3
 HIVE_UI_DISCOVERY_NAME=zkEVM
 
 ZKEVM_BENCHMARK_WORKLOAD_REPO=https://github.com/eth-act/zkevm-benchmark-workload.git
-ZKEVM_BENCHMARK_WORKLOAD_REF=v0.19.1
+ZKEVM_BENCHMARK_WORKLOAD_REF=v0.20.0
 ZKEVM_WORKLOAD_RUNS=ethrex:zisk,reth:zisk
 ZKEVM_RAYON_THREADS=10
 
@@ -101,11 +101,11 @@ Hive builds each client from its `Dockerfile.git`, which clones the descriptor
 
 ### zkEVM guests
 
-Workload `v0.19.1` downloads guests from the `ere-guests` `v0.19.1` release.
-It provides Ethrex, Reth, and Zesu on SP1, ZisK, and OpenVM, Nimbus and
-Nethermind on SP1 and ZisK, and Zilkworm on SP1 only. The Nimbus guest ID is
-`nimbus`, and its Hive client ID is `nimbus-el`. Nethermind uses `nethermind`
-for both.
+Workload `v0.20.0` downloads guests from the `ere-guests` `v0.20.0` release.
+It provides Reth on SP1, ZisK, OpenVM, and Pico, Ethrex and Zesu on SP1, ZisK,
+and OpenVM, Nimbus and Nethermind on SP1 and ZisK, and Zilkworm on SP1 only.
+The Nimbus guest ID is `nimbus`, and its Hive client ID is `nimbus-el`.
+Nethermind uses `nethermind` for both.
 
 ## Publishing
 
@@ -113,7 +113,7 @@ for both.
 
 The Refresh execution witness dashboard workflow
 (`.github/workflows/refresh-dashboard.yml`) prepares a dataset, runs nine Hive
-client configurations and fourteen zkEVM runs, and publishes the site. It runs
+client configurations and fifteen zkEVM runs, and publishes the site. It runs
 every Monday and Thursday at 03:17 UTC. To run it now:
 
 ```bash
@@ -121,7 +121,7 @@ gh workflow run refresh-dashboard.yml --ref main
 ```
 
 Only one refresh runs at a time; a new one waits for the current one to finish.
-Each refresh uses the prefilled EEST release `tests-zkevm@v21.0.6`, every Hive
+Each refresh uses the prefilled EEST release `tests-zkevm@v21.0.7`, every Hive
 client in the two tables above, and every guest/zkVM pair the workload
 provides. Hive, the workload, Rayon threads, hive-ui, and the site limit match
 the defaults. Branch refs, such as Hive `master` and every client ref, resolve
@@ -186,7 +186,7 @@ workload. A release-mode dataset uses the whole fixture bundle; `filler_path`
 and `fork` don't filter it.
 
 The site's group title shows the release tag, for example
-`tests-zkevm v21.0.6`. Fill-mode datasets use `execution-witness`.
+`tests-zkevm v21.0.7`. Fill-mode datasets use `execution-witness`.
 
 `publish.yml` uploads the combined Hive results as a short-lived
 `hive-combined-results-*` artifact. Failed runs upload debug artifacts with
@@ -250,7 +250,7 @@ for `FILLER_PATH` and `FORK` into `FIXTURES_DIR` and checks that
 To use a release's prefilled fixtures instead, set `EEST_RELEASE_TAG`:
 
 ```bash
-EEST_RELEASE_TAG='tests-zkevm@v21.0.6' scripts/prepare-fixtures.sh
+EEST_RELEASE_TAG='tests-zkevm@v21.0.7' scripts/prepare-fixtures.sh
 ```
 
 Release mode ignores `EEST_REPO` and `EEST_REF`. It checks out
