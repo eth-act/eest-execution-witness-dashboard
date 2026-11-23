@@ -8,7 +8,7 @@ from tempfile import TemporaryDirectory
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DOCKERFILE = "clients/nimbus-el/Dockerfile.git"
-# Relevant structure of Hive 43ea47be's Nimbus Dockerfile.
+# Relevant structure of Hive befb5c9e's Nimbus Dockerfile.
 UPSTREAM = '''# Docker container spec for building the master branch of nimbus.
 
 FROM debian:testing-slim AS build
@@ -23,6 +23,11 @@ ARG github=status-im/nimbus-eth1
 RUN git clone --branch "$tag" https://github.com/$github
 # --------------------------------- #
 FROM debian:testing-slim AS deploy
+
+ARG parallel_state_root=""
+ENV HIVE_PARALLEL_STATE_ROOT=${parallel_state_root}
+ARG eager_state_root=""
+ENV HIVE_EAGER_STATE_ROOT=${eager_state_root}
 
 RUN apt-get clean && apt update \\
  && apt -y install build-essential jq curl
