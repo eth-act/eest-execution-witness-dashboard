@@ -83,6 +83,29 @@ ARG tag=main
 ARG GOPROXY
 '''
 
+NETHERMIND_DOCKERFILE = "clients/nethermind/Dockerfile.git"
+# Relevant structure of Hive befb5c9e's Nethermind Dockerfile.
+NETHERMIND_UPSTREAM = '''### Build Nethermind From Git:
+
+## Builder stage: Compiles nethermind from a git repository
+FROM mcr.microsoft.com/dotnet/sdk:10.0.300-resolute@sha256:8b3c86c1a43c4d084c20be348dfa8821508003cf5caf02146d30de76256d1dab AS build
+
+ARG github=nethermindeth/nethermind
+ARG tag=master
+
+RUN echo "Cloning: $github - $tag" && \\
+    git clone -b $tag https://github.com/$github && \\
+    cd /nethermind/src/Nethermind/Nethermind.Runner && \\
+    dotnet build -c release
+
+## Final stage: Sets up the environment for running nethermind
+FROM mcr.microsoft.com/dotnet/aspnet:10.0.8-resolute@sha256:cceead03c842a491858079ca3046bd9fb598bec0ac14732cb8558c7b32a57c9a
+
+ARG flatdb_disabled=""
+ENV HIVE_FLATDB_DISABLED=${flatdb_disabled}
+ARG statedb_key_scheme=""
+'''
+
 
 class SetupHiveTests(unittest.TestCase):
     def setUp(self):
@@ -102,10 +125,12 @@ class SetupHiveTests(unittest.TestCase):
         source.parent.mkdir(parents=True)
         source.write_text(UPSTREAM)
         (source.parent / "nimbus.sh").write_text(LAUNCHER)
-        for client in ("ethrex", "nethermind"):
-            other = self.remote / f"clients/{client}/Dockerfile.git"
-            other.parent.mkdir(parents=True)
-            other.write_text("FROM scratch\n")
+        other = self.remote / "clients/ethrex/Dockerfile.git"
+        other.parent.mkdir(parents=True)
+        other.write_text("FROM scratch\n")
+        nethermind = self.remote / NETHERMIND_DOCKERFILE
+        nethermind.parent.mkdir(parents=True)
+        nethermind.write_text(NETHERMIND_UPSTREAM)
         reth = self.remote / RETH_DOCKERFILE
         reth.parent.mkdir(parents=True)
         reth.write_text(RETH_UPSTREAM)
@@ -174,7 +199,7 @@ class SetupHiveTests(unittest.TestCase):
     def test_rest_setup_only_patches_selected_dockerfile(self):
         for descriptor, client, github, changed in (
             ("reth-rest", "reth", "paradigmxyz/reth", f"M {RETH_DOCKERFILE}"),
-            ("nethermind-rest", "nethermind", "NethermindEth/nethermind", ""),
+            ("nethermind-rest", "nethermind", "NethermindEth/nethermind", f"M {NETHERMIND_DOCKERFILE}"),
             ("erigon-rest", "erigon", "erigontech/erigon", f"M {ERIGON_DOCKERFILE}"),
         ):
             with self.subTest(descriptor=descriptor):
@@ -319,6 +344,46 @@ class SetupHiveTests(unittest.TestCase):
         self.assertEqual(
             (self.checkout / ERIGON_DOCKERFILE).read_text(),
             (self.remote / ERIGON_DOCKERFILE).read_text(),
+        )
+
+    def test_nethermind_patch_bumps_dotnet_once(self):
+        self.setup_hive(EL_CLIENTS="nethermind,nethermind-rest")
+        first = (self.checkout / NETHERMIND_DOCKERFILE).read_text()
+        self.setup_hive(EL_CLIENTS="nethermind,nethermind-rest")
+        self.assertEqual((self.checkout / NETHERMIND_DOCKERFILE).read_text(), first)
+        self.assertNotIn("dotnet/sdk:10.", first)
+        self.assertNotIn("dotnet/aspnet:10.", first)
+        self.assertEqual(first.count("FROM mcr.microsoft.com/dotnet/sdk:11.0.100-resolute@"), 1)
+        self.assertEqual(first.count("FROM mcr.microsoft.com/dotnet/aspnet:11.0.0-resolute@"), 1)
+        self.assertEqual(first.count("# eest-dashboard:"), 1)
+
+    def test_deselecting_nethermind_removes_patch(self):
+        self.setup_hive(EL_CLIENTS="nethermind-rest")
+        self.setup_hive(EL_CLIENTS="ethrex")
+        self.assertEqual(
+            (self.checkout / NETHERMIND_DOCKERFILE).read_text(), NETHERMIND_UPSTREAM
+        )
+
+    def test_nethermind_patch_skipped_once_upstream_is_fixed(self):
+        fixed = NETHERMIND_UPSTREAM.replace(
+            "dotnet/sdk:10.0.300", "dotnet/sdk:11.0.100"
+        ).replace("dotnet/aspnet:10.0.8", "dotnet/aspnet:11.0.0")
+        (self.remote / NETHERMIND_DOCKERFILE).write_text(fixed)
+        self.commit()
+        result = self.setup_hive(EL_CLIENTS="nethermind-rest")
+        self.assertIn("skipping managed Nethermind .NET patch", result.stdout)
+        self.assertEqual((self.checkout / NETHERMIND_DOCKERFILE).read_text(), fixed)
+
+    def test_nethermind_patch_fails_on_changed_upstream_structure(self):
+        (self.remote / NETHERMIND_DOCKERFILE).write_text(
+            NETHERMIND_UPSTREAM.replace("## Builder stage", "## Build stage")
+        )
+        self.commit()
+        result = self.setup_hive(success=False, EL_CLIENTS="nethermind-rest")
+        self.assertIn("managed Nethermind .NET patch does not apply", result.stderr)
+        self.assertEqual(
+            (self.checkout / NETHERMIND_DOCKERFILE).read_text(),
+            (self.remote / NETHERMIND_DOCKERFILE).read_text(),
         )
 
 

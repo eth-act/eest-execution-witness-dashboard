@@ -49,6 +49,7 @@
       "repo": "https://github.com/NethermindEth/nethermind.git",
       "github": "NethermindEth/nethermind",
       "ref": "master",
+      "managed_patch": "nethermind-dotnet",
       "transport": "json-rpc-rlp"
     },
     "nimbus-el-rest": {
@@ -84,6 +85,7 @@
       "repo": "https://github.com/NethermindEth/nethermind.git",
       "github": "NethermindEth/nethermind",
       "ref": "master",
+      "managed_patch": "nethermind-dotnet",
       "transport": "rest-ssz"
     },
     "erigon-rest": {
