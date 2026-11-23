@@ -22,6 +22,7 @@ _setup_hive_nimbus_rest_patch="$_setup_hive_script_dir/../patches/hive-nimbus-re
 _setup_hive_nimbus_lfs_patch="$_setup_hive_script_dir/../patches/hive-nimbus-skip-lfs.patch"
 _setup_hive_reth_portable_patch="$_setup_hive_script_dir/../patches/hive-reth-portable-feature.patch"
 _setup_hive_erigon_go_patch="$_setup_hive_script_dir/../patches/hive-erigon-go.patch"
+_setup_hive_nethermind_dotnet_patch="$_setup_hive_script_dir/../patches/hive-nethermind-dotnet.patch"
 
 _setup_hive_usage() {
   printf '%s\n' \
@@ -123,6 +124,7 @@ _setup_hive_prepare_git_checkout() {
     _setup_hive_restore_nimbus_lfs_patch
     _setup_hive_restore_reth_portable_patch
     _setup_hive_restore_erigon_go_patch
+    _setup_hive_restore_nethermind_dotnet_patch
 
     if git -C "$checkout_dir" remote get-url origin >/dev/null 2>&1; then
       git -C "$checkout_dir" remote set-url origin "$repo"
@@ -290,6 +292,46 @@ _setup_hive_patch_erigon_go() {
   git -C "$HIVE_DIR" apply "$_setup_hive_erigon_go_patch"
 }
 
+_setup_hive_restore_nethermind_dotnet_patch() {
+  local dockerfile
+
+  dockerfile="$HIVE_DIR/clients/nethermind/Dockerfile.git"
+  if [ ! -f "$dockerfile" ] ||
+    ! grep -Fq '# eest-dashboard: nethermind master requires the .NET 11 SDK' "$dockerfile"; then
+    return 0
+  fi
+
+  if ! git -C "$HIVE_DIR" apply --reverse --check "$_setup_hive_nethermind_dotnet_patch"; then
+    _setup_hive_die "unable to remove managed Nethermind .NET patch before updating Hive; check local edits to $dockerfile"
+  fi
+  _setup_hive_log "Removing managed Nethermind .NET patch before updating Hive"
+  git -C "$HIVE_DIR" apply --reverse "$_setup_hive_nethermind_dotnet_patch"
+}
+
+_setup_hive_patch_nethermind_dotnet() {
+  local descriptor
+
+  descriptor="$1"
+  if [ "$(eest_el_clients_descriptor_field "$descriptor" '.hive_client')" != nethermind ] ||
+    [ "$(eest_el_clients_dockerfile_ext "$descriptor")" != git ]; then
+    _setup_hive_die 'nethermind-dotnet requires hive_client=nethermind and dockerfile=git'
+  fi
+
+  if git -C "$HIVE_DIR" apply --reverse --check "$_setup_hive_nethermind_dotnet_patch" >/dev/null 2>&1; then
+    return 0
+  fi
+  # Once Hive bumps the .NET images, keep building instead of failing on a stale patch.
+  if ! grep -Fq 'FROM mcr.microsoft.com/dotnet/sdk:10.' "$HIVE_DIR/clients/nethermind/Dockerfile.git"; then
+    _setup_hive_log "Hive's Nethermind Dockerfile no longer builds with the .NET 10 SDK; skipping managed Nethermind .NET patch"
+    return 0
+  fi
+  if ! git -C "$HIVE_DIR" apply --check "$_setup_hive_nethermind_dotnet_patch"; then
+    _setup_hive_die "managed Nethermind .NET patch does not apply to Hive at $HIVE_REF; check clients/nethermind/Dockerfile.git"
+  fi
+  _setup_hive_log "Building Nethermind with the .NET 11 SDK"
+  git -C "$HIVE_DIR" apply "$_setup_hive_nethermind_dotnet_patch"
+}
+
 _setup_hive_validate_extra_flags() {
   local extra_flags
 
@@ -428,6 +470,9 @@ _setup_hive_apply_descriptor_setup() {
       ;;
     erigon-go)
       _setup_hive_patch_erigon_go "$descriptor"
+      ;;
+    nethermind-dotnet)
+      _setup_hive_patch_nethermind_dotnet "$descriptor"
       ;;
     *)
       _setup_hive_die "unsupported managed_patch for $(eest_el_clients_descriptor_field "$descriptor" '.id'): $managed_patch"

@@ -98,6 +98,15 @@ builder to `golang:1.26.8-trixie`, as
 Once Hive's Dockerfile stops using Go 1.25.7, setup logs that it's skipping the
 patch, and we can delete it.
 
+`nethermind-dotnet` applies `patches/hive-nethermind-dotnet.patch`. Nethermind
+`master` moved to .NET 11 in
+[NethermindEth/nethermind#14147](https://github.com/NethermindEth/nethermind/pull/14147),
+but Hive's `clients/nethermind/Dockerfile.git` still builds with the .NET 10
+SDK image, so `dotnet build` stops with `A compatible .NET SDK was not found`.
+The patch moves the builder and runtime images to the .NET 11 ones Nethermind's
+own Dockerfile uses. Once Hive's Dockerfile stops using the .NET 10 SDK, setup
+logs that it's skipping the patch, and we can delete it.
+
 ## zkEVM workload
 
 `ZKEVM_WORKLOAD_RUNS` defaults to `ethrex:zisk,reth:zisk` and also accepts
