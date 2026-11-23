@@ -1,7 +1,7 @@
 diff --git a/clients/nimbus-el/Dockerfile.git b/clients/nimbus-el/Dockerfile.git
 --- a/clients/nimbus-el/Dockerfile.git
 +++ b/clients/nimbus-el/Dockerfile.git
-@@ -27,6 +27,10 @@
+@@ -26,6 +26,10 @@
  # --------------------------------- #
  FROM debian:testing-slim AS deploy
  
@@ -9,14 +9,13 @@ diff --git a/clients/nimbus-el/Dockerfile.git b/clients/nimbus-el/Dockerfile.git
 +ARG engine_api_rest=false
 +ENV HIVE_ENGINE_API_REST=$engine_api_rest
 +
- RUN apt-get clean && apt update \
-  && apt -y install build-essential jq curl
- RUN apt update && apt -y upgrade
+ ARG parallel_state_root=""
+ ENV HIVE_PARALLEL_STATE_ROOT=${parallel_state_root}
+ ARG eager_state_root=""
 diff --git a/clients/nimbus-el/nimbus.sh b/clients/nimbus-el/nimbus.sh
 --- a/clients/nimbus-el/nimbus.sh
 +++ b/clients/nimbus-el/nimbus.sh
-@@ -119,6 +119,11 @@
-   echo "0x7365637265747365637265747365637265747365637265747365637265747365" > /jwtsecret
+@@ -137,5 +137,10 @@
    FLAGS="$FLAGS --engine-api:true --engine-api-address:0.0.0.0 --engine-api-port:8551 --jwt-secret:/jwtsecret"
  fi
  
