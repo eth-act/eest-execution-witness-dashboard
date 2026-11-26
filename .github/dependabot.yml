@@ -1,0 +1,14 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directories:
+      - /
+      - /.github/actions/*
+    schedule:
+      interval: monthly
+    # One PR a month, so the bumps share one PR smoke run instead of each
+    # starting its own.
+    groups:
+      github-actions:
+        patterns:
+          - "*"
