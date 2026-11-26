@@ -38,7 +38,6 @@
       "repo": "https://github.com/status-im/nimbus-eth1.git",
       "github": "status-im/nimbus-eth1",
       "ref": "master",
-      "managed_patch": "nimbus-skip-lfs",
       "transport": "json-rpc-rlp"
     },
     "nethermind": {
@@ -60,7 +59,6 @@
       "repo": "https://github.com/status-im/nimbus-eth1.git",
       "github": "status-im/nimbus-eth1",
       "ref": "witness-rest-ssz-endpoint",
-      "managed_patch": "nimbus-skip-lfs",
       "transport": "rest-ssz",
       "build_args": {
         "engine_api_rest": "true"

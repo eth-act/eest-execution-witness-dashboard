@@ -34,10 +34,9 @@ _setup_hive_patch_dir="$_setup_hive_script_dir/../patches"
 #
 # Each patch adds an "eest-dashboard:" comment to every file it changes, which
 # is how setup tells it's applied. Setup removes patches in row order before
-# updating Hive. Nimbus REST comes first because it's applied after Nimbus LFS
-# and changes the same Dockerfile.
+# updating Hive, so a patch applied after another one to the same file has to
+# come first.
 _setup_hive_patch_table='nimbus-rest|hive-nimbus-rest.patch|Nimbus REST|nimbus-el|rest-ssz|||
-nimbus-skip-lfs|hive-nimbus-skip-lfs.patch|Nimbus LFS|nimbus-el||clients/nimbus-el/Dockerfile.git|present|GIT_LFS_SKIP_SMUDGE
 reth-portable-feature|hive-reth-portable-feature.patch|reth portable|reth||clients/reth/Dockerfile.git|absent|reth-revm/portable
 erigon-go|hive-erigon-go.patch|Erigon Go|erigon||clients/erigon/Dockerfile.git|absent|FROM golang:1.25.7-trixie as builder
 nethermind-dotnet|hive-nethermind-dotnet.patch|Nethermind .NET|nethermind||clients/nethermind/Dockerfile.git|absent|FROM mcr.microsoft.com/dotnet/sdk:10.'
