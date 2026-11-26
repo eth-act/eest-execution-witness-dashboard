@@ -129,23 +129,39 @@ _prepare_fixtures_normalize_release_output() {
 }
 
 _prepare_fixtures_download_release() {
-  local archive asset_count asset_name asset_url encoded_tag release_api_url release_json
+  local archive asset_count asset_name asset_url encoded_tag release_api_url release_json token
+  local -a api_args
 
   _prepare_fixtures_require_cmd uv uv
   _prepare_fixtures_require_cmd curl curl
   _prepare_fixtures_require_cmd jq jq
-  _prepare_fixtures_require_cmd python3 Python
 
   _prepare_fixtures_log "Preparing EEST release checkout for $EEST_RELEASE_TAG"
   "$_prepare_fixtures_script_dir/setup-eest.sh"
 
   _prepare_fixtures_reset_dir "$FIXTURES_DIR"
   archive="$(mktemp /tmp/eest-release-fixtures.XXXXXXXX.tar.gz)"
-  encoded_tag="$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$EEST_RELEASE_TAG")"
+  encoded_tag="$(jq -rn --arg value "$EEST_RELEASE_TAG" '$value | @uri')"
   release_api_url="https://api.github.com/repos/ethereum/execution-specs/releases/tags/$encoded_tag"
 
+  # Without a token, the API allows 60 requests an hour per IP, which runners
+  # on a shared IP can use up.
+  api_args=(
+    --header 'Accept: application/vnd.github+json'
+    --header 'X-GitHub-Api-Version: 2022-11-28'
+  )
+  token="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
+  if [ -n "$token" ]; then
+    api_args+=(--header "Authorization: Bearer $token")
+  fi
+
   _prepare_fixtures_log "Resolving EEST release asset for $EEST_RELEASE_TAG"
-  release_json="$(curl --fail --show-error --location "$release_api_url")"
+  release_json="$(
+    curl --fail --silent --show-error --location \
+      --connect-timeout 30 --max-time 120 --retry 5 \
+      "${api_args[@]}" \
+      "$release_api_url"
+  )"
   asset_count="$(
     jq '[.assets[]? | select(.name | endswith(".tar.gz"))] | length' <<< "$release_json"
   )"
@@ -171,7 +187,8 @@ _prepare_fixtures_download_release() {
   )"
 
   _prepare_fixtures_log "Downloading $asset_name into $FIXTURES_DIR"
-  curl --fail --show-error --location --output "$archive" "$asset_url"
+  curl --fail --show-error --location --connect-timeout 30 --retry 5 \
+    --output "$archive" "$asset_url"
   tar -xzf "$archive" -C "$FIXTURES_DIR"
   rm -f "$archive"
 

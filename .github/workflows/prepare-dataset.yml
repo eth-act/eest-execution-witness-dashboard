@@ -142,6 +142,8 @@ jobs:
           esac
 
       - name: Prepare execution witness fixtures
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: scripts/prepare-fixtures.sh
 
       - name: Pack fixtures
