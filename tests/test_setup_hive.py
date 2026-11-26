@@ -254,78 +254,43 @@ class SetupHiveTests(unittest.TestCase):
         self.assertIn("unable to remove managed Nimbus REST patch", result.stderr)
         self.assertEqual(path.read_text(), edited)
 
-    def test_repeated_setup_applies_once_inside_build_stage(self):
-        self.setup_hive()
-        first = (self.checkout / DOCKERFILE).read_text()
-        self.setup_hive()
-        self.assertEqual((self.checkout / DOCKERFILE).read_text(), first)
-        setting = "ENV GIT_LFS_SKIP_SMUDGE=1"
-        self.assertEqual(first.count(setting), 1)
-        self.assertLess(first.index("AS build"), first.index(setting))
-        self.assertLess(first.index(setting), first.index("RUN git clone"))
-        self.assertNotIn("GIT_LFS_SKIP_SMUDGE", first.split("AS deploy")[1])
-
     def test_upstream_update_removes_then_reapplies_patch(self):
-        self.setup_hive()
-        (self.remote / DOCKERFILE).write_text(UPSTREAM + "LABEL updated=true\n")
+        self.setup_hive(EL_CLIENTS="reth-rest")
+        (self.remote / RETH_DOCKERFILE).write_text(RETH_UPSTREAM + "LABEL updated=true\n")
         self.commit()
-        self.setup_hive()
+        self.setup_hive(EL_CLIENTS="reth-rest")
         self.assertEqual(
             self.git(self.checkout, "rev-parse", "HEAD"),
             self.git(self.remote, "rev-parse", "HEAD"),
         )
-        content = (self.checkout / DOCKERFILE).read_text()
+        content = (self.checkout / RETH_DOCKERFILE).read_text()
         self.assertIn("LABEL updated=true", content)
-        self.assertEqual(content.count("ENV GIT_LFS_SKIP_SMUDGE=1"), 1)
+        self.assertNotIn("reth-revm/portable", content)
+        self.assertEqual(content.count(",portable,"), 1)
 
     def test_disabling_patch_preserves_unrelated_local_edits(self):
-        self.setup_hive()
-        path = self.checkout / DOCKERFILE
+        self.setup_hive(EL_CLIENTS="reth-rest")
+        path = self.checkout / RETH_DOCKERFILE
         path.write_text(path.read_text() + "# local customization\n")
-        self.setup_hive(EL_CLIENT_OVERRIDES_JSON='{"nimbus-el":{"managed_patch":""}}')
-        self.assertEqual(path.read_text(), UPSTREAM + "# local customization\n")
-
-    def test_deselecting_nimbus_removes_patch(self):
-        self.setup_hive()
-        self.setup_hive(EL_CLIENTS="ethrex")
-        self.assertEqual((self.checkout / DOCKERFILE).read_text(), UPSTREAM)
-
-    def test_changed_upstream_structure_fails_without_partial_patch(self):
-        (self.remote / DOCKERFILE).write_text(
-            UPSTREAM.replace("FROM debian:testing-slim AS build", "FROM ubuntu AS build")
+        self.setup_hive(
+            EL_CLIENTS="reth-rest",
+            EL_CLIENT_OVERRIDES_JSON='{"reth-rest":{"managed_patch":""}}',
         )
-        self.commit()
-        result = self.setup_hive(success=False)
-        self.assertIn("managed Nimbus LFS patch does not apply", result.stderr)
-        self.assertEqual(
-            (self.checkout / DOCKERFILE).read_text(),
-            (self.remote / DOCKERFILE).read_text(),
-        )
+        self.assertEqual(path.read_text(), RETH_UPSTREAM + "# local customization\n")
 
     def test_edited_managed_patch_fails_without_discarding_edits(self):
-        self.setup_hive()
-        path = self.checkout / DOCKERFILE
-        edited = path.read_text().replace("GIT_LFS_SKIP_SMUDGE=1", "GIT_LFS_SKIP_SMUDGE=0")
+        self.setup_hive(EL_CLIENTS="reth-rest")
+        path = self.checkout / RETH_DOCKERFILE
+        edited = path.read_text().replace(",portable,", ",portable,custom,")
         path.write_text(edited)
-        result = self.setup_hive(success=False)
-        self.assertIn("unable to remove managed Nimbus LFS patch", result.stderr)
+        result = self.setup_hive(success=False, EL_CLIENTS="reth-rest")
+        self.assertIn("unable to remove managed reth portable patch", result.stderr)
         self.assertEqual(path.read_text(), edited)
 
-    def test_nimbus_lfs_patch_skipped_once_upstream_is_fixed(self):
-        self.setup_hive(EL_CLIENTS="nimbus-el,nimbus-el-rest")
-        fixed = UPSTREAM.replace(
-            'SHELL ["/bin/bash", "-c"]\n',
-            'SHELL ["/bin/bash", "-c"]\nENV GIT_LFS_SKIP_SMUDGE=1\n',
-        )
-        (self.remote / DOCKERFILE).write_text(fixed)
-        self.commit()
-        result = self.setup_hive(EL_CLIENTS="nimbus-el,nimbus-el-rest")
-        self.assertIn("skipping managed Nimbus LFS patch", result.stdout)
-        content = (self.checkout / DOCKERFILE).read_text()
-        self.assertEqual(content.count("GIT_LFS_SKIP_SMUDGE"), 1)
-        self.assertIn("ENV HIVE_ENGINE_API_REST=$engine_api_rest", content)
-        self.setup_hive(EL_CLIENTS="nimbus-el")
-        self.assertEqual((self.checkout / DOCKERFILE).read_text(), fixed)
+    def test_nimbus_builds_without_a_managed_patch(self):
+        self.setup_hive()
+        self.assertEqual((self.checkout / DOCKERFILE).read_text(), UPSTREAM)
+        self.assertEqual(self.git(self.checkout, "status", "--porcelain", "clients"), "")
 
     def test_managed_patch_must_match_the_descriptor(self):
         for patch, error in (

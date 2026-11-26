@@ -80,18 +80,6 @@ one Hive checkout, one over JSON-RPC and one over REST+SSZ. The flag comes
 from the `witness-rest-ssz-endpoint` branch in status-im/nimbus-eth1#4844, so
 the patch stays until that merges and Hive has a way to turn the flag on.
 
-`nimbus-skip-lfs` applies `patches/hive-nimbus-skip-lfs.patch` to Hive's
-`clients/nimbus-el/Dockerfile.git`. It sets `GIT_LFS_SKIP_SMUDGE=1` in the
-build stage before cloning, so the build skips unused network data in nested
-submodules. One of those files, the `glamsterdam-devnets` consensus genesis,
-ran out of its upstream Git LFS budget and blocked the
-[September 24, 2026 run](https://github.com/eth-act/eest-execution-witness-dashboard/actions/runs/36032246820/job/107744808338).
-Once Hive's Dockerfile sets `GIT_LFS_SKIP_SMUDGE` itself, setup logs that it's
-skipping the patch, and we can delete it. With Hive `43ea47be`, Nimbus
-`4dc018eb`, and execution-specs `8cd0018e`, the image built with LFS downloads
-disabled and the Amsterdam empty-block witness smoke test passed (one case, no
-skips or timeouts). We didn't run the full witness suite on it.
-
 `reth-portable-feature` applies `patches/hive-reth-portable-feature.patch`.
 Reth `main` removed the `reth-revm` crate in
 [paradigmxyz/reth#25002](https://github.com/paradigmxyz/reth/pull/25002), but
