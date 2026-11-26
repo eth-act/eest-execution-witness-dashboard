@@ -178,44 +178,46 @@ class MergeHiveResultsTests(unittest.TestCase):
         if shutil.which("jq") is None:
             self.skipTest("jq is required by merge-hive-results.sh")
 
-        with TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            results_dir = root / "hive" / "workspace" / "logs"
-            additional_dir = root / "hive" / "workspace" / "converted"
-            write_json(
-                additional_dir / "zkevm.json",
-                {
-                    "name": "suite/zkevm",
-                    "clients": ["reth_zisk"],
-                    "testCases": {},
-                },
-            )
-            env = os.environ.copy()
-            env.update(
-                {
-                    "ROOT_DIR": str(root),
-                    "EL_CLIENTS": "none",
-                    "EL_CLIENT_OVERRIDES_JSON": "{}",
-                    "HIVE_RESULTS_SOURCE_DIR": str(root / "does-not-exist"),
-                    "HIVE_RESULTS_DIR": str(results_dir),
-                }
-            )
+        for sentinel in ("none", " none ", "SKIP", "Empty"):
+            with self.subTest(sentinel=sentinel):
+                with TemporaryDirectory() as tmp:
+                    root = Path(tmp)
+                    results_dir = root / "hive" / "workspace" / "logs"
+                    additional_dir = root / "hive" / "workspace" / "converted"
+                    write_json(
+                        additional_dir / "zkevm.json",
+                        {
+                            "name": "suite/zkevm",
+                            "clients": ["reth_zisk"],
+                            "testCases": {},
+                        },
+                    )
+                    env = os.environ.copy()
+                    env.update(
+                        {
+                            "ROOT_DIR": str(root),
+                            "EL_CLIENTS": sentinel,
+                            "EL_CLIENT_OVERRIDES_JSON": "{}",
+                            "HIVE_RESULTS_SOURCE_DIR": str(root / "does-not-exist"),
+                            "HIVE_RESULTS_DIR": str(results_dir),
+                        }
+                    )
 
-            completed = subprocess.run(
-                ["bash", str(SCRIPT_PATH), "--source", str(additional_dir)],
-                cwd=REPO_ROOT,
-                env=env,
-                text=True,
-                capture_output=True,
-                check=False,
-            )
+                    completed = subprocess.run(
+                        ["bash", str(SCRIPT_PATH), "--source", str(additional_dir)],
+                        cwd=REPO_ROOT,
+                        env=env,
+                        text=True,
+                        capture_output=True,
+                        check=False,
+                    )
 
-            self.assertEqual(
-                completed.returncode,
-                0,
-                f"stdout:\n{completed.stdout}\nstderr:\n{completed.stderr}",
-            )
-            self.assertTrue((results_dir / "zkevm.json").is_file())
+                    self.assertEqual(
+                        completed.returncode,
+                        0,
+                        f"stdout:\n{completed.stdout}\nstderr:\n{completed.stderr}",
+                    )
+                    self.assertTrue((results_dir / "zkevm.json").is_file())
 
     def test_accepts_client_with_only_valid_pruned_results(self):
         if shutil.which("jq") is None:
