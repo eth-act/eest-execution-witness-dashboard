@@ -115,6 +115,10 @@ class ConvertZkEvmMetricsTests(unittest.TestCase):
                 {"ethrex_zisk-v0.16.1": "ethrex-81484be / zisk-v0.16.1"},
             )
             self.assertIn("Test CPU", result["description"])
+            # The description is published, so it names the metrics directory
+            # without the runner's absolute path.
+            self.assertIn("Input root: zkevm metrics\n", result["description"])
+            self.assertNotIn(str(root.resolve()), result["description"])
             self.assertEqual(len(result["testCases"]), 2)
 
             success_case = result["testCases"]["1"]
@@ -146,6 +150,8 @@ class ConvertZkEvmMetricsTests(unittest.TestCase):
 
             preamble = details_bytes[: offsets["begin"]].decode("utf-8")
             self.assertIn("Test GPU", preamble)
+            self.assertIn("input_root: zkevm metrics\n", preamble)
+            self.assertNotIn(str(root.resolve()), preamble)
 
     def test_converts_output_mismatch_as_failed_success(self):
         with TemporaryDirectory() as tmp:
