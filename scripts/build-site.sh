@@ -260,25 +260,6 @@ _build_site_has_listable_results() {
   [ -n "$first_result" ]
 }
 
-_build_site_assert_listable_results() {
-  local dir first_result phase
-
-  phase="$1"
-  dir="$2"
-
-  if [ ! -d "$dir" ]; then
-    _build_site_die "Hive results directory disappeared $phase: $dir"
-  fi
-
-  if ! first_result="$(_build_site_first_suite_json "$dir")"; then
-    _build_site_die "unable to scan Hive results directory $phase: $dir"
-  fi
-
-  if [ -z "$first_result" ]; then
-    _build_site_die "Hive results directory has no top-level suite JSON for hiveview $phase: $dir"
-  fi
-}
-
 _build_site_prepare_git_checkout() {
   local checkout_dir label ref repo
 
@@ -602,7 +583,7 @@ _build_site_validate_result_references() {
 }
 
 _build_site_validate_output() {
-  local first_copied_result first_listing_result max_size_kb site_size_kb site_size_mb
+  local first_copied_result max_size_kb site_size_kb site_size_mb
 
   if [ ! -e "$SITE_DIR/listing.jsonl" ]; then
     _build_site_die "listing.jsonl was not created: $SITE_DIR/listing.jsonl"
@@ -629,11 +610,6 @@ _build_site_validate_output() {
   fi
   _build_site_validate_single_client_listing
   _build_site_validate_result_references
-
-  first_listing_result="$(jq -r 'select(.fileName != null) | .fileName' "$SITE_DIR/listing.jsonl" | sed -n '1p')"
-  if [ -n "$first_listing_result" ] && [ ! -f "$SITE_DIR/results/$first_listing_result" ]; then
-    _build_site_die "listing.jsonl references a result file that was not copied: results/$first_listing_result"
-  fi
 
   first_copied_result="$(find "$SITE_DIR/results" -type f -print -quit)"
   if [ -z "$first_copied_result" ]; then

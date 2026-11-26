@@ -128,8 +128,7 @@ _list_zkevm_runs_json() {
           | {
               execution_client: $client,
               zkvm: $zkvm,
-              guest_artifact_base_url: ($config | require_guest_artifact_base_url($client; $zkvm)),
-              artifact: ("zkevm-metrics-" + $client + "-" + $zkvm)
+              guest_artifact_base_url: ($config | require_guest_artifact_base_url($client; $zkvm))
             }
         ]
     ' "$EL_GUEST_CONFIG"
@@ -170,7 +169,7 @@ main() {
       jq -c '{include: .}' <<< "$runs"
       ;;
     table)
-      jq -r '.[] | [.execution_client, .zkvm, .artifact] | @tsv' <<< "$runs"
+      jq -r '.[] | [.execution_client, .zkvm] | @tsv' <<< "$runs"
       ;;
   esac
 }

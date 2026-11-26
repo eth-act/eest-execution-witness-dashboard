@@ -45,9 +45,8 @@ SITE_MAX_SIZE_MB=900
 ```
 
 Scripts write checkouts and outputs to git-ignored directories:
-`execution-specs/`, `hive/`, `hive-ui/`, `go-ethereum-src/`,
-`zkevm-benchmark-workload/`, `zkevm-metrics/`, `fixtures/`, `site/`, and
-`smoke-results/`.
+`execution-specs/`, `hive/`, `hive-ui/`, `zkevm-benchmark-workload/`,
+`zkevm-metrics/`, `fixtures/`, `site/`, and `smoke-results/`.
 
 ### Execution clients
 
@@ -277,8 +276,6 @@ config:
 ```bash
 EL_CLIENT_OVERRIDES_JSON='{"ethrex":{"ref":"other-branch"}}' scripts/setup-hive.sh
 EL_CLIENT_OVERRIDES_JSON='{"ethrex":{"hive_parallelism":4}}' scripts/run-hive-consume.sh
-# A custom go-ethereum descriptor with managed_patch=geth-extra-flags:
-EL_CLIENT_OVERRIDES_JSON='{"go-ethereum":{"hive_extra_flags":""}}' scripts/setup-hive.sh
 ```
 
 Each descriptor must set `hive_parallelism`, which EEST passes to pytest-xdist

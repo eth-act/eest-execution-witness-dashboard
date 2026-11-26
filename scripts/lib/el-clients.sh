@@ -110,14 +110,6 @@ eest_el_clients_validate_safe_id() {
   esac
 }
 
-eest_el_clients_artifact_name() {
-  local id
-
-  id="$1"
-  eest_el_clients_validate_safe_id "$id" || return 1
-  printf 'hive-results-%s\n' "$id"
-}
-
 eest_el_clients_hive_parallelism() {
   local descriptor
 
@@ -149,7 +141,7 @@ eest_el_clients_hive_parallelism() {
 }
 
 eest_el_clients_matrix_json() {
-  local artifact descriptor full_name id objects parallelism resolved
+  local descriptor full_name id objects parallelism resolved
 
   resolved="$(eest_el_clients_resolve_descriptors)" || return 1
 
@@ -157,18 +149,16 @@ eest_el_clients_matrix_json() {
     while IFS= read -r descriptor; do
       id="$(eest_el_clients_descriptor_field "$descriptor" '.id')"
       full_name="$(eest_el_clients_full_client_name "$descriptor")"
-      artifact="$(eest_el_clients_artifact_name "$id")" || return 1
+      eest_el_clients_validate_safe_id "$id" || return 1
       parallelism="$(eest_el_clients_hive_parallelism "$descriptor")" || return 1
 
       jq -cn \
         --arg id "$id" \
         --arg hive_client "$full_name" \
-        --arg artifact "$artifact" \
         --arg hive_parallelism "$parallelism" \
         '{
           id: $id,
           hive_client: $hive_client,
-          artifact: $artifact,
           hive_parallelism: $hive_parallelism
         }'
     done < <(jq -c '.[]' <<< "$resolved")
