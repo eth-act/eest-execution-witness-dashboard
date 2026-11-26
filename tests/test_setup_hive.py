@@ -311,6 +311,37 @@ class SetupHiveTests(unittest.TestCase):
         self.assertIn("unable to remove managed Nimbus LFS patch", result.stderr)
         self.assertEqual(path.read_text(), edited)
 
+    def test_nimbus_lfs_patch_skipped_once_upstream_is_fixed(self):
+        self.setup_hive(EL_CLIENTS="nimbus-el,nimbus-el-rest")
+        fixed = UPSTREAM.replace(
+            'SHELL ["/bin/bash", "-c"]\n',
+            'SHELL ["/bin/bash", "-c"]\nENV GIT_LFS_SKIP_SMUDGE=1\n',
+        )
+        (self.remote / DOCKERFILE).write_text(fixed)
+        self.commit()
+        result = self.setup_hive(EL_CLIENTS="nimbus-el,nimbus-el-rest")
+        self.assertIn("skipping managed Nimbus LFS patch", result.stdout)
+        content = (self.checkout / DOCKERFILE).read_text()
+        self.assertEqual(content.count("GIT_LFS_SKIP_SMUDGE"), 1)
+        self.assertIn("ENV HIVE_ENGINE_API_REST=$engine_api_rest", content)
+        self.setup_hive(EL_CLIENTS="nimbus-el")
+        self.assertEqual((self.checkout / DOCKERFILE).read_text(), fixed)
+
+    def test_managed_patch_must_match_the_descriptor(self):
+        for patch, error in (
+            ("unknown", "unsupported managed_patch for ethrex: unknown"),
+            ("nimbus-rest", "unsupported managed_patch for ethrex: nimbus-rest"),
+            ("reth-portable-feature", "reth-portable-feature requires hive_client=reth"),
+        ):
+            with self.subTest(patch=patch):
+                result = self.setup_hive(
+                    success=False,
+                    EL_CLIENTS="ethrex",
+                    EL_CLIENT_OVERRIDES_JSON=f'{{"ethrex":{{"managed_patch":"{patch}"}}}}',
+                )
+                self.assertIn(error, result.stderr)
+                self.assertEqual(self.git(self.checkout, "status", "--porcelain", "clients"), "")
+
 
     def test_erigon_patch_bumps_go_once(self):
         self.setup_hive(EL_CLIENTS="erigon-rest")
