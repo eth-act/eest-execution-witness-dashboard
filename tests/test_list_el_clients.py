@@ -125,6 +125,14 @@ class ListElClientsTests(unittest.TestCase):
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertEqual(json.loads(completed.stdout), {"include": []})
 
+    def test_sentinels_ignore_case_and_surrounding_whitespace(self):
+        for clients in (" none ", "SKIP", " Empty "):
+            with self.subTest(clients=clients):
+                completed = self.run_matrix(clients=clients)
+
+                self.assertEqual(completed.returncode, 0, completed.stderr)
+                self.assertEqual(json.loads(completed.stdout), {"include": []})
+
     def test_skip_produces_empty_matrix(self):
         completed = self.run_matrix(clients="skip")
 

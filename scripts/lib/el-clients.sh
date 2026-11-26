@@ -72,6 +72,18 @@ eest_el_clients_resolve_descriptors() {
   eest_el_clients_resolve_descriptors_for "$EL_CLIENTS"
 }
 
+# Succeeds when EL_CLIENTS is none, skip, or empty, which select no Hive
+# clients. Case and surrounding whitespace are ignored.
+eest_el_clients_selects_none() {
+  local normalized
+
+  normalized="$(printf '%s' "$EL_CLIENTS" | tr '[:upper:]' '[:lower:]' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+  case "$normalized" in
+    none | skip | empty) return 0 ;;
+  esac
+  return 1
+}
+
 eest_el_clients_client_nametag() {
   local descriptor
 

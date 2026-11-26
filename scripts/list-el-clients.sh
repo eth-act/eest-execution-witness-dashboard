@@ -43,7 +43,7 @@ _list_el_clients_require_cmd() {
 }
 
 main() {
-  local mode normalized resolved
+  local mode resolved
 
   mode=table
   while [ "$#" -gt 0 ]; do
@@ -71,17 +71,14 @@ main() {
 
   _list_el_clients_require_cmd jq jq
 
-  normalized="$(printf '%s' "$EL_CLIENTS" | tr '[:upper:]' '[:lower:]' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
-  case "$normalized" in
-    none | skip | empty)
-      case "$mode" in
-        json) printf '%s\n' '[]' ;;
-        github-matrix) printf '%s\n' '{"include":[]}' ;;
-        ids | table) ;;
-      esac
-      return 0
-      ;;
-  esac
+  if eest_el_clients_selects_none; then
+    case "$mode" in
+      json) printf '%s\n' '[]' ;;
+      github-matrix) printf '%s\n' '{"include":[]}' ;;
+      ids | table) ;;
+    esac
+    return 0
+  fi
 
   case "$mode" in
     json)

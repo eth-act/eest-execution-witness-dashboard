@@ -107,16 +107,11 @@ main() {
     *) source_root="$ROOT_DIR/$source_root" ;;
   esac
 
-  case "$(printf '%s' "$EL_CLIENTS" | tr '[:upper:]' '[:lower:]')" in
-    none | skip | empty)
-      resolved='[]'
-      ;;
-    *)
-      if ! resolved="$(eest_el_clients_resolve_descriptors)"; then
-        _merge_hive_results_die "failed to resolve EL client descriptors"
-      fi
-      ;;
-  esac
+  if eest_el_clients_selects_none; then
+    resolved='[]'
+  elif ! resolved="$(eest_el_clients_resolve_descriptors)"; then
+    _merge_hive_results_die "failed to resolve EL client descriptors"
+  fi
 
   merge_args=(--output "$HIVE_RESULTS_DIR" --clean-output)
   while IFS= read -r descriptor; do
