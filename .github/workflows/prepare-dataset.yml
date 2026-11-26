@@ -116,15 +116,19 @@ jobs:
 
     steps:
       - name: Checkout dashboard repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v8.1.0
+        uses: astral-sh/setup-uv@v10.4.0
+        with:
+          # This repo has no uv.lock and EEST isn't checked out yet, so
+          # setup-uv's cache key never changes and the cache only grows.
+          enable-cache: false
 
       - name: Install OS prerequisites
         run: |

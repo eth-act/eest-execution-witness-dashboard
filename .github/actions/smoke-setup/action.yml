@@ -22,21 +22,21 @@ runs:
         sudo apt-get update
         # shellcheck disable=SC2086
         sudo apt-get install -y jq $APT_PACKAGES
-    - uses: actions/setup-python@v6
+    - uses: actions/setup-python@v7
       with:
         python-version: "3.12"
-    - uses: actions/setup-go@v6
+    - uses: actions/setup-go@v7
       with:
         go-version: stable
         cache: false
-    - uses: astral-sh/setup-uv@v8.1.0
+    - uses: astral-sh/setup-uv@v10.4.0
     - name: Set uv cache directory
       shell: bash
       run: printf 'UV_CACHE_DIR=%s/uv-cache\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
     # Only one job saves, so a job without Go cannot store an incomplete cache.
     - name: Cache Go and Python dependencies
       if: inputs.save-cache == 'true'
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: |
           ~/go/pkg/mod
@@ -46,7 +46,7 @@ runs:
         restore-keys: pr-smoke-deps-${{ runner.os }}-${{ runner.arch }}-
     - name: Restore Go and Python dependencies
       if: inputs.save-cache != 'true'
-      uses: actions/cache/restore@v4
+      uses: actions/cache/restore@v6
       with:
         path: |
           ~/go/pkg/mod

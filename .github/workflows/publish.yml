@@ -93,21 +93,21 @@ jobs:
 
     steps:
       - name: Checkout dashboard repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version: 1.24.x
           cache: false
 
       - name: Install Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
       - name: Install Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 22.x
 
@@ -366,7 +366,7 @@ jobs:
 
     steps:
       - name: Checkout dashboard repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Deploy Pages artifact
         id: deployment

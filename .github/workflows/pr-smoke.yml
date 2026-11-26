@@ -23,12 +23,12 @@ jobs:
       zkevm_count: ${{ steps.zkevm.outputs.count }}
       zkevm_matrix: ${{ steps.zkevm.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
           # The pull request merge commit and its base parent give the changed files.
           fetch-depth: 2
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - name: Install jq
@@ -104,7 +104,7 @@ jobs:
       HIVE_PRUNE_SKIPPED: "0"
       HIVE_LOG_TO_STDOUT: "1"
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - uses: ./.github/actions/smoke-setup
@@ -146,7 +146,7 @@ jobs:
       HIVE_PRUNE_SKIPPED: "0"
       HIVE_LOG_TO_STDOUT: "1"
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - uses: ./.github/actions/smoke-setup
@@ -191,7 +191,7 @@ jobs:
       GITHUB_TOKEN: ${{ github.token }}
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - uses: ./.github/actions/smoke-setup
@@ -275,17 +275,17 @@ jobs:
       ZKEVM_CONVERTED_RESULTS_DIR: ${{ github.workspace }}/smoke-inputs/zkevm-converted
       ZKEVM_COUNT: ${{ needs.checks.outputs.zkevm_count }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version: stable
           cache: false
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 22.x
       - name: Install apt packages
@@ -354,7 +354,7 @@ jobs:
     env:
       ZKEVM_BENCHMARK_WORKLOAD_DIR: ${{ github.workspace }}/zkevm-benchmark-workload
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - name: Install native prerequisites
