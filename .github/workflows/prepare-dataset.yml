@@ -130,11 +130,6 @@ jobs:
           # setup-uv's cache key never changes and the cache only grows.
           enable-cache: false
 
-      - name: Install OS prerequisites
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y curl jq
-
       - name: Validate dataset inputs
         env:
           RAYON_THREADS: ${{ inputs.zkevm_rayon_threads }}
