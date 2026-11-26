@@ -343,7 +343,7 @@ def suite_description(
 ) -> str:
     lines = [
         "Synthetic HiveUI suite generated from zkevm-benchmark-workload metrics.",
-        f"Input root: {input_dir}",
+        f"Input root: {input_dir.name}",
         f"Metrics directory: {suite.directory.relative_to(input_dir)}",
         f"Execution client: {suite.el_version}",
         f"zkVM: {suite.zkvm_version}",
@@ -387,7 +387,7 @@ def write_suite(
             [
                 "Converted zkevm-benchmark-workload metrics",
                 f"suite_name: {suite_name}",
-                f"input_root: {input_dir}",
+                f"input_root: {input_dir.name}",
                 f"metrics_directory: {suite.directory.relative_to(input_dir)}",
                 f"execution_client: {suite.el_version}",
                 f"zkvm: {suite.zkvm_version}",
