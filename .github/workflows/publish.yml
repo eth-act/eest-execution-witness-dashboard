@@ -78,20 +78,16 @@ jobs:
       HIVE_UI_REPO: ${{ inputs.hive_ui_repo }}
       HIVE_UI_REF: ${{ inputs.hive_ui_ref }}
       HIVE_UI_DIR: ${{ github.workspace }}/hive-ui
-      # Used when the dataset was generated from source instead of an EEST release.
-      HIVE_UI_DISCOVERY_NAME: execution-witness
       EL_CLIENTS: ${{ inputs.el_clients }}
       EL_CLIENT_OVERRIDES_JSON: "{}"
       ZKEVM_WORKLOAD_RUNS: ${{ inputs.zkevm_workload_runs }}
       HIVE_RESULTS_DIR: ${{ github.workspace }}/hive/workspace/logs
       HIVE_CLIENT_RESULTS_DIR: ${{ github.workspace }}/hive/workspace/client-results
-      HIVE_RESULTS_SOURCE_DIR: ${{ github.workspace }}/hive/workspace/client-results
       ZKEVM_METRICS_ARTIFACTS_DIR: ${{ github.workspace }}/hive/workspace/zkevm-metrics-artifacts
       ZKEVM_CONVERTED_RESULTS_DIR: ${{ github.workspace }}/hive/workspace/zkevm-converted-results
       SITE_DIR: ${{ github.workspace }}/site
       SITE_MAX_SIZE_MB: ${{ inputs.max_site_size_mb }}
       SITE_SMOKE_BASE_PATH: ${{ github.event.repository.name }}
-      UV_CACHE_DIR: /tmp/uv-cache
       GH_TOKEN: ${{ github.token }}
       DATASET_RUN_ID: ${{ inputs.dataset_run_id }}
 
@@ -118,7 +114,7 @@ jobs:
       - name: Install OS prerequisites
         run: |
           sudo apt-get update
-          sudo apt-get install -y curl jq rsync unzip
+          sudo apt-get install -y curl jq rsync
 
       - name: Validate publish inputs
         run: |
@@ -160,16 +156,8 @@ jobs:
           fi
 
           {
-            echo "EEST_REPO=$(jq -r '.eest.repo' dataset/dataset.json)"
-            echo "EEST_REF=$(jq -r '.eest.commit' dataset/dataset.json)"
-            echo "EEST_RELEASE_TAG="
-            echo "FILLER_PATH=$(jq -r '.eest.filler_path' dataset/dataset.json)"
-            echo "FORK=$(jq -r '.eest.fork' dataset/dataset.json)"
             echo "HIVE_REPO=$(jq -r '.hive.repo' dataset/dataset.json)"
             echo "HIVE_REF=$(jq -r '.hive.commit' dataset/dataset.json)"
-            echo "ZKEVM_BENCHMARK_WORKLOAD_REPO=$(jq -r '.zkevm_benchmark.repo' dataset/dataset.json)"
-            echo "ZKEVM_BENCHMARK_WORKLOAD_REF=$(jq -r '.zkevm_benchmark.commit' dataset/dataset.json)"
-            echo "ZKEVM_RAYON_THREADS=$(jq -r '.zkevm_benchmark.rayon_threads' dataset/dataset.json)"
             echo "HIVE_UI_DISCOVERY_NAME=$hive_ui_discovery_name"
           } >> "$GITHUB_ENV"
 
