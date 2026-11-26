@@ -332,85 +332,6 @@ _setup_hive_patch_nethermind_dotnet() {
   git -C "$HIVE_DIR" apply "$_setup_hive_nethermind_dotnet_patch"
 }
 
-_setup_hive_validate_extra_flags() {
-  local extra_flags
-
-  extra_flags="$1"
-  case "$extra_flags" in
-    *$'\n'* | *'"'* | *'$'* | *'`'* | *'\\'*)
-      _setup_hive_die 'geth extra flags cannot contain newline, ", $, `, or \ characters'
-      ;;
-  esac
-}
-
-_setup_hive_patch_geth_flags() {
-  local begin extra_flags geth_script tmp
-
-  extra_flags="$1"
-  geth_script="$HIVE_DIR/clients/go-ethereum/geth.sh"
-  begin='# eest-dashboard: begin managed geth extra flags'
-  tmp="${geth_script}.tmp.$$"
-
-  if [ ! -f "$geth_script" ]; then
-    _setup_hive_die "Hive go-ethereum startup script does not exist: $geth_script"
-  fi
-
-  if ! grep -Fq 'FLAGS="--state.scheme=path"' "$geth_script"; then
-    _setup_hive_die "unable to find initial FLAGS assignment in $geth_script"
-  fi
-
-  _setup_hive_validate_extra_flags "$extra_flags"
-  cp "$geth_script" "$tmp"
-
-  if ! awk \
-    -v begin="$begin" \
-    -v end='# eest-dashboard: end managed geth extra flags' \
-    -v extra="$extra_flags" '
-      $0 == begin {
-        skip = 1
-        next
-      }
-
-      skip && $0 == end {
-        skip = 0
-        next
-      }
-
-      skip {
-        next
-      }
-
-      {
-        print
-        if (!inserted && $0 == "FLAGS=\"--state.scheme=path\"") {
-          if (extra != "") {
-            print begin
-            print "FLAGS=\"$FLAGS " extra "\""
-            print end
-          }
-          inserted = 1
-        }
-      }
-
-      END {
-        if (!inserted) {
-          exit 1
-        }
-      }
-    ' "$geth_script" > "$tmp"; then
-    rm -f "$tmp"
-    _setup_hive_die "failed to patch $geth_script"
-  fi
-
-  mv "$tmp" "$geth_script"
-
-  if [ -n "$extra_flags" ]; then
-    _setup_hive_log "Injected geth extra flags: $extra_flags"
-  else
-    _setup_hive_log "Removed managed geth extra flags patch"
-  fi
-}
-
 _setup_hive_validate_hive_client() {
   local descriptor dockerfile_ext dockerfile_path hive_client id transport
 
@@ -450,17 +371,13 @@ _setup_hive_validate_hive_client() {
 }
 
 _setup_hive_apply_descriptor_setup() {
-  local descriptor extra_flags managed_patch
+  local descriptor managed_patch
 
   descriptor="$1"
   managed_patch="$(eest_el_clients_descriptor_field "$descriptor" '.managed_patch')"
 
   case "$managed_patch" in
     '')
-      ;;
-    geth-extra-flags)
-      extra_flags="$(eest_el_clients_descriptor_field "$descriptor" '.hive_extra_flags')"
-      _setup_hive_patch_geth_flags "$extra_flags"
       ;;
     nimbus-skip-lfs)
       _setup_hive_patch_nimbus_lfs "$descriptor"

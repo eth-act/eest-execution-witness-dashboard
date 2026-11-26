@@ -119,6 +119,27 @@ class ListElClientsTests(unittest.TestCase):
                     self.assertNotEqual(completed.returncode, 0)
                     self.assertIn("hive_parallelism", completed.stderr)
 
+    def test_unsafe_client_id_fails_matrix_generation(self):
+        with TemporaryDirectory() as tmp:
+            config_path = Path(tmp) / "el-clients.json"
+            write_json(
+                config_path,
+                {
+                    "clients": {
+                        "bad id": {
+                            "hive_client": "go-ethereum",
+                            "nametag": "rlp-engineapi",
+                            "hive_parallelism": 1,
+                        }
+                    }
+                },
+            )
+
+            completed = self.run_matrix(clients="bad id", config_path=config_path)
+
+            self.assertNotEqual(completed.returncode, 0)
+            self.assertIn("invalid EL client id: bad id", completed.stderr)
+
     def test_none_produces_empty_matrix(self):
         completed = self.run_matrix(clients="none")
 

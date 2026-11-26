@@ -109,7 +109,6 @@ class ListZkevmWorkloadRunsTests(unittest.TestCase):
                     "execution_client": "nimbus",
                     "zkvm": "zisk",
                     "guest_artifact_base_url": GUEST_URL,
-                    "artifact": "zkevm-metrics-nimbus-zisk",
                 }
             ],
         )
@@ -153,16 +152,6 @@ class ListZkevmWorkloadRunsTests(unittest.TestCase):
 
         self.assertNotEqual(completed.returncode, 0)
         self.assertIn("unknown EL guest id: unknown", completed.stderr)
-
-    def test_artifact_names_remain_client_and_zkvm_based(self):
-        matrix = self.assert_success(
-            self.run_matrix(runs="ethrex:zisk,ethrex:sp1")
-        )
-
-        self.assertEqual(
-            [entry["artifact"] for entry in matrix["include"]],
-            ["zkevm-metrics-ethrex-zisk", "zkevm-metrics-ethrex-sp1"],
-        )
 
     def test_guest_requires_guest_artifact_base_url(self):
         with TemporaryDirectory() as tmp:

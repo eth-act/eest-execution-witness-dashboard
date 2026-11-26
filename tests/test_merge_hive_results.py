@@ -47,7 +47,7 @@ class MergeHiveResultsTests(unittest.TestCase):
                 ("go-ethereum", "go-ethereum_rlp-engineapi"),
                 ("ethrex", "ethrex_rlp-engineapi"),
             ):
-                client_dir = source_dir / f"hive-results-{client_id}"
+                client_dir = source_dir / client_id
                 write_json(
                     client_dir / f"{client_id}.json",
                     {
@@ -99,7 +99,7 @@ class MergeHiveResultsTests(unittest.TestCase):
             self.assertTrue((results_dir / "ethrex.json").is_file())
             self.assertFalse((results_dir / ".eest-prune-skipped-summary").exists())
 
-    def test_merges_both_client_directory_names_and_additional_source(self):
+    def test_merges_client_directories_and_additional_source(self):
         if shutil.which("jq") is None:
             self.skipTest("jq is required by merge-hive-results.sh")
 
@@ -124,13 +124,10 @@ class MergeHiveResultsTests(unittest.TestCase):
                     }
                 },
             )
-            for client_id, directory_name in (
-                ("go-ethereum", "go-ethereum"),
-                ("ethrex", "hive-results-ethrex"),
-            ):
+            for client_id in ("go-ethereum", "ethrex"):
                 full_name = f"{client_id}_rlp-engineapi"
                 write_json(
-                    source_dir / directory_name / f"{client_id}.json",
+                    source_dir / client_id / f"{client_id}.json",
                     {
                         "name": f"suite/{client_id}",
                         "clientVersions": {full_name: "version"},
@@ -381,6 +378,60 @@ class MergeHiveResultsTests(unittest.TestCase):
             self.assertNotEqual(completed.returncode, 0)
             self.assertIn("not a single-client ethrex_rlp-engineapi", completed.stderr)
 
+
+    def test_rejects_unsafe_client_id(self):
+        if shutil.which("jq") is None:
+            self.skipTest("jq is required by merge-hive-results.sh")
+
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source_dir = root / "hive" / "workspace" / "client-results"
+            results_dir = root / "hive" / "workspace" / "logs"
+            client_config = root / "config" / "el-clients.json"
+            write_json(
+                client_config,
+                {
+                    "clients": {
+                        "bad id": {
+                            "hive_client": "ethrex",
+                            "nametag": "rlp-engineapi",
+                        }
+                    }
+                },
+            )
+            write_json(
+                source_dir / "bad id" / "ethrex.json",
+                {
+                    "name": "suite/ethrex",
+                    "clients": ["ethrex_rlp-engineapi"],
+                    "testCases": {},
+                },
+            )
+            env = os.environ.copy()
+            env.update(
+                {
+                    "ROOT_DIR": str(root),
+                    "EL_CLIENT_CONFIG": str(client_config),
+                    "EL_CLIENTS": "bad id",
+                    "EL_CLIENT_OVERRIDES_JSON": "{}",
+                    "HIVE_CLIENT_RESULTS_DIR": str(source_dir),
+                    "HIVE_RESULTS_SOURCE_DIR": str(source_dir),
+                    "HIVE_RESULTS_DIR": str(results_dir),
+                }
+            )
+
+            completed = subprocess.run(
+                ["bash", str(SCRIPT_PATH)],
+                cwd=REPO_ROOT,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertNotEqual(completed.returncode, 0)
+            self.assertIn("invalid EL client id: bad id", completed.stderr)
+            self.assertFalse(results_dir.exists())
 
 if __name__ == "__main__":
     unittest.main()

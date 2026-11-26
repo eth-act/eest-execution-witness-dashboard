@@ -36,7 +36,7 @@ _merge_hive_results_usage() {
     '  HIVE_CLIENT_RESULTS_DIR, HIVE_RESULTS_DIR' \
     '' \
     'Additional overrides:' \
-    '  HIVE_RESULTS_SOURCE_DIR     Root containing CLIENT_ID/ or hive-results-CLIENT_ID/ directories.'
+    '  HIVE_RESULTS_SOURCE_DIR     Root containing CLIENT_ID/ directories.'
 }
 
 _merge_hive_results_die() {
@@ -77,17 +77,12 @@ _merge_hive_results_parse_args() {
 }
 
 _merge_hive_results_source_dir_for() {
-  local artifact id source_root
+  local id source_root
 
   source_root="$1"
   id="$2"
-  artifact="$(eest_el_clients_artifact_name "$id")"
   if [ -d "$source_root/$id" ]; then
     printf '%s\n' "$source_root/$id"
-    return
-  fi
-  if [ -d "$source_root/$artifact" ]; then
-    printf '%s\n' "$source_root/$artifact"
     return
   fi
   return 1
@@ -121,6 +116,7 @@ main() {
   merge_args=(--output "$HIVE_RESULTS_DIR" --clean-output)
   while IFS= read -r descriptor; do
     id="$(eest_el_clients_descriptor_field "$descriptor" '.id')"
+    eest_el_clients_validate_safe_id "$id" || exit 1
     full_name="$(eest_el_clients_full_client_name "$descriptor")"
     if ! client_dir="$(_merge_hive_results_source_dir_for "$source_root" "$id")"; then
       _merge_hive_results_die "missing isolated result directory for $id under $source_root"
