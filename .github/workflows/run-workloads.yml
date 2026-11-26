@@ -55,8 +55,6 @@ jobs:
       zkevm_count: ${{ steps.workloads.outputs.zkevm_count }}
       eest_repo: ${{ steps.dataset.outputs.eest_repo }}
       eest_commit: ${{ steps.dataset.outputs.eest_commit }}
-      filler_path: ${{ steps.dataset.outputs.filler_path }}
-      fork: ${{ steps.dataset.outputs.fork }}
       hive_repo: ${{ steps.dataset.outputs.hive_repo }}
       hive_commit: ${{ steps.dataset.outputs.hive_commit }}
       zkevm_repo: ${{ steps.dataset.outputs.zkevm_repo }}
@@ -104,8 +102,6 @@ jobs:
           {
             echo "eest_repo=$(jq -r '.eest.repo' dataset/dataset.json)"
             echo "eest_commit=$(jq -r '.eest.commit' dataset/dataset.json)"
-            echo "filler_path=$(jq -r '.eest.filler_path' dataset/dataset.json)"
-            echo "fork=$(jq -r '.eest.fork' dataset/dataset.json)"
             echo "hive_repo=$(jq -r '.hive.repo' dataset/dataset.json)"
             echo "hive_commit=$(jq -r '.hive.commit' dataset/dataset.json)"
             echo "zkevm_repo=$(jq -r '.zkevm_benchmark.repo' dataset/dataset.json)"
@@ -156,8 +152,6 @@ jobs:
       EEST_REF: ${{ needs.resolve.outputs.eest_commit }}
       EEST_RELEASE_TAG: ""
       EEST_DIR: ${{ github.workspace }}/execution-specs
-      FILLER_PATH: ${{ needs.resolve.outputs.filler_path }}
-      FORK: ${{ needs.resolve.outputs.fork }}
       HIVE_REPO: ${{ needs.resolve.outputs.hive_repo }}
       HIVE_REF: ${{ needs.resolve.outputs.hive_commit }}
       HIVE_DIR: ${{ github.workspace }}/hive
