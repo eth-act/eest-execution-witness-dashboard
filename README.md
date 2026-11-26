@@ -216,7 +216,7 @@ Local runs use the same tools as CI:
 
 - Docker, usable without `sudo`. Hive builds and runs client containers, so
   `docker info` must succeed.
-- Git, Rust stable with `cargo`, Go `1.24.x`, Node.js `22.x` with npm, and
+- Git, Rust stable with `cargo`, Go stable, Node.js `22.x` with npm, and
   Python `3.12`.
 - `uv`, `jq`, `curl`, and `rsync` on `PATH`.
 
