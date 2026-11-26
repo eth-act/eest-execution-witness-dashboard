@@ -62,10 +62,23 @@ main README leaves out.
 
 ## Hive patches
 
-`setup-hive.sh` applies the patch named in a descriptor's `managed_patch`
-field. It removes managed patches before updating Hive and reapplies them when
-the client is selected. Override `managed_patch` with an empty string to build
-a custom descriptor without its patch.
+`setup-hive.sh` lists the managed patches in a table at the top of the
+script. A descriptor applies one by naming it in `managed_patch`. The Nimbus
+REST patch is the exception: setup applies it to every `nimbus-el` descriptor
+with `transport: rest-ssz`. Setup removes managed patches before updating Hive
+and reapplies them when a client that needs them is selected. It skips a patch
+once Hive no longer needs it, and fails if a patch it still needs no longer
+applies. Each patch adds an `eest-dashboard:` comment to every file it changes,
+which is how setup tells whether it's applied, so a new patch needs one too.
+Override `managed_patch` with an empty string to build a custom descriptor
+without its patch.
+
+`hive-nimbus-rest.patch` adds an `engine_api_rest` build argument to Hive's
+`clients/nimbus-el/Dockerfile.git` and passes `--debug-engine-api-rest` from
+`nimbus.sh` when it's true. That lets `nimbus-el` and `nimbus-el-rest` run from
+one Hive checkout, one over JSON-RPC and one over REST+SSZ. The flag comes
+from the `witness-rest-ssz-endpoint` branch in status-im/nimbus-eth1#4844, so
+the patch stays until that merges and Hive has a way to turn the flag on.
 
 `nimbus-skip-lfs` applies `patches/hive-nimbus-skip-lfs.patch` to Hive's
 `clients/nimbus-el/Dockerfile.git`. It sets `GIT_LFS_SKIP_SMUDGE=1` in the
@@ -73,11 +86,11 @@ build stage before cloning, so the build skips unused network data in nested
 submodules. One of those files, the `glamsterdam-devnets` consensus genesis,
 ran out of its upstream Git LFS budget and blocked the
 [September 24, 2026 run](https://github.com/eth-act/eest-execution-witness-dashboard/actions/runs/36032246820/job/107744808338).
-Setup fails if the patch no longer matches the upstream Dockerfile. With Hive
-`43ea47be`, Nimbus `4dc018eb`, and execution-specs `8cd0018e`, the image built
-with LFS downloads disabled and the Amsterdam empty-block witness smoke test
-passed (one case, no skips or timeouts). We didn't run the full witness suite
-on it.
+Once Hive's Dockerfile sets `GIT_LFS_SKIP_SMUDGE` itself, setup logs that it's
+skipping the patch, and we can delete it. With Hive `43ea47be`, Nimbus
+`4dc018eb`, and execution-specs `8cd0018e`, the image built with LFS downloads
+disabled and the Amsterdam empty-block witness smoke test passed (one case, no
+skips or timeouts). We didn't run the full witness suite on it.
 
 `reth-portable-feature` applies `patches/hive-reth-portable-feature.patch`.
 Reth `main` removed the `reth-revm` crate in

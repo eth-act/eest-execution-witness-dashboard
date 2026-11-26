@@ -18,11 +18,29 @@ fi
 . "$_setup_hive_script_dir/lib/el-clients.sh"
 
 _setup_hive_client_file="$HIVE_DIR/clients-local.yaml"
-_setup_hive_nimbus_rest_patch="$_setup_hive_script_dir/../patches/hive-nimbus-rest.patch"
-_setup_hive_nimbus_lfs_patch="$_setup_hive_script_dir/../patches/hive-nimbus-skip-lfs.patch"
-_setup_hive_reth_portable_patch="$_setup_hive_script_dir/../patches/hive-reth-portable-feature.patch"
-_setup_hive_erigon_go_patch="$_setup_hive_script_dir/../patches/hive-erigon-go.patch"
-_setup_hive_nethermind_dotnet_patch="$_setup_hive_script_dir/../patches/hive-nethermind-dotnet.patch"
+_setup_hive_patch_dir="$_setup_hive_script_dir/../patches"
+
+# Managed Hive patches, one per row:
+#
+#   name|patch file|label|hive_client|transport|fixed file|fixed when|fixed pattern
+#
+# A descriptor selects a patch by naming it in managed_patch, which needs the
+# row's hive_client and dockerfile=git. A row with a transport is instead
+# applied to every descriptor with that hive_client and transport.
+#
+# Setup skips a patch once Hive no longer needs it: when the fixed pattern is
+# present in, or absent from, the fixed file, as "fixed when" says. A row
+# without a fixed file always applies.
+#
+# Each patch adds an "eest-dashboard:" comment to every file it changes, which
+# is how setup tells it's applied. Setup removes patches in row order before
+# updating Hive. Nimbus REST comes first because it's applied after Nimbus LFS
+# and changes the same Dockerfile.
+_setup_hive_patch_table='nimbus-rest|hive-nimbus-rest.patch|Nimbus REST|nimbus-el|rest-ssz|||
+nimbus-skip-lfs|hive-nimbus-skip-lfs.patch|Nimbus LFS|nimbus-el||clients/nimbus-el/Dockerfile.git|present|GIT_LFS_SKIP_SMUDGE
+reth-portable-feature|hive-reth-portable-feature.patch|reth portable|reth||clients/reth/Dockerfile.git|absent|reth-revm/portable
+erigon-go|hive-erigon-go.patch|Erigon Go|erigon||clients/erigon/Dockerfile.git|absent|FROM golang:1.25.7-trixie as builder
+nethermind-dotnet|hive-nethermind-dotnet.patch|Nethermind .NET|nethermind||clients/nethermind/Dockerfile.git|absent|FROM mcr.microsoft.com/dotnet/sdk:10.'
 
 _setup_hive_usage() {
   printf '%s\n' \
@@ -120,11 +138,7 @@ _setup_hive_prepare_git_checkout() {
       _setup_hive_die "$label directory exists but is not a git checkout root: $checkout_dir"
     fi
 
-    _setup_hive_restore_nimbus_rest_patch
-    _setup_hive_restore_nimbus_lfs_patch
-    _setup_hive_restore_reth_portable_patch
-    _setup_hive_restore_erigon_go_patch
-    _setup_hive_restore_nethermind_dotnet_patch
+    _setup_hive_restore_patches
 
     if git -C "$checkout_dir" remote get-url origin >/dev/null 2>&1; then
       git -C "$checkout_dir" remote set-url origin "$repo"
@@ -154,182 +168,90 @@ _setup_hive_build_hive() {
   fi
 }
 
-_setup_hive_restore_nimbus_rest_patch() {
-  local dockerfile
-  dockerfile="$HIVE_DIR/clients/nimbus-el/Dockerfile.git"
-  if ! { [ -f "$dockerfile" ] && grep -q 'eest-dashboard: select REST' "$dockerfile"; } &&
-     ! { [ -f "$HIVE_DIR/clients/nimbus-el/nimbus.sh" ] && grep -q 'eest-dashboard: REST' "$HIVE_DIR/clients/nimbus-el/nimbus.sh"; }; then
-    return
-  fi
-  if ! git -C "$HIVE_DIR" apply --reverse --check "$_setup_hive_nimbus_rest_patch"; then
-    _setup_hive_die 'unable to remove managed Nimbus REST patch; preserve or resolve local edits first'
-  fi
-  git -C "$HIVE_DIR" apply --reverse "$_setup_hive_nimbus_rest_patch"
+_setup_hive_patch_row() {
+  local row
+
+  while IFS= read -r row; do
+    if [ "${row%%|*}" = "$1" ]; then
+      printf '%s\n' "$row"
+      return 0
+    fi
+  done <<< "$_setup_hive_patch_table"
+  return 1
 }
 
-_setup_hive_patch_nimbus_rest() {
-  if git -C "$HIVE_DIR" apply --reverse --check "$_setup_hive_nimbus_rest_patch" >/dev/null 2>&1; then
-    return
-  fi
-  if ! git -C "$HIVE_DIR" apply --check "$_setup_hive_nimbus_rest_patch"; then
-    _setup_hive_die 'managed Nimbus REST patch does not apply to this Hive checkout'
-  fi
-  git -C "$HIVE_DIR" apply "$_setup_hive_nimbus_rest_patch"
+_setup_hive_patch_files() {
+  awk '/^\+\+\+ b\// { print substr($0, 7) }' "$1" | paste -sd ' ' -
 }
 
-_setup_hive_restore_nimbus_lfs_patch() {
-  local dockerfile
-
-  dockerfile="$HIVE_DIR/clients/nimbus-el/Dockerfile.git"
-  if [ ! -f "$dockerfile" ] ||
-    ! grep -Fq '# eest-dashboard: skip unused LFS network data during Nimbus builds.' "$dockerfile"; then
-    return 0
-  fi
-
-  if ! git -C "$HIVE_DIR" apply --reverse --check "$_setup_hive_nimbus_lfs_patch"; then
-    _setup_hive_die "unable to remove managed Nimbus LFS patch before updating Hive; check local edits to $dockerfile"
-  fi
-  _setup_hive_log "Removing managed Nimbus LFS patch before updating Hive"
-  git -C "$HIVE_DIR" apply --reverse "$_setup_hive_nimbus_lfs_patch"
+# Prints the file and line of each "eest-dashboard:" comment the patch adds.
+_setup_hive_patch_markers() {
+  awk '
+    /^\+\+\+ b\// { file = substr($0, 7) }
+    /^\+[^+]/ && /eest-dashboard:/ { print file "\t" substr($0, 2) }
+  ' "$1"
 }
 
-_setup_hive_patch_nimbus_lfs() {
-  local descriptor
+_setup_hive_patch_is_present() {
+  local file marker
 
-  descriptor="$1"
-  if [ "$(eest_el_clients_descriptor_field "$descriptor" '.hive_client')" != nimbus-el ] ||
-    [ "$(eest_el_clients_dockerfile_ext "$descriptor")" != git ]; then
-    _setup_hive_die 'nimbus-skip-lfs requires hive_client=nimbus-el and dockerfile=git'
-  fi
-
-  if git -C "$HIVE_DIR" apply --reverse --check "$_setup_hive_nimbus_lfs_patch" >/dev/null 2>&1; then
-    return 0
-  fi
-  if ! git -C "$HIVE_DIR" apply --check "$_setup_hive_nimbus_lfs_patch"; then
-    _setup_hive_die "managed Nimbus LFS patch does not apply to Hive at $HIVE_REF; check clients/nimbus-el/Dockerfile.git"
-  fi
-  _setup_hive_log "Disabling LFS downloads in the Nimbus Docker build"
-  git -C "$HIVE_DIR" apply "$_setup_hive_nimbus_lfs_patch"
+  while IFS=$'\t' read -r file marker; do
+    if [ -f "$HIVE_DIR/$file" ] && grep -Fq -- "$marker" "$HIVE_DIR/$file"; then
+      return 0
+    fi
+  done < <(_setup_hive_patch_markers "$1")
+  return 1
 }
 
-_setup_hive_restore_reth_portable_patch() {
-  local dockerfile
+_setup_hive_restore_patches() {
+  local label name patch patch_file rest
 
-  dockerfile="$HIVE_DIR/clients/reth/Dockerfile.git"
-  if [ ! -f "$dockerfile" ] ||
-    ! grep -Fq '# eest-dashboard: reth main moved portable from reth-revm to the reth binary.' "$dockerfile"; then
-    return 0
-  fi
-
-  if ! git -C "$HIVE_DIR" apply --reverse --check "$_setup_hive_reth_portable_patch"; then
-    _setup_hive_die "unable to remove managed reth portable patch before updating Hive; check local edits to $dockerfile"
-  fi
-  _setup_hive_log "Removing managed reth portable patch before updating Hive"
-  git -C "$HIVE_DIR" apply --reverse "$_setup_hive_reth_portable_patch"
+  while IFS='|' read -r name patch_file label rest; do
+    patch="$_setup_hive_patch_dir/$patch_file"
+    if ! _setup_hive_patch_is_present "$patch"; then
+      continue
+    fi
+    if ! git -C "$HIVE_DIR" apply --reverse --check "$patch"; then
+      _setup_hive_die "unable to remove managed $label patch before updating Hive; check local edits to $(_setup_hive_patch_files "$patch")"
+    fi
+    _setup_hive_log "Removing managed $label patch before updating Hive"
+    git -C "$HIVE_DIR" apply --reverse "$patch"
+  done <<< "$_setup_hive_patch_table"
 }
 
-_setup_hive_patch_reth_portable() {
-  local descriptor
+_setup_hive_apply_patch() {
+  local client fixed_file fixed_pattern fixed_when found label name patch patch_file row transport
 
-  descriptor="$1"
-  if [ "$(eest_el_clients_descriptor_field "$descriptor" '.hive_client')" != reth ] ||
-    [ "$(eest_el_clients_dockerfile_ext "$descriptor")" != git ]; then
-    _setup_hive_die 'reth-portable-feature requires hive_client=reth and dockerfile=git'
-  fi
+  row="$(_setup_hive_patch_row "$1")" || _setup_hive_die "unknown managed patch: $1"
+  IFS='|' read -r name patch_file label client transport fixed_file fixed_when fixed_pattern <<< "$row"
+  patch="$_setup_hive_patch_dir/$patch_file"
 
-  if git -C "$HIVE_DIR" apply --reverse --check "$_setup_hive_reth_portable_patch" >/dev/null 2>&1; then
-    return 0
-  fi
-  # Once Hive catches up with reth, keep building instead of failing on a stale patch.
-  if ! grep -Fq 'reth-revm/portable' "$HIVE_DIR/clients/reth/Dockerfile.git"; then
-    _setup_hive_log "Hive's reth Dockerfile no longer uses reth-revm/portable; skipping managed reth portable patch"
-    return 0
-  fi
-  if ! git -C "$HIVE_DIR" apply --check "$_setup_hive_reth_portable_patch"; then
-    _setup_hive_die "managed reth portable patch does not apply to Hive at $HIVE_REF; check clients/reth/Dockerfile.git"
-  fi
-  _setup_hive_log "Switching the reth Docker build to the reth binary's portable feature"
-  git -C "$HIVE_DIR" apply "$_setup_hive_reth_portable_patch"
-}
-
-_setup_hive_restore_erigon_go_patch() {
-  local dockerfile
-
-  dockerfile="$HIVE_DIR/clients/erigon/Dockerfile.git"
-  if [ ! -f "$dockerfile" ] ||
-    ! grep -Fq '# eest-dashboard: erigon main requires Go 1.26.8' "$dockerfile"; then
+  if git -C "$HIVE_DIR" apply --reverse --check "$patch" >/dev/null 2>&1; then
     return 0
   fi
 
-  if ! git -C "$HIVE_DIR" apply --reverse --check "$_setup_hive_erigon_go_patch"; then
-    _setup_hive_die "unable to remove managed Erigon Go patch before updating Hive; check local edits to $dockerfile"
-  fi
-  _setup_hive_log "Removing managed Erigon Go patch before updating Hive"
-  git -C "$HIVE_DIR" apply --reverse "$_setup_hive_erigon_go_patch"
-}
-
-_setup_hive_patch_erigon_go() {
-  local descriptor
-
-  descriptor="$1"
-  if [ "$(eest_el_clients_descriptor_field "$descriptor" '.hive_client')" != erigon ] ||
-    [ "$(eest_el_clients_dockerfile_ext "$descriptor")" != git ]; then
-    _setup_hive_die 'erigon-go requires hive_client=erigon and dockerfile=git'
-  fi
-
-  if git -C "$HIVE_DIR" apply --reverse --check "$_setup_hive_erigon_go_patch" >/dev/null 2>&1; then
-    return 0
-  fi
-  # Once Hive bumps the builder image, keep building instead of failing on a stale patch.
-  if ! grep -Fq 'FROM golang:1.25.7-trixie as builder' "$HIVE_DIR/clients/erigon/Dockerfile.git"; then
-    _setup_hive_log "Hive's Erigon Dockerfile no longer builds with Go 1.25.7; skipping managed Erigon Go patch"
-    return 0
-  fi
-  if ! git -C "$HIVE_DIR" apply --check "$_setup_hive_erigon_go_patch"; then
-    _setup_hive_die "managed Erigon Go patch does not apply to Hive at $HIVE_REF; check clients/erigon/Dockerfile.git"
-  fi
-  _setup_hive_log "Building Erigon with Go 1.26.8"
-  git -C "$HIVE_DIR" apply "$_setup_hive_erigon_go_patch"
-}
-
-_setup_hive_restore_nethermind_dotnet_patch() {
-  local dockerfile
-
-  dockerfile="$HIVE_DIR/clients/nethermind/Dockerfile.git"
-  if [ ! -f "$dockerfile" ] ||
-    ! grep -Fq '# eest-dashboard: nethermind master requires the .NET 11 SDK' "$dockerfile"; then
-    return 0
+  # Once Hive fixes what a patch works around, keep building instead of failing
+  # on a stale patch.
+  if [ -n "$fixed_file" ]; then
+    found=absent
+    if [ -f "$HIVE_DIR/$fixed_file" ] && grep -Fq -- "$fixed_pattern" "$HIVE_DIR/$fixed_file"; then
+      found=present
+    fi
+    if [ "$found" = "$fixed_when" ]; then
+      if [ "$found" = present ]; then
+        _setup_hive_log "Hive's $fixed_file already has $fixed_pattern; skipping managed $label patch"
+      else
+        _setup_hive_log "Hive's $fixed_file no longer has $fixed_pattern; skipping managed $label patch"
+      fi
+      return 0
+    fi
   fi
 
-  if ! git -C "$HIVE_DIR" apply --reverse --check "$_setup_hive_nethermind_dotnet_patch"; then
-    _setup_hive_die "unable to remove managed Nethermind .NET patch before updating Hive; check local edits to $dockerfile"
+  if ! git -C "$HIVE_DIR" apply --check "$patch"; then
+    _setup_hive_die "managed $label patch does not apply to Hive at $HIVE_REF; check $(_setup_hive_patch_files "$patch")"
   fi
-  _setup_hive_log "Removing managed Nethermind .NET patch before updating Hive"
-  git -C "$HIVE_DIR" apply --reverse "$_setup_hive_nethermind_dotnet_patch"
-}
-
-_setup_hive_patch_nethermind_dotnet() {
-  local descriptor
-
-  descriptor="$1"
-  if [ "$(eest_el_clients_descriptor_field "$descriptor" '.hive_client')" != nethermind ] ||
-    [ "$(eest_el_clients_dockerfile_ext "$descriptor")" != git ]; then
-    _setup_hive_die 'nethermind-dotnet requires hive_client=nethermind and dockerfile=git'
-  fi
-
-  if git -C "$HIVE_DIR" apply --reverse --check "$_setup_hive_nethermind_dotnet_patch" >/dev/null 2>&1; then
-    return 0
-  fi
-  # Once Hive bumps the .NET images, keep building instead of failing on a stale patch.
-  if ! grep -Fq 'FROM mcr.microsoft.com/dotnet/sdk:10.' "$HIVE_DIR/clients/nethermind/Dockerfile.git"; then
-    _setup_hive_log "Hive's Nethermind Dockerfile no longer builds with the .NET 10 SDK; skipping managed Nethermind .NET patch"
-    return 0
-  fi
-  if ! git -C "$HIVE_DIR" apply --check "$_setup_hive_nethermind_dotnet_patch"; then
-    _setup_hive_die "managed Nethermind .NET patch does not apply to Hive at $HIVE_REF; check clients/nethermind/Dockerfile.git"
-  fi
-  _setup_hive_log "Building Nethermind with the .NET 11 SDK"
-  git -C "$HIVE_DIR" apply "$_setup_hive_nethermind_dotnet_patch"
+  _setup_hive_log "Applying managed $label patch"
+  git -C "$HIVE_DIR" apply "$patch"
 }
 
 _setup_hive_validate_hive_client() {
@@ -371,30 +293,32 @@ _setup_hive_validate_hive_client() {
 }
 
 _setup_hive_apply_descriptor_setup() {
-  local descriptor managed_patch
+  local client descriptor hive_client id label managed_patch name patch_file rest row transport wanted_transport
 
   descriptor="$1"
+  id="$(eest_el_clients_descriptor_field "$descriptor" '.id')"
+  hive_client="$(eest_el_clients_descriptor_field "$descriptor" '.hive_client')"
   managed_patch="$(eest_el_clients_descriptor_field "$descriptor" '.managed_patch')"
 
-  case "$managed_patch" in
-    '')
-      ;;
-    nimbus-skip-lfs)
-      _setup_hive_patch_nimbus_lfs "$descriptor"
-      ;;
-    reth-portable-feature)
-      _setup_hive_patch_reth_portable "$descriptor"
-      ;;
-    erigon-go)
-      _setup_hive_patch_erigon_go "$descriptor"
-      ;;
-    nethermind-dotnet)
-      _setup_hive_patch_nethermind_dotnet "$descriptor"
-      ;;
-    *)
-      _setup_hive_die "unsupported managed_patch for $(eest_el_clients_descriptor_field "$descriptor" '.id'): $managed_patch"
-      ;;
-  esac
+  if [ -n "$managed_patch" ]; then
+    row="$(_setup_hive_patch_row "$managed_patch")" ||
+      _setup_hive_die "unsupported managed_patch for $id: $managed_patch"
+    IFS='|' read -r name patch_file label client transport rest <<< "$row"
+    if [ -n "$transport" ]; then
+      _setup_hive_die "unsupported managed_patch for $id: $managed_patch is applied by transport"
+    fi
+    if [ "$hive_client" != "$client" ] || [ "$(eest_el_clients_dockerfile_ext "$descriptor")" != git ]; then
+      _setup_hive_die "$managed_patch requires hive_client=$client and dockerfile=git"
+    fi
+    _setup_hive_apply_patch "$managed_patch"
+  fi
+
+  wanted_transport="$(eest_el_clients_descriptor_field "$descriptor" '.transport')"
+  while IFS='|' read -r name patch_file label client transport rest; do
+    if [ -n "$transport" ] && [ "$transport" = "$wanted_transport" ] && [ "$client" = "$hive_client" ]; then
+      _setup_hive_apply_patch "$name"
+    fi
+  done <<< "$_setup_hive_patch_table"
 }
 
 _setup_hive_append_client_yaml() {
@@ -486,10 +410,6 @@ _setup_hive_configure_clients() {
     seen_clients[$full_name]=1
 
     _setup_hive_apply_descriptor_setup "$descriptor"
-    if [ "$(eest_el_clients_descriptor_field "$descriptor" '.hive_client')" = nimbus-el ] &&
-       [ "$(eest_el_clients_descriptor_field "$descriptor" '.transport')" = rest-ssz ]; then
-      _setup_hive_patch_nimbus_rest
-    fi
   done < <(jq -c '.[]' <<< "$resolved")
 
   _setup_hive_write_client_file "$resolved"
