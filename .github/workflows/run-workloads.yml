@@ -68,7 +68,7 @@ jobs:
 
     steps:
       - name: Checkout dashboard repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Validate dispatch source and dataset ID
         run: |
@@ -171,21 +171,21 @@ jobs:
 
     steps:
       - name: Checkout dashboard repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version: 1.24.x
           cache: false
 
       - name: Install Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v8.1.0
+        uses: astral-sh/setup-uv@v10.4.0
 
       - name: Install OS prerequisites
         run: |
@@ -317,7 +317,7 @@ jobs:
 
     steps:
       - name: Checkout dashboard repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
