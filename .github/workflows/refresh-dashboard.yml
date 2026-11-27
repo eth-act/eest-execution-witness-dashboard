@@ -22,20 +22,24 @@ jobs:
       el_clients: ${{ steps.workloads.outputs.el_clients }}
       zkevm_workload_runs: ${{ steps.workloads.outputs.zkevm_workload_runs }}
     steps:
+      - name: Checkout dashboard repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
       - name: Select workloads
         id: workloads
-        env:
-          EL_CLIENTS: ethrex,go-ethereum,nimbus-el,nethermind,besu,nimbus-el-rest,reth-rest,nethermind-rest,erigon-rest
-          ZKEVM_WORKLOAD_RUNS: ethrex:sp1,ethrex:zisk,ethrex:openvm,reth:sp1,reth:zisk,reth:openvm,reth:pico,zesu:sp1,zesu:zisk,zesu:openvm,nimbus:sp1,nimbus:zisk,nethermind:sp1,nethermind:zisk,zilkworm:sp1
         run: |
           set -Eeuo pipefail
           if [ "$GITHUB_REF" != refs/heads/main ]; then
             echo "Dashboard refresh must run from refs/heads/main" >&2
             exit 1
           fi
+          # PR smoke validates both lists.
+          jq -e '[.el_clients, .zkevm_workload_runs] | all(type == "array" and length > 0)' config/refresh.json >/dev/null
           {
-            echo "el_clients=$EL_CLIENTS"
-            echo "zkevm_workload_runs=$ZKEVM_WORKLOAD_RUNS"
+            echo "el_clients=$(jq -r '.el_clients | join(",")' config/refresh.json)"
+            echo "zkevm_workload_runs=$(jq -r '.zkevm_workload_runs | join(",")' config/refresh.json)"
           } >> "$GITHUB_OUTPUT"
 
   prepare:
