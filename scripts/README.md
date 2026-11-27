@@ -149,7 +149,11 @@ HIVE_RESULTS_DIR=hive/workspace/zkevm-converted-results scripts/build-site.sh
 `merge-hive-results.sh` merges the selected per-client results and every
 `--source` directory straight into `HIVE_RESULTS_DIR`. It skips empty sources.
 A non-empty source must contain valid top-level suite JSON, holds one client by
-default, and can't overwrite a conflicting path. When every input is already
+default, and can't overwrite a conflicting path. Each client's details logs go
+under `details/<client-id>/`, and its suite JSON points there. Hive names a
+details log after the second its suite started, with an empty simulator part in
+`--dev` mode, so two clients that start in the same second would otherwise
+write the same file. When every input is already
 Hive-shaped, `merge-hive-result-dirs.sh` merges arbitrary directories:
 
 ```bash

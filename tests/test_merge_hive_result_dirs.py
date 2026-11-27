@@ -125,6 +125,60 @@ class MergeHiveResultDirsTests(unittest.TestCase):
             self.assertIn("conflicting result path", completed.stderr)
             self.assertEqual(sentinel.read_text(encoding="utf-8"), "keep\n")
 
+    def test_client_details_logs_with_the_same_name_do_not_clash(self):
+        # Hive names details logs after the start second, so two clients whose
+        # suites start together write the same file.
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            args = ["--clean-output"]
+            for client_id, client_name in (
+                ("nethermind-rest", "nethermind_rest-ssz"),
+                ("erigon-rest", "erigon_rest-ssz"),
+            ):
+                source = root / client_id
+                write_json(
+                    source / f"{client_id}.json",
+                    {
+                        "name": "eels/consume-engine-witness",
+                        "clients": [client_name],
+                        "testDetailsLog": "details/1795739939--0.log",
+                        "testCases": {
+                            "1": {"summaryResult": {"pass": True, "log": {"begin": 0, "end": 4}}}
+                        },
+                    },
+                )
+                (source / "details").mkdir()
+                (source / "details" / "1795739939--0.log").write_text(
+                    f"{client_id} log\n", encoding="utf-8"
+                )
+                args += ["--client-source", client_id, client_name, str(source)]
+
+            self.assert_success(self.run_merge(root, *args))
+
+            merged = root / "merged"
+            for client_id in ("nethermind-rest", "erigon-rest"):
+                suite = json.loads((merged / f"{client_id}.json").read_text(encoding="utf-8"))
+                self.assertEqual(suite["testDetailsLog"], f"details/{client_id}/1795739939--0.log")
+                self.assertEqual(suite["testCases"]["1"]["summaryResult"]["log"], {"begin": 0, "end": 4})
+                self.assertEqual(
+                    (merged / suite["testDetailsLog"]).read_text(encoding="utf-8"),
+                    f"{client_id} log\n",
+                )
+            self.assertFalse((merged / "details" / "1795739939--0.log").exists())
+
+    def test_rejects_unsafe_client_id(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "source"
+            write_suite(source / "client.json", clients=["client"])
+
+            completed = self.run_merge(
+                root, "--clean-output", "--client-source", "../x", "client", str(source)
+            )
+
+            self.assertNotEqual(completed.returncode, 0)
+            self.assertIn("invalid client ID: ../x", completed.stderr)
+
     def test_rejects_file_directory_collision(self):
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
