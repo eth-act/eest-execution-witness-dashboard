@@ -2,15 +2,11 @@
 
 set -Eeuo pipefail
 
-_validate_fixtures_abs_dir() {
-  (CDPATH= cd -- "$1" 2>/dev/null && pwd -P)
-}
+# shellcheck source=scripts/lib/common.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
-_validate_fixtures_script_dir="$(_validate_fixtures_abs_dir "$(dirname "${BASH_SOURCE[0]}")")"
-if [ -z "$_validate_fixtures_script_dir" ]; then
-  printf 'error: unable to resolve scripts directory\n' >&2
-  exit 1
-fi
+_validate_fixtures_script_dir="$(eest_abs_dir "$(dirname "${BASH_SOURCE[0]}")")"
+[ -n "$_validate_fixtures_script_dir" ] || eest_die "unable to resolve scripts directory"
 
 # shellcheck source=scripts/env.sh
 . "$_validate_fixtures_script_dir/env.sh"
@@ -27,26 +23,6 @@ _validate_fixtures_usage() {
     '  FIXTURES_DIR'
 }
 
-_validate_fixtures_log() {
-  printf '==> %s\n' "$*"
-}
-
-_validate_fixtures_die() {
-  printf 'error: %s\n' "$*" >&2
-  exit 1
-}
-
-_validate_fixtures_require_cmd() {
-  local cmd label
-
-  cmd="$1"
-  label="$2"
-
-  if ! command -v "$cmd" >/dev/null 2>&1; then
-    _validate_fixtures_die "missing required tool: $label ($cmd not found on PATH)"
-  fi
-}
-
 _validate_fixtures_parse_args() {
   while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -56,7 +32,7 @@ _validate_fixtures_parse_args() {
         ;;
       *)
         _validate_fixtures_usage >&2
-        _validate_fixtures_die "unknown argument: $1"
+        eest_die "unknown argument: $1"
         ;;
     esac
     shift
@@ -69,7 +45,7 @@ _validate_fixtures_dir_for_format() {
       printf '%s\n' "$FIXTURES_DIR/blockchain_tests_engine"
       ;;
     *)
-      _validate_fixtures_die "unsupported fixture format validation: $1"
+      eest_die "unsupported fixture format validation: $1"
       ;;
   esac
 }
@@ -102,16 +78,16 @@ _validate_fixtures_validate_format() {
   if ! _validate_fixtures_index_has_format "$index_path" "$format"; then
     printf 'fixture_formats in %s:\n' "$index_path" >&2
     jq '.fixture_formats' "$index_path" >&2 || true
-    _validate_fixtures_die "fixture index does not include $format"
+    eest_die "fixture index does not include $format"
   fi
 
   if [ ! -d "$fixture_dir" ]; then
-    _validate_fixtures_die "$format fixture directory does not exist: $fixture_dir"
+    eest_die "$format fixture directory does not exist: $fixture_dir"
   fi
 
   first_fixture="$(find "$fixture_dir" -type f -print -quit)"
   if [ -z "$first_fixture" ]; then
-    _validate_fixtures_die "$format fixture directory is empty: $fixture_dir"
+    eest_die "$format fixture directory is empty: $fixture_dir"
   fi
 }
 
@@ -120,22 +96,22 @@ _validate_fixtures_validate() {
 
   index_path="$FIXTURES_DIR/.meta/index.json"
 
-  _validate_fixtures_log "Validating fixture index"
+  eest_log "Validating fixture index"
 
   if [ ! -f "$index_path" ]; then
-    _validate_fixtures_die "fixture index does not exist: $index_path"
+    eest_die "fixture index does not exist: $index_path"
   fi
 
   for format in "${_validate_fixtures_formats[@]}"; do
     _validate_fixtures_validate_format "$index_path" "$format"
   done
 
-  _validate_fixtures_log "Fixture validation passed"
+  eest_log "Fixture validation passed"
 }
 
 main() {
   _validate_fixtures_parse_args "$@"
-  _validate_fixtures_require_cmd jq jq
+  eest_require_cmd jq jq
   _validate_fixtures_validate
 }
 
