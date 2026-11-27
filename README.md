@@ -389,8 +389,7 @@ every result. The check doesn't generate proofs, publish datasets, or deploy
 the site.
 
 The jobs run on disposable XL runners. CI installs Python, Go, Rust stable,
-uv, and the native packages listed in `.github/workflows/pr-smoke.yml` and
-`.github/actions/smoke-setup`. The zkEVM jobs log in to GHCR with the job
+uv, and the native packages listed in `.github/actions/zkevm-runner-setup`. The zkEVM jobs log in to GHCR with the job
 token, and each one lists its guest results and Rust cache hit in its summary.
 
 Pushes to `main` build the benchmark and save its Rust cache, which pull

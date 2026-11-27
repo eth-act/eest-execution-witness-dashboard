@@ -2,10 +2,6 @@ name: Set up a smoke job
 description: Install tools, restore dependency caches, and fill the empty-block smoke fixture.
 
 inputs:
-  apt-packages:
-    description: Extra apt packages to install alongside jq.
-    required: false
-    default: ""
   save-cache:
     description: Save the Go and Python dependency cache. Set it on one job that uses both.
     required: false
@@ -14,14 +10,14 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Install apt packages
+    # zkEVM jobs install jq with the benchmark runner's packages first.
+    - name: Install jq
       shell: bash
-      env:
-        APT_PACKAGES: ${{ inputs.apt-packages }}
       run: |
-        sudo apt-get update
-        # shellcheck disable=SC2086
-        sudo apt-get install -y jq $APT_PACKAGES
+        if ! command -v jq >/dev/null; then
+          sudo apt-get update
+          sudo apt-get install -y jq
+        fi
     - uses: actions/setup-python@v7
       with:
         python-version: "3.12"
