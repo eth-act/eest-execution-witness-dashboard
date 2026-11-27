@@ -2,15 +2,11 @@
 
 set -Eeuo pipefail
 
-_setup_hive_abs_dir() {
-  (CDPATH= cd -- "$1" 2>/dev/null && pwd -P)
-}
+# shellcheck source=scripts/lib/common.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
-_setup_hive_script_dir="$(_setup_hive_abs_dir "$(dirname "${BASH_SOURCE[0]}")")"
-if [ -z "$_setup_hive_script_dir" ]; then
-  printf 'error: unable to resolve scripts directory\n' >&2
-  exit 1
-fi
+_setup_hive_script_dir="$(eest_abs_dir "$(dirname "${BASH_SOURCE[0]}")")"
+[ -n "$_setup_hive_script_dir" ] || eest_die "unable to resolve scripts directory"
 
 # shellcheck source=scripts/env.sh
 . "$_setup_hive_script_dir/env.sh"
@@ -59,26 +55,6 @@ _setup_hive_usage() {
     'EL_CLIENT_OVERRIDES_JSON may be either {"id": {...}} or {"clients": {"id": {...}}}.'
 }
 
-_setup_hive_log() {
-  printf '==> %s\n' "$*"
-}
-
-_setup_hive_die() {
-  printf 'error: %s\n' "$*" >&2
-  exit 1
-}
-
-_setup_hive_require_cmd() {
-  local cmd label
-
-  cmd="$1"
-  label="$2"
-
-  if ! command -v "$cmd" >/dev/null 2>&1; then
-    _setup_hive_die "missing required tool: $label ($cmd not found on PATH)"
-  fi
-}
-
 _setup_hive_checkout_only=0
 
 _setup_hive_parse_args() {
@@ -93,7 +69,7 @@ _setup_hive_parse_args() {
         ;;
       *)
         _setup_hive_usage >&2
-        _setup_hive_die "unknown argument: $1"
+        eest_die "unknown argument: $1"
         ;;
     esac
     shift
@@ -110,69 +86,25 @@ _setup_hive_yaml_quote() {
 _setup_hive_validate_yaml_key() {
   case "$1" in
     '' | *[!A-Za-z0-9_.-]*)
-      _setup_hive_die "invalid YAML key: $1"
+      eest_die "invalid YAML key: $1"
       ;;
   esac
 }
 
-_setup_hive_ref_is_full_sha() {
-  [[ "$1" =~ ^[0-9a-fA-F]{40}$ ]]
-}
-
-_setup_hive_is_checkout_root() {
-  local checkout_dir top
-
-  checkout_dir="$(_setup_hive_abs_dir "$1")"
-  if [ -z "$checkout_dir" ]; then
-    return 1
-  fi
-
-  top="$(git -C "$checkout_dir" rev-parse --show-toplevel 2>/dev/null)" || return 1
-  [ "$top" = "$checkout_dir" ]
-}
-
 _setup_hive_prepare_git_checkout() {
-  local checkout_dir label ref repo
-
-  label="$1"
-  repo="$2"
-  ref="$3"
-  checkout_dir="$4"
-
-  _setup_hive_log "Preparing $label checkout at $checkout_dir"
-
-  if [ -d "$checkout_dir" ]; then
-    if ! _setup_hive_is_checkout_root "$checkout_dir"; then
-      _setup_hive_die "$label directory exists but is not a git checkout root: $checkout_dir"
-    fi
-
+  # Managed patches come off first, so updating Hive can't conflict with them.
+  if [ -d "$HIVE_DIR" ] && eest_is_git_checkout_root "$HIVE_DIR"; then
     _setup_hive_restore_patches
-
-    if git -C "$checkout_dir" remote get-url origin >/dev/null 2>&1; then
-      git -C "$checkout_dir" remote set-url origin "$repo"
-    else
-      git -C "$checkout_dir" remote add origin "$repo"
-    fi
-  else
-    mkdir -p "$(dirname "$checkout_dir")"
-    git clone "$repo" "$checkout_dir"
   fi
-
-  if _setup_hive_ref_is_full_sha "$ref"; then
-    git -C "$checkout_dir" fetch --prune origin
-    git -C "$checkout_dir" checkout --detach "$ref"
-  else
-    git -C "$checkout_dir" fetch --prune origin "$ref"
-    git -C "$checkout_dir" checkout --detach FETCH_HEAD
-  fi
+  eest_prepare_git_checkout Hive "$HIVE_REPO" "$HIVE_REF" "$HIVE_DIR"
 }
 
 _setup_hive_build_hive() {
-  _setup_hive_log "Building Hive"
+  eest_log "Building Hive"
   (cd "$HIVE_DIR" && go build .)
 
   if [ ! -x "$HIVE_DIR/hive" ]; then
-    _setup_hive_die "Hive binary was not created: $HIVE_DIR/hive"
+    eest_die "Hive binary was not created: $HIVE_DIR/hive"
   fi
 }
 
@@ -220,9 +152,9 @@ _setup_hive_restore_patches() {
       continue
     fi
     if ! git -C "$HIVE_DIR" apply --reverse --check "$patch"; then
-      _setup_hive_die "unable to remove managed $label patch before updating Hive; check local edits to $(_setup_hive_patch_files "$patch")"
+      eest_die "unable to remove managed $label patch before updating Hive; check local edits to $(_setup_hive_patch_files "$patch")"
     fi
-    _setup_hive_log "Removing managed $label patch before updating Hive"
+    eest_log "Removing managed $label patch before updating Hive"
     git -C "$HIVE_DIR" apply --reverse "$patch"
   done <<< "$_setup_hive_patch_table"
 }
@@ -230,7 +162,7 @@ _setup_hive_restore_patches() {
 _setup_hive_apply_patch() {
   local client fixed_file fixed_pattern fixed_when found label name patch patch_file row transport
 
-  row="$(_setup_hive_patch_row "$1")" || _setup_hive_die "unknown managed patch: $1"
+  row="$(_setup_hive_patch_row "$1")" || eest_die "unknown managed patch: $1"
   IFS='|' read -r name patch_file label client transport fixed_file fixed_when fixed_pattern <<< "$row"
   patch="$_setup_hive_patch_dir/$patch_file"
 
@@ -247,18 +179,18 @@ _setup_hive_apply_patch() {
     fi
     if [ "$found" = "$fixed_when" ]; then
       if [ "$found" = present ]; then
-        _setup_hive_log "Hive's $fixed_file already has $fixed_pattern; skipping managed $label patch"
+        eest_log "Hive's $fixed_file already has $fixed_pattern; skipping managed $label patch"
       else
-        _setup_hive_log "Hive's $fixed_file no longer has $fixed_pattern; skipping managed $label patch"
+        eest_log "Hive's $fixed_file no longer has $fixed_pattern; skipping managed $label patch"
       fi
       return 0
     fi
   fi
 
   if ! git -C "$HIVE_DIR" apply --check "$patch"; then
-    _setup_hive_die "managed $label patch does not apply to Hive at $HIVE_REF; check $(_setup_hive_patch_files "$patch")"
+    eest_die "managed $label patch does not apply to Hive at $HIVE_REF; check $(_setup_hive_patch_files "$patch")"
   fi
-  _setup_hive_log "Applying managed $label patch"
+  eest_log "Applying managed $label patch"
   git -C "$HIVE_DIR" apply "$patch"
 }
 
@@ -272,19 +204,19 @@ _setup_hive_validate_hive_client() {
   transport="$(eest_el_clients_descriptor_field "$descriptor" '.transport')"
 
   if [ -z "$hive_client" ]; then
-    _setup_hive_die "EL client descriptor $id is missing hive_client"
+    eest_die "EL client descriptor $id is missing hive_client"
   fi
 
   case "${transport:-json-rpc-rlp}" in
     json-rpc-rlp | rest-ssz) ;;
     *)
-      _setup_hive_die "unsupported transport for $id: $transport (expected json-rpc-rlp or rest-ssz)"
+      eest_die "unsupported transport for $id: $transport (expected json-rpc-rlp or rest-ssz)"
       ;;
   esac
 
   case "$hive_client" in
     '' | /* | . | .. | *'/../'* | ../* | *'/..' | *'\'* | *$'\r'* | *$'\n'*)
-      _setup_hive_die "invalid Hive client path for $id: $hive_client"
+      eest_die "invalid Hive client path for $id: $hive_client"
       ;;
   esac
 
@@ -296,7 +228,7 @@ _setup_hive_validate_hive_client() {
   fi
 
   if [ ! -f "$dockerfile_path" ]; then
-    _setup_hive_die "Hive client Dockerfile for $id does not exist: $dockerfile_path"
+    eest_die "Hive client Dockerfile for $id does not exist: $dockerfile_path"
   fi
 }
 
@@ -310,13 +242,13 @@ _setup_hive_apply_descriptor_setup() {
 
   if [ -n "$managed_patch" ]; then
     row="$(_setup_hive_patch_row "$managed_patch")" ||
-      _setup_hive_die "unsupported managed_patch for $id: $managed_patch"
+      eest_die "unsupported managed_patch for $id: $managed_patch"
     IFS='|' read -r name patch_file label client transport rest <<< "$row"
     if [ -n "$transport" ]; then
-      _setup_hive_die "unsupported managed_patch for $id: $managed_patch is applied by transport"
+      eest_die "unsupported managed_patch for $id: $managed_patch is applied by transport"
     fi
     if [ "$hive_client" != "$client" ] || [ "$(eest_el_clients_dockerfile_ext "$descriptor")" != git ]; then
-      _setup_hive_die "$managed_patch requires hive_client=$client and dockerfile=git"
+      eest_die "$managed_patch requires hive_client=$client and dockerfile=git"
     fi
     _setup_hive_apply_patch "$managed_patch"
   fi
@@ -385,7 +317,7 @@ _setup_hive_write_client_file() {
   resolved="$1"
   tmp="${_setup_hive_client_file}.tmp.$$"
 
-  _setup_hive_log "Writing EL client config to $_setup_hive_client_file"
+  eest_log "Writing EL client config to $_setup_hive_client_file"
   : > "$tmp"
 
   while IFS= read -r descriptor; do
@@ -400,7 +332,7 @@ _setup_hive_configure_clients() {
   local -A seen_clients=()
 
   if ! resolved="$(eest_el_clients_resolve_descriptors)"; then
-    _setup_hive_die "failed to resolve EL client descriptors"
+    eest_die "failed to resolve EL client descriptors"
   fi
 
   while IFS= read -r descriptor; do
@@ -408,7 +340,7 @@ _setup_hive_configure_clients() {
     full_name="$(eest_el_clients_full_client_name "$descriptor")"
 
     if [ -n "${seen_clients[$full_name]:-}" ]; then
-      _setup_hive_die "duplicate Hive client name after descriptor resolution: $full_name"
+      eest_die "duplicate Hive client name after descriptor resolution: $full_name"
     fi
     seen_clients[$full_name]=1
 
@@ -420,22 +352,22 @@ _setup_hive_configure_clients() {
 
 main() {
   _setup_hive_parse_args "$@"
-  _setup_hive_require_cmd git Git
+  eest_require_cmd git Git
 
   if [ "$_setup_hive_checkout_only" -eq 1 ]; then
-    _setup_hive_prepare_git_checkout Hive "$HIVE_REPO" "$HIVE_REF" "$HIVE_DIR"
-    _setup_hive_log "Hive checkout ready"
+    _setup_hive_prepare_git_checkout
+    eest_log "Hive checkout ready"
     return 0
   fi
 
-  _setup_hive_require_cmd go Go
-  _setup_hive_require_cmd jq jq
+  eest_require_cmd go Go
+  eest_require_cmd jq jq
 
-  _setup_hive_prepare_git_checkout Hive "$HIVE_REPO" "$HIVE_REF" "$HIVE_DIR"
+  _setup_hive_prepare_git_checkout
   _setup_hive_configure_clients
   _setup_hive_build_hive
 
-  _setup_hive_log "Hive setup complete"
+  eest_log "Hive setup complete"
 }
 
 main "$@"
