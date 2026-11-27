@@ -13,6 +13,14 @@ concurrency:
   group: pr-smoke-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+# The smoke jobs fill and consume the same one-block fixture. FIXTURES_DIR is
+# relative: env.sh resolves it against the checkout, and steps run from there.
+env:
+  EEST_RELEASE_TAG: ""
+  FILLER_PATH: tests/amsterdam/eip8025_optional_proofs/test_witness_headers.py::test_witness_headers_empty_block
+  FILL_TEST_NAME: "0"
+  FIXTURES_DIR: smoke-results/fixtures
+
 jobs:
   checks:
     name: Local checks
@@ -89,10 +97,6 @@ jobs:
     runs-on: [self-hosted-ghr, size-xl-x64]
     timeout-minutes: 30
     env:
-      EEST_RELEASE_TAG: ""
-      FILLER_PATH: tests/amsterdam/eip8025_optional_proofs/test_witness_headers.py::test_witness_headers_empty_block
-      FILL_TEST_NAME: "0"
-      FIXTURES_DIR: ${{ github.workspace }}/smoke-results/fixtures
       HIVE_CLIENT_RESULTS_DIR: ${{ github.workspace }}/smoke-results/hive-results
       HIVE_PARALLELISM: "1"
       HIVE_CONSUME_ALLOW_FAILURE: "0"
@@ -129,10 +133,6 @@ jobs:
     runs-on: [self-hosted-ghr, size-xl-x64]
     timeout-minutes: 90
     env:
-      EEST_RELEASE_TAG: ""
-      FILLER_PATH: tests/amsterdam/eip8025_optional_proofs/test_witness_headers.py::test_witness_headers_empty_block
-      FILL_TEST_NAME: "0"
-      FIXTURES_DIR: ${{ github.workspace }}/smoke-results/fixtures
       HIVE_CLIENT_RESULTS_DIR: ${{ github.workspace }}/smoke-results/hive-results
       HIVE_PARALLELISM: "1"
       # A cold Nimbus image build exceeds the default 20-minute readiness wait.
@@ -176,10 +176,6 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJson(needs.checks.outputs.zkevm_matrix) }}
     env:
-      EEST_RELEASE_TAG: ""
-      FILLER_PATH: tests/amsterdam/eip8025_optional_proofs/test_witness_headers.py::test_witness_headers_empty_block
-      FILL_TEST_NAME: "0"
-      FIXTURES_DIR: ${{ github.workspace }}/smoke-results/fixtures
       ZKEVM_BENCHMARK_WORKLOAD_DIR: ${{ github.workspace }}/zkevm-benchmark-workload
       ZKEVM_RAYON_THREADS: "2"
       ERE_IMAGE_REGISTRY: ghcr.io/eth-act/ere
