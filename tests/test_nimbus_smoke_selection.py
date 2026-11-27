@@ -68,6 +68,14 @@ class NimbusSmokeSelectionTests(unittest.TestCase):
     def test_unrelated_change_skips_nimbus(self):
         self.assertEqual(self.run_selection("README.md"), "nimbus=false")
 
+    def test_only_the_smoke_setup_action_triggers_nimbus(self):
+        self.assertEqual(
+            self.run_selection(".github/actions/smoke-setup/action.yml"), "nimbus=true"
+        )
+        self.assertEqual(
+            self.run_selection(".github/actions/fetch-dataset/action.yml"), "nimbus=false"
+        )
+
     def test_setup_eest_among_other_changes_triggers_nimbus(self):
         self.assertEqual(
             self.run_selection("scripts/fill-fixtures.sh\nscripts/setup-eest.sh"),

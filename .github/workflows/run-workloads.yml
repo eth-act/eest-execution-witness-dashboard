@@ -192,33 +192,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y jq
 
-      - name: Download dataset manifest
-        uses: actions/download-artifact@v8
+      # Needs jq, installed above.
+      - name: Fetch dataset
+        uses: ./.github/actions/fetch-dataset
         with:
-          name: dataset-manifest-${{ inputs.dataset_run_id }}
-          path: dataset
-          github-token: ${{ github.token }}
-          repository: ${{ github.repository }}
-          run-id: ${{ inputs.dataset_run_id }}
-
-      # actions/download-artifact restarts this ~600 MB zip from zero when the
-      # blob download stalls; the script resumes it instead.
-      - name: Download dataset fixtures
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: scripts/download-run-artifact.sh "$DATASET_RUN_ID" "dataset-fixtures-$DATASET_RUN_ID" dataset
-
-      - name: Validate and extract dataset
-        run: |
-          set -Eeuo pipefail
-          python3 scripts/dashboard-artifacts.py validate-dataset \
-            --manifest dataset/dataset.json \
-            --dataset-id "$DATASET_RUN_ID" \
-            --fixture-archive dataset/fixtures.tar.gz \
-            --repository "$GITHUB_REPOSITORY"
-          mkdir -p fixtures
-          tar -xzf dataset/fixtures.tar.gz -C fixtures
-          scripts/validate-fixtures.sh
+          dataset-run-id: ${{ inputs.dataset_run_id }}
 
       - name: Prepare execution-specs checkout
         run: scripts/setup-eest.sh
@@ -329,33 +307,11 @@ jobs:
             cmake libbenchmark-dev libgmp-dev libomp-dev libopenmpi-dev \
             libsodium-dev nasm nlohmann-json3-dev openmpi-bin openmpi-common
 
-      - name: Download dataset manifest
-        uses: actions/download-artifact@v8
+      # Needs jq, installed above.
+      - name: Fetch dataset
+        uses: ./.github/actions/fetch-dataset
         with:
-          name: dataset-manifest-${{ inputs.dataset_run_id }}
-          path: dataset
-          github-token: ${{ github.token }}
-          repository: ${{ github.repository }}
-          run-id: ${{ inputs.dataset_run_id }}
-
-      # actions/download-artifact restarts this ~600 MB zip from zero when the
-      # blob download stalls; the script resumes it instead.
-      - name: Download dataset fixtures
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: scripts/download-run-artifact.sh "$DATASET_RUN_ID" "dataset-fixtures-$DATASET_RUN_ID" dataset
-
-      - name: Validate and extract dataset
-        run: |
-          set -Eeuo pipefail
-          python3 scripts/dashboard-artifacts.py validate-dataset \
-            --manifest dataset/dataset.json \
-            --dataset-id "$DATASET_RUN_ID" \
-            --fixture-archive dataset/fixtures.tar.gz \
-            --repository "$GITHUB_REPOSITORY"
-          mkdir -p fixtures
-          tar -xzf dataset/fixtures.tar.gz -C fixtures
-          scripts/validate-fixtures.sh
+          dataset-run-id: ${{ inputs.dataset_run_id }}
 
       - name: Prepare zkevm-benchmark-workload checkout
         run: scripts/setup-zkevm-benchmark-workload.sh

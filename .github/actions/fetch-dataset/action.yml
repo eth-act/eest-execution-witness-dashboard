@@ -1,0 +1,41 @@
+name: Fetch a workload dataset
+description: Download a prepared dataset's manifest and fixtures, validate them, and extract the fixtures into fixtures/.
+
+inputs:
+  dataset-run-id:
+    description: Run ID of the Prepare execution witness dataset workflow.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Download dataset manifest
+      uses: actions/download-artifact@v8
+      with:
+        name: dataset-manifest-${{ inputs.dataset-run-id }}
+        path: dataset
+        github-token: ${{ github.token }}
+        repository: ${{ github.repository }}
+        run-id: ${{ inputs.dataset-run-id }}
+    # actions/download-artifact restarts this ~600 MB zip from zero when the
+    # blob download stalls; the script resumes it instead.
+    - name: Download dataset fixtures
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        DATASET_RUN_ID: ${{ inputs.dataset-run-id }}
+      run: scripts/download-run-artifact.sh "$DATASET_RUN_ID" "dataset-fixtures-$DATASET_RUN_ID" dataset
+    - name: Validate and extract dataset
+      shell: bash
+      env:
+        DATASET_RUN_ID: ${{ inputs.dataset-run-id }}
+      run: |
+        set -Eeuo pipefail
+        python3 scripts/dashboard-artifacts.py validate-dataset \
+          --manifest dataset/dataset.json \
+          --dataset-id "$DATASET_RUN_ID" \
+          --fixture-archive dataset/fixtures.tar.gz \
+          --repository "$GITHUB_REPOSITORY"
+        mkdir -p fixtures
+        tar -xzf dataset/fixtures.tar.gz -C fixtures
+        scripts/validate-fixtures.sh
