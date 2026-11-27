@@ -7,14 +7,18 @@ import argparse
 import filecmp
 import json
 import os
+import re
 import shutil
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, Iterator, NoReturn
 
 
 PRUNE_SUMMARY_NAME = ".eest-prune-skipped-summary"
+DETAILS_DIR = PurePosixPath("details")
+SAFE_CLIENT_ID = re.compile(r"[A-Za-z0-9_.-]+")
 EXCLUDED_SUITE_JSON = {
     "hive.json",
     "errorReport.json",
@@ -32,6 +36,7 @@ class SourceSpec:
     label: str
     expected_client: str | None = None
     require_prune_summary_when_empty: bool = False
+    client_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -252,6 +257,45 @@ def add_to_inventory(
     directory_paths.update(parents)
 
 
+def client_details_path(client_id: str, relative: PurePosixPath) -> PurePosixPath:
+    """Return where a client's details log goes in the merged output.
+
+    Hive names a suite's details log after the second the suite started and the
+    simulator container, which is empty in --dev mode. Two clients whose suites
+    start in the same second write the same name, so each client's details logs
+    go under their own directory.
+    """
+    rest = relative.relative_to(DETAILS_DIR)
+    if ".." in rest.parts:
+        fail(f"unsafe details log path for client {client_id}: {relative}")
+    return DETAILS_DIR / client_id / rest
+
+
+def add_client_source_to_inventory(
+    inventory: dict[str, InventoryEntry],
+    directory_paths: set[str],
+    spec: SourceSpec,
+    staging: Path,
+) -> None:
+    assert spec.client_id is not None
+    suite_names = {path.name for path in suite_json_files(spec.directory)}
+    for relative, source in iter_source_files(spec.directory):
+        if len(relative.parts) > 1 and relative.parts[0] == DETAILS_DIR.name:
+            relative = client_details_path(spec.client_id, relative)
+        elif len(relative.parts) == 1 and relative.name in suite_names:
+            suite = load_json(source, "Hive result JSON")
+            details_log = suite.get("testDetailsLog")
+            if isinstance(details_log, str) and details_log.startswith(f"{DETAILS_DIR}/"):
+                suite["testDetailsLog"] = client_details_path(
+                    spec.client_id, PurePosixPath(details_log)
+                ).as_posix()
+                staged = staging / spec.client_id / relative.name
+                staged.parent.mkdir(parents=True, exist_ok=True)
+                staged.write_text(json.dumps(suite, separators=(",", ":")), encoding="utf-8")
+                source = staged
+        add_to_inventory(inventory, directory_paths, relative, source, spec.label)
+
+
 def root_directory() -> Path:
     configured = os.environ.get("ROOT_DIR")
     if configured:
@@ -377,12 +421,15 @@ def main(argv: list[str] | None = None) -> int:
 
     sources: list[SourceSpec] = []
     for client_id, client_name, directory_text in args.client_source:
+        if not SAFE_CLIENT_ID.fullmatch(client_id) or client_id in {".", ".."}:
+            fail(f"invalid client ID: {client_id}")
         sources.append(
             SourceSpec(
                 directory=resolved_source_path(Path(directory_text)),
                 label=f"client {client_id} ({client_name})",
                 expected_client=client_name,
                 require_prune_summary_when_empty=True,
+                client_id=client_id,
             )
         )
     for directory in args.sources:
@@ -398,16 +445,19 @@ def main(argv: list[str] | None = None) -> int:
 
     inventory: dict[str, InventoryEntry] = {}
     directory_paths: set[str] = set()
-    for spec in active_sources:
-        if spec.expected_client is not None:
-            log(f"Merging results for {spec.expected_client} from {spec.directory}")
-        else:
+    with tempfile.TemporaryDirectory(prefix="merge-hive-results-") as staging_dir:
+        staging = Path(staging_dir)
+        for spec in active_sources:
+            if spec.client_id is not None:
+                log(f"Merging results for {spec.expected_client} from {spec.directory}")
+                add_client_source_to_inventory(inventory, directory_paths, spec, staging)
+                continue
             log(f"Merging Hive results from {spec.directory}")
-        for relative, source in iter_source_files(spec.directory):
-            add_to_inventory(inventory, directory_paths, relative, source, spec.label)
+            for relative, source in iter_source_files(spec.directory):
+                add_to_inventory(inventory, directory_paths, relative, source, spec.label)
 
-    prepare_output(output, clean=args.clean_output)
-    copy_inventory(output, inventory)
+        prepare_output(output, clean=args.clean_output)
+        copy_inventory(output, inventory)
     log(
         f"Merged {len(active_sources)} Hive result directories "
         f"({len(inventory)} files) into {output}"
