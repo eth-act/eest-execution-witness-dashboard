@@ -1,0 +1,20 @@
+# Paths that make the PR smoke check run Nimbus REST/SSZ on Hive, one bash
+# glob per line, where * also matches /. scripts/select-nimbus-smoke.sh reads
+# them, and tests/test_nimbus_smoke_selection.py needs an example path for
+# each one.
+#
+# Nimbus takes about 30 minutes to build, so it runs only when a change can
+# affect Hive or REST/SSZ. The refresh always runs it. Geth already runs the
+# fixture scripts, so only setup-eest.sh, which installs the consume
+# engine-witness checkout, is listed.
+.github/actions/smoke-setup/*
+.github/workflows/pr-smoke.yml
+config/el-clients.json
+patches/hive-*
+scripts/env.sh
+scripts/lib/*
+scripts/setup-hive.sh
+scripts/run-hive-consume-client.sh
+scripts/setup-eest.sh
+scripts/prune-skipped-hive-results.py
+scripts/check-smoke-results.py

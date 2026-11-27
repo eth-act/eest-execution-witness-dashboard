@@ -58,6 +58,9 @@ main README leaves out.
   manifests, and deterministically picks reusable artifacts across runs.
 - `check-smoke-results.py`: requires one passing smoke case from one Hive
   client (`hive`) or one zkEVM guest, including metrics conversion (`zkevm`).
+- `select-nimbus-smoke.sh`: reads the paths a pull request changes and prints
+  whether the PR smoke check runs Nimbus, using the patterns in
+  `config/nimbus-smoke-paths.txt`.
 - `build-site.sh`: cleans `SITE_DIR` and builds the static hive-ui site into
   it.
 - `smoke-site.sh`: checks a local site before publishing, or a deployed one
