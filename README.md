@@ -71,22 +71,18 @@ them, and local runs opt in:
 | `erigon-rest` | `erigontech/erigon` | `main` | `erigon_rest-ssz` |
 
 The REST results have their own client name, so Nimbus and Nethermind can run
-both transports in the same site. The REST consumer ships in
-`tests-zkevm@v21.0.1` and later; older refs lack `--ssz`.
+both transports in the same site. Reth's JSON-RPC witness method is still an
+open pull request, paradigmxyz/reth#27083, so Reth only runs over REST+SSZ.
+The REST consumer ships in `tests-zkevm@v21.0.1` and later; older refs lack
+`--ssz`.
 
 Descriptors track each client's default branch, so every refresh tests current
 code and shows fixes and regressions as they land. Releases wouldn't work for
 every client anyway:
 
-- Besu's latest release lacks the witness RPC.
-- Nethermind `2.1.0` no longer builds. It pins .NET crypto packages with
-  published security advisories, and Nethermind treats NuGet audit warnings as
-  errors. Its REST endpoint also lacks two fixes: it's missing from
-  `GET /engine/v1/capabilities`, so EEST skips every test, and it returns no
-  witness for a payload it already knows.
-- Reth `v2.7.0` has the REST endpoint but lacks a fix that keeps bytecode
-  created during the block out of the witness. Reth's JSON-RPC witness method
-  is still an open pull request, so Reth only runs over REST+SSZ.
+- Nethermind `2.2.2` lacks two witness fixes: its REST endpoint is missing
+  from `GET /engine/v1/capabilities`, so EEST skips every test, and it returns
+  no witness for a payload it already knows.
 - No Erigon release has the REST witness endpoint yet. It landed on `main` in
   erigontech/erigon#26085.
 
