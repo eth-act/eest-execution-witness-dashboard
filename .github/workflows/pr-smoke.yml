@@ -39,17 +39,14 @@ jobs:
           jq -e '.guests | type == "object"' config/el-guests.json
           scripts/env.sh --validate-eest-source
           EL_CLIENTS="$(jq -r '.clients | keys | join(",")' config/el-clients.json)" scripts/list-el-clients.sh --github-matrix
+          EL_CLIENTS="$(jq -r '.el_clients | join(",")' config/refresh.json)" scripts/list-el-clients.sh --github-matrix
           python3 -m unittest discover -s tests
       - name: Group the refresh's zkEVM runs by zkVM
         id: zkevm
         run: |
           set -Eeuo pipefail
           # Smoke every guest the refresh runs.
-          runs="$(sed -n 's/^ *ZKEVM_WORKLOAD_RUNS: *//p' .github/workflows/refresh-dashboard.yml)"
-          if [ -z "$runs" ] || [ "$(wc -l <<< "$runs")" -ne 1 ]; then
-            echo "refresh-dashboard.yml must set ZKEVM_WORKLOAD_RUNS exactly once" >&2
-            exit 1
-          fi
+          runs="$(jq -er '.zkevm_workload_runs | join(",")' config/refresh.json)"
           runs="$(ZKEVM_WORKLOAD_RUNS="$runs" scripts/list-zkevm-workload-runs.sh --json)"
           matrix="$(jq -c '
             group_by(.zkvm)

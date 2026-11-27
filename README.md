@@ -111,8 +111,8 @@ Nethermind uses `nethermind` for both.
 ### Refresh workflow
 
 The Refresh execution witness dashboard workflow
-(`.github/workflows/refresh-dashboard.yml`) prepares a dataset, runs nine Hive
-client configurations and fifteen zkEVM runs, and publishes the site. It runs
+(`.github/workflows/refresh-dashboard.yml`) prepares a dataset, runs the Hive
+clients and zkEVM runs listed in `config/refresh.json`, and publishes the site. It runs
 every Monday and Thursday at 03:17 UTC. To run it now:
 
 ```bash
@@ -379,7 +379,7 @@ scripts as `run-workloads.yml` and `publish.yml`:
   about 30 minutes to build, and the refresh always runs it. Geth
   already covers the fixture preparation scripts, so they don't trigger it.
 - One job per zkVM runs every guest that the refresh runs on that zkVM. The
-  pairs come from `refresh-dashboard.yml`, so new refresh pairs join the smoke.
+  pairs come from `config/refresh.json`, so new refresh pairs join the smoke.
   The benchmark downloads its guests and runtime images using its own
   dependency versions.
 - A site job merges the Geth and zkEVM results, builds the hive-ui site, and

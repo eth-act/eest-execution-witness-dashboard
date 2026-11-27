@@ -1,0 +1,30 @@
+{
+  "el_clients": [
+    "ethrex",
+    "go-ethereum",
+    "nimbus-el",
+    "nethermind",
+    "besu",
+    "nimbus-el-rest",
+    "reth-rest",
+    "nethermind-rest",
+    "erigon-rest"
+  ],
+  "zkevm_workload_runs": [
+    "ethrex:sp1",
+    "ethrex:zisk",
+    "ethrex:openvm",
+    "reth:sp1",
+    "reth:zisk",
+    "reth:openvm",
+    "reth:pico",
+    "zesu:sp1",
+    "zesu:zisk",
+    "zesu:openvm",
+    "nimbus:sp1",
+    "nimbus:zisk",
+    "nethermind:sp1",
+    "nethermind:zisk",
+    "zilkworm:sp1"
+  ]
+}
