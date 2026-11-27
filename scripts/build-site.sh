@@ -390,7 +390,8 @@ _build_site_build_hive_ui_assets() {
   fi
 
   _build_site_log "Copying hive-ui static assets"
-  rsync -a --delete "$HIVE_UI_DIR/dist"/ "$SITE_DIR"/
+  # ai.md and llms.txt describe hive.ethpandaops.io, not this dashboard.
+  rsync -a --delete --exclude /ai.md --exclude /llms.txt "$HIVE_UI_DIR/dist"/ "$SITE_DIR"/
 }
 
 _build_site_generate_listing() {

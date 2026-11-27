@@ -6,9 +6,9 @@ diff --git a/src/components/Header.tsx b/src/components/Header.tsx
  import { ThemeMode } from '../contexts/themeContext';
  import { Link } from 'react-router-dom';
 +import { publicAssetPath } from '../utils/publicAssets';
-
-
-
+ 
+ 
+ 
 @@ -108,7 +109,7 @@ const Header: React.FC = () => {
                  }}
                />
@@ -18,18 +18,62 @@ diff --git a/src/components/Header.tsx b/src/components/Header.tsx
                  alt="Hive Logo"
                  style={{
                    width: '100%',
+diff --git a/src/components/SharedClientsPanel.tsx b/src/components/SharedClientsPanel.tsx
+--- a/src/components/SharedClientsPanel.tsx
++++ b/src/components/SharedClientsPanel.tsx
+@@ -52,7 +52,7 @@ const SharedClientsPanel: React.FC<SharedClientsPanelProps> = ({
+   const clients = contextCases
+     .flatMap((testCase) => Object.values(testCase.clientInfo || {}))
+     .sort((a, b) => new Date(a.instantiatedAt).getTime() - new Date(b.instantiatedAt).getTime());
+-  const totalTests = clients.reduce((sum, c) => sum + (testsPerLog.get(c.logFile) || 0), 0);
++  const totalTests = clients.reduce((sum, c) => sum + ((c.logFile && testsPerLog.get(c.logFile)) || 0), 0);
+   const lifecycleClean = contextCases.every((testCase) => testCase.summaryResult.pass);
+   const shownClients = showAll ? clients : clients.slice(0, COLLAPSED_ROW_COUNT);
+ 
+@@ -145,20 +145,22 @@ const SharedClientsPanel: React.FC<SharedClientsPanelProps> = ({
+                 <td style={{ ...cellStyle, fontFamily: 'monospace' }}>{client.id}</td>
+                 <td style={cellStyle}>{formatTime(client.instantiatedAt)}</td>
+                 <td style={{ ...cellStyle, textAlign: 'right' }}>
+-                  {(testsPerLog.get(client.logFile) || 0).toLocaleString()}
++                  {((client.logFile && testsPerLog.get(client.logFile)) || 0).toLocaleString()}
+                 </td>
+                 <td style={{ ...cellStyle, textAlign: 'right' }}>
+                   {client.logOffsets ? formatByteSize(client.logOffsets.end) : '—'}
+                 </td>
+                 <td style={cellStyle}>
+-                  <Link
+-                    to={logViewerUrl(discoveryName, suiteid, client.logFile)}
+-                    target="_blank"
+-                    rel="noopener noreferrer"
+-                    style={{ color: '#6366f1', textDecoration: 'none' }}
+-                  >
+-                    View log
+-                  </Link>
++                  {client.logFile && (
++                    <Link
++                      to={logViewerUrl(discoveryName, suiteid, client.logFile)}
++                      target="_blank"
++                      rel="noopener noreferrer"
++                      style={{ color: '#6366f1', textDecoration: 'none' }}
++                    >
++                      View log
++                    </Link>
++                  )}
+                 </td>
+               </tr>
+             ))}
 diff --git a/src/components/TestDetail.tsx b/src/components/TestDetail.tsx
 --- a/src/components/TestDetail.tsx
 +++ b/src/components/TestDetail.tsx
-@@ -12,6 +12,7 @@ import TestDetailsTable from './TestDetailsTable';
- import CommandDisplay from './CommandDisplay';
+@@ -14,6 +14,7 @@ import CommandDisplay from './CommandDisplay';
  import ConfigViewer from './ConfigViewer';
  import VersionInfo from './VersionInfo';
+ import { formatDuration } from '../utils/duration';
 +import { publicAssetPath } from '../utils/publicAssets';
-
+ 
  const TestDetail = () => {
    const { isDarkMode } = useTheme();
-@@ -1156,7 +1157,7 @@ const TestDetail = () => {
+@@ -1161,7 +1162,7 @@ const TestDetail = () => {
                        <h3 style={sectionTitleStyle}>Client</h3>
                        {Object.entries(testDetail.clientVersions).map(([client, version]) => {
                          const clientName = client.split('_')[0].toLowerCase();
@@ -38,7 +82,7 @@ diff --git a/src/components/TestDetail.tsx b/src/components/TestDetail.tsx
                          return (
                            <div key={client} style={{ marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                              <img
-@@ -1171,7 +1172,7 @@ const TestDetail = () => {
+@@ -1176,7 +1177,7 @@ const TestDetail = () => {
                                  objectFit: 'cover'
                                }}
                                onError={(e) => {
@@ -47,16 +91,16 @@ diff --git a/src/components/TestDetail.tsx b/src/components/TestDetail.tsx
                                }}
                              />
                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.125rem' }}>
-@@ -1271,7 +1272,7 @@ const TestDetail = () => {
+@@ -1235,7 +1236,7 @@ const TestDetail = () => {
                          </div>
-
+ 
                          {/* View Full Simulator Log button */}
 -                        <div>
 +                        {testDetail.simLog && <div>
                            <div style={{ fontSize: '0.75rem', ...lightTextStyle, marginBottom: '0.25rem' }}>SIMULATOR LOG</div>
                            <Link
                              to={`/logs/${discoveryName}/${suiteid || ''}/${encodeURIComponent(testDetail.simLog)}`}
-@@ -1295,7 +1296,7 @@ const TestDetail = () => {
+@@ -1259,7 +1260,7 @@ const TestDetail = () => {
                              </svg>
                              View Full Simulator Log
                            </Link>
@@ -71,15 +115,15 @@ diff --git a/src/components/TestDetailsTable.tsx b/src/components/TestDetailsTab
 @@ -1,6 +1,6 @@
  import React, { useState, useEffect, useRef, useCallback } from 'react';
  import { Link, useSearchParams } from 'react-router-dom';
--import { TestDetail } from '../types';
-+import { TestCaseDetail, TestDetail } from '../types';
+-import { TestDetail, TestClientInfo, isRealTestCase } from '../types';
++import { TestCaseDetail, TestDetail, TestClientInfo, isRealTestCase } from '../types';
  import { format, isValid } from 'date-fns';
  import { useTheme } from '../contexts/useTheme';
  import DOMPurify from 'dompurify';
-@@ -65,6 +65,13 @@ const TestDetailsTable: React.FC<TestDetailsTableProps> = ({
+@@ -104,6 +104,13 @@ const TestDetailsTable: React.FC<TestDetailsTableProps> = ({
      return 0;
    });
-
+ 
 +  const hasDetails = (testCase: TestCaseDetail) => Boolean(
 +    testCase.description || (testCase.summaryResult.log && testDetail.testDetailsLog)
 +  );
@@ -90,7 +134,7 @@ diff --git a/src/components/TestDetailsTable.tsx b/src/components/TestDetailsTab
    // Calculate pagination
    const totalPages = Math.ceil(sortedTestCases.length / selectedEntryCount);
    const startIndex = (currentPage - 1) * selectedEntryCount;
-@@ -660,7 +667,7 @@ const TestDetailsTable: React.FC<TestDetailsTableProps> = ({
+@@ -693,7 +700,7 @@ const TestDetailsTable: React.FC<TestDetailsTableProps> = ({
                  <th style={{ ...tableHeaderStyle, width: '75%' }}>Test</th>
                  <th style={{ ...tableHeaderStyle, width: '100px' }}>Status</th>
                  <th style={{ ...tableHeaderStyle, width: '100px' }}>Duration</th>
@@ -99,7 +143,7 @@ diff --git a/src/components/TestDetailsTable.tsx b/src/components/TestDetailsTab
                </tr>
              </thead>
              <tbody>
-@@ -668,14 +675,14 @@ const TestDetailsTable: React.FC<TestDetailsTableProps> = ({
+@@ -701,14 +708,14 @@ const TestDetailsTable: React.FC<TestDetailsTableProps> = ({
                  <React.Fragment key={id}>
                    <tr
                      id={`test-row-${id}`}
@@ -117,7 +161,7 @@ diff --git a/src/components/TestDetailsTable.tsx b/src/components/TestDetailsTab
                            style={{
                              display: 'flex',
                              alignItems: 'center',
-@@ -695,11 +702,11 @@ const TestDetailsTable: React.FC<TestDetailsTableProps> = ({
+@@ -728,11 +735,11 @@ const TestDetailsTable: React.FC<TestDetailsTableProps> = ({
                              lineHeight: 1,
                              flexShrink: 0
                            }}>▶</span>
@@ -131,23 +175,22 @@ diff --git a/src/components/TestDetailsTable.tsx b/src/components/TestDetailsTab
                            display: 'inline-block'
                          }}>{testCase.name}</span>
                        </div>
-@@ -724,7 +731,7 @@ const TestDetailsTable: React.FC<TestDetailsTableProps> = ({
-                         {calculateDuration(testCase.start, testCase.end)}
+@@ -757,22 +764,22 @@ const TestDetailsTable: React.FC<TestDetailsTableProps> = ({
+                         {formatTimeSpan(testCase.start, testCase.end) ?? '-'}
                        </div>
                      </td>
 -                    <td style={tableCellStyle} onClick={(e) => e.stopPropagation()}>
 +                    {hasClientLogs && <td style={tableCellStyle} onClick={(e) => e.stopPropagation()}>
-                       {testCase.clientInfo && Object.values(testCase.clientInfo)[0]?.logFile && (
-                         <Link
-                           to={`/logs/${discoveryName}/${suiteid || ''}/${encodeURIComponent(Object.values(testCase.clientInfo)[0]?.logFile || '')}`}
-@@ -749,15 +756,15 @@ const TestDetailsTable: React.FC<TestDetailsTableProps> = ({
-                         Logs
-                         </Link>
-                       )}
+                       <ClientLogLink
+                         client={testCase.clientInfo ? Object.values(testCase.clientInfo)[0] : undefined}
+                         discoveryName={discoveryName}
+                         suiteid={suiteid}
+                         isDarkMode={isDarkMode}
+                       />
 -                    </td>
 +                    </td>}
                    </tr>
-
+ 
                    {/* Expanded row */}
 -                  {expandedTestId === id && (
 +                  {hasDetails(testCase) && expandedTestId === id && (
@@ -159,17 +202,26 @@ diff --git a/src/components/TestDetailsTable.tsx b/src/components/TestDetailsTab
                          <div style={{
                            ...expandedRowStyle,
                            position: 'relative'
-@@ -806,7 +813,7 @@ const TestDetailsTable: React.FC<TestDetailsTableProps> = ({
-                               )}
-                               <h4 style={{ fontSize: '0.875rem', fontWeight: '600', marginBottom: '0.75rem', paddingBottom: '0.5rem', borderBottom: `1px solid ${isDarkMode ? 'rgba(71, 85, 105, 0.5)' : 'rgba(226, 232, 240, 1)'}` }}>Description</h4>
+@@ -828,7 +835,7 @@ const TestDetailsTable: React.FC<TestDetailsTableProps> = ({
+                                       <div style={excerptWrapperStyle}>
+                                         <LogExcerpt
+                                           discoveryName={discoveryName}
+-                                          logFile={client.logFile}
++                                          logFile={client.logFile!}
+                                           beginByte={client.logOffsets!.begin}
+                                           endByte={client.logOffsets!.end}
+                                           isDarkMode={isDarkMode}
+@@ -844,7 +851,7 @@ const TestDetailsTable: React.FC<TestDetailsTableProps> = ({
+                                 ))}
+                               <h4 style={{ ...sectionHeadingStyle, marginTop: 0 }}>Description</h4>
                                <div style={{ ...lightTextStyle, fontSize: '0.875rem', whiteSpace: 'pre-wrap', lineHeight: '1.5', overflow: 'auto', wordBreak: 'break-word' }}>
 -                                {sanitizeAndRenderHTML(testCase.description)}
 +                                {sanitizeAndRenderHTML(testCase.description || '')}
                                </div>
-
-                               <h4 style={{ fontSize: '0.875rem', fontWeight: '600', marginTop: '1.5rem', marginBottom: '0.75rem', paddingBottom: '0.5rem', borderBottom: `1px solid ${isDarkMode ? 'rgba(71, 85, 105, 0.5)' : 'rgba(226, 232, 240, 1)'}` }}>Timing</h4>
-@@ -835,7 +842,7 @@ const TestDetailsTable: React.FC<TestDetailsTableProps> = ({
-
+ 
+                               <h4 style={sectionHeadingStyle}>Timing</h4>
+@@ -873,7 +880,7 @@ const TestDetailsTable: React.FC<TestDetailsTableProps> = ({
+ 
                {filteredTestCases.length === 0 && (
                  <tr>
 -                  <td colSpan={4} style={{
@@ -180,15 +232,28 @@ diff --git a/src/components/TestDetailsTable.tsx b/src/components/TestDetailsTab
 diff --git a/src/components/TestResultCard.tsx b/src/components/TestResultCard.tsx
 --- a/src/components/TestResultCard.tsx
 +++ b/src/components/TestResultCard.tsx
-@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
- import { fetchTestRuns } from '../services/api';
+@@ -7,6 +7,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
+ import { fetchTestRuns, fetchFixtureRelease } from '../services/api';
  import { useState } from 'react';
  import * as Popover from '@radix-ui/react-popover';
 +import { publicAssetPath } from '../utils/publicAssets';
-
+ 
  type GroupBy = 'test' | 'client';
-
-@@ -97,7 +98,7 @@ const TestResultCard = ({ run, groupBy, directory, directoryAddress }: TestResul
+ 
+@@ -50,9 +51,11 @@ const TestResultCard = ({ run, groupBy, directory, directoryAddress }: TestResul
+   const prefetchFixtureReleases = () => {
+     if (!isEelsRun(run.name)) return;
+     for (const pastRun of pastRuns) {
++      const simLog = pastRun.simLog;
++      if (!simLog) continue;
+       queryClient.prefetchQuery({
+         queryKey: ['fixtureRelease', directoryAddress, pastRun.fileName],
+-        queryFn: () => fetchFixtureRelease(directoryAddress, pastRun.fileName, pastRun.simLog),
++        queryFn: () => fetchFixtureRelease(directoryAddress, pastRun.fileName, simLog),
+         staleTime: Infinity,
+         retry: false,
+       });
+@@ -120,7 +123,7 @@ const TestResultCard = ({ run, groupBy, directory, directoryAddress }: TestResul
                // When grouped by test, show clients with logos
                run.clients.map((client, idx) => {
                  const clientName = client.split('_')[0].toLowerCase();
@@ -197,7 +262,7 @@ diff --git a/src/components/TestResultCard.tsx b/src/components/TestResultCard.t
                  return (
                    <div
                      key={client}
-@@ -119,7 +120,7 @@ const TestResultCard = ({ run, groupBy, directory, directoryAddress }: TestResul
+@@ -142,7 +145,7 @@ const TestResultCard = ({ run, groupBy, directory, directoryAddress }: TestResul
                          objectFit: 'cover'
                        }}
                        onError={(e) => {
@@ -206,6 +271,24 @@ diff --git a/src/components/TestResultCard.tsx b/src/components/TestResultCard.t
                        }}
                      />
                      <span>{client}</span>
+@@ -351,7 +354,7 @@ const TestResultCard = ({ run, groupBy, directory, directoryAddress }: TestResul
+                           </span>
+                         </div>
+                       </div>
+-                      {isEelsRun(pastRun.name) && (
++                      {isEelsRun(pastRun.name) && pastRun.simLog && (
+                         <EelsFixturesRow address={directoryAddress} fileName={pastRun.fileName} simLog={pastRun.simLog} />
+                       )}
+                       <Popover.Arrow
+@@ -436,7 +439,7 @@ const TestResultCard = ({ run, groupBy, directory, directoryAddress }: TestResul
+               </span>
+             )}
+           </div>
+-          {isEelsRun(run.name) && (
++          {isEelsRun(run.name) && run.simLog && (
+             <EelsReleaseTag address={directoryAddress} fileName={run.fileName} simLog={run.simLog} />
+           )}
+         </div>
 diff --git a/src/components/TestResultGroup.tsx b/src/components/TestResultGroup.tsx
 --- a/src/components/TestResultGroup.tsx
 +++ b/src/components/TestResultGroup.tsx
@@ -213,9 +296,9 @@ diff --git a/src/components/TestResultGroup.tsx b/src/components/TestResultGroup
  import { TestRun } from '../types';
  import TestResultCard from './TestResultCard';
 +import { publicAssetPath } from '../utils/publicAssets';
-
+ 
  type GroupBy = 'test' | 'client';
-
+ 
 @@ -60,7 +61,7 @@ const TestResultGroup = ({ groupKey, groupRuns, groupBy, directory, directoryAdd
              <>
                {groupKey.split('+').map((client, idx) => {
@@ -242,7 +325,7 @@ diff --git a/src/components/TestResultsTable.tsx b/src/components/TestResultsTab
  import { useState, useEffect, useRef } from 'react';
  import * as Tooltip from '@radix-ui/react-tooltip';
 +import { publicAssetPath } from '../utils/publicAssets';
-
+ 
  type SortField = 'date' | 'name' | 'total' | 'pass' | 'fail' | 'status' | null;
  type SortDirection = 'asc' | 'desc';
 @@ -1140,7 +1141,7 @@ const TestResultsTable = ({
@@ -264,7 +347,7 @@ diff --git a/src/components/TestResultsTable.tsx b/src/components/TestResultsTab
                                    />
                                    {client}
 @@ -1212,7 +1213,7 @@ const TestResultsTable = ({
-
+ 
                        {!run.versions && run.clients && run.clients.map((client) => {
                          const clientName = client.split('_')[0].toLowerCase();
 -                        const logoPath = `/img/clients/${clientName}.jpg`;
@@ -287,57 +370,51 @@ diff --git a/src/services/api.ts b/src/services/api.ts
 @@ -1,9 +1,14 @@
  import { Directory, TestRun, TestDetail } from '../types';
 +import { publicAssetPath } from '../utils/publicAssets';
-
+ 
  const getTimestamp = () => new Date().getTime();
 +const testRunTimestamp = (run: TestRun) => {
 +  const runWithTimestamp = run as TestRun & { timestamp?: string };
 +  return new Date(runWithTimestamp.timestamp || run.start || 0).getTime();
 +};
-
+ 
  export const fetchDirectories = async (): Promise<Directory[]> => {
 -  const response = await fetch(`/discovery.json?ts=${getTimestamp()}`);
 +  const response = await fetch(`${publicAssetPath('discovery.json')}?ts=${getTimestamp()}`);
    if (!response.ok) {
      throw new Error('Failed to fetch directories');
    }
-@@ -26,7 +31,7 @@ export const fetchTestRuns = async (directory: Directory): Promise<TestRun[]> =>
-     .split('\n')
-     .filter(Boolean)
-     .map(line => JSON.parse(line))
+@@ -35,7 +40,7 @@ export const fetchTestRuns = async (directory: Directory): Promise<TestRun[]> =>
+         return [];
+       }
+     })
 -    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
 +    .sort((a, b) => testRunTimestamp(b) - testRunTimestamp(a))
  };
-
- export const fetchTestDetail = async (discoveryAddr: string, fileName: string): Promise<TestDetail> => {
+ 
+ export interface FixtureRelease {
 diff --git a/src/types/index.ts b/src/types/index.ts
 --- a/src/types/index.ts
 +++ b/src/types/index.ts
-@@ -15,7 +15,7 @@ export interface TestRun {
-   start: string;
+@@ -17,7 +17,7 @@ export interface TestRun {
+   end?: string;
    fileName: string;
    size: number;
 -  simLog: string;
 +  simLog?: string;
  }
-
+ 
  export interface TestGroup {
-@@ -29,12 +29,12 @@ export interface TestClientInfo {
+@@ -39,7 +39,7 @@ export interface TestClientInfo {
    ip: string;
    name: string;
    instantiatedAt: string;
 -  logFile: string;
 +  logFile?: string;
+   logOffsets?: TestLogOffsets;
  }
-
- export interface TestSummaryResult {
-   pass: boolean;
--  log: {
-+  log?: {
-     begin: number;
-     end: number;
-   };
-@@ -42,7 +42,7 @@ export interface TestSummaryResult {
-
+ 
+@@ -52,7 +52,7 @@ export interface TestSummaryResult {
+ 
  export interface TestCaseDetail {
    name: string;
 -  description: string;
@@ -345,7 +422,7 @@ diff --git a/src/types/index.ts b/src/types/index.ts
    start: string;
    end: string;
    summaryResult: TestSummaryResult;
-@@ -69,8 +69,8 @@ export interface TestDetail {
+@@ -89,8 +89,8 @@ export interface TestDetail {
    description: string;
    clientVersions: Record<string, string>;
    testCases: Record<string, TestCaseDetail>;
@@ -355,7 +432,7 @@ diff --git a/src/types/index.ts b/src/types/index.ts
 +  testDetailsLog?: string;
    runMetadata?: RunMetadata;
  }
-
+ 
 diff --git a/src/utils/publicAssets.ts b/src/utils/publicAssets.ts
 new file mode 100644
 --- /dev/null
