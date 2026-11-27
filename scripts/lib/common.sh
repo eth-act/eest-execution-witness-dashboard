@@ -74,7 +74,7 @@ eest_is_true() {
 # PATH against ROOT_DIR. Unlike realpath, it doesn't need PATH to exist.
 eest_normalize_path() {
   local IFS part path result
-  local -a parts stack
+  local -a parts=() stack=()
 
   path="$1"
   case "$path" in
