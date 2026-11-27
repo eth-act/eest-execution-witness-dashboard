@@ -43,9 +43,13 @@ nethermind-dotnet|hive-nethermind-dotnet.patch|Nethermind .NET|nethermind||clien
 
 _setup_hive_usage() {
   printf '%s\n' \
-    'Usage: scripts/setup-hive.sh' \
+    'Usage: scripts/setup-hive.sh [--checkout-only]' \
     '' \
     'Clone or update Hive, build the Hive binary, and generate clients-local.yaml.' \
+    '' \
+    'Options:' \
+    '  --checkout-only  Only clone or update Hive at HIVE_REF, for jobs that just' \
+    '                   run hiveview. Needs git alone and ignores EL_CLIENTS.' \
     '' \
     'Environment overrides from scripts/env.sh:' \
     '  HIVE_REPO, HIVE_REF, HIVE_DIR' \
@@ -75,9 +79,14 @@ _setup_hive_require_cmd() {
   fi
 }
 
+_setup_hive_checkout_only=0
+
 _setup_hive_parse_args() {
   while [ "$#" -gt 0 ]; do
     case "$1" in
+      --checkout-only)
+        _setup_hive_checkout_only=1
+        ;;
       --help | -h)
         _setup_hive_usage
         exit 0
@@ -412,6 +421,13 @@ _setup_hive_configure_clients() {
 main() {
   _setup_hive_parse_args "$@"
   _setup_hive_require_cmd git Git
+
+  if [ "$_setup_hive_checkout_only" -eq 1 ]; then
+    _setup_hive_prepare_git_checkout Hive "$HIVE_REPO" "$HIVE_REF" "$HIVE_DIR"
+    _setup_hive_log "Hive checkout ready"
+    return 0
+  fi
+
   _setup_hive_require_cmd go Go
   _setup_hive_require_cmd jq jq
 

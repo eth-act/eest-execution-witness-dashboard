@@ -166,9 +166,9 @@ class SetupHiveTests(unittest.TestCase):
         self.git(self.remote, "add", ".")
         self.git(self.remote, "-c", "commit.gpgsign=false", "commit", "-m", "Fixture")
 
-    def setup_hive(self, *, success=True, **overrides):
+    def setup_hive(self, *args, success=True, **overrides):
         result = subprocess.run(
-            ["bash", str(REPO_ROOT / "scripts/setup-hive.sh")],
+            ["bash", str(REPO_ROOT / "scripts/setup-hive.sh"), *args],
             cwd=REPO_ROOT, env={**self.env, **overrides},
             text=True, capture_output=True,
         )
@@ -177,6 +177,23 @@ class SetupHiveTests(unittest.TestCase):
         else:
             self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
         return result
+
+    def test_checkout_only_skips_clients_and_build(self):
+        # EL_CLIENTS none would fail descriptor resolution in a full setup.
+        result = self.setup_hive("--checkout-only", EL_CLIENTS="none")
+        self.assertIn("Hive checkout ready", result.stdout)
+        self.assertEqual(
+            self.git(self.checkout, "rev-parse", "HEAD"),
+            self.git(self.remote, "rev-parse", "HEAD"),
+        )
+        self.assertFalse((self.checkout / "clients-local.yaml").exists())
+        self.assertFalse((self.checkout / "hive").exists())
+        self.assertEqual(self.git(self.checkout, "status", "--porcelain"), "")
+
+    def test_checkout_only_removes_patches_from_a_previous_setup(self):
+        self.setup_hive(EL_CLIENTS="reth-rest")
+        self.setup_hive("--checkout-only")
+        self.assertEqual((self.checkout / RETH_DOCKERFILE).read_text(), RETH_UPSTREAM)
 
     def test_rest_setup_selects_branch_flags_and_both_transports(self):
         self.setup_hive(EL_CLIENTS="nimbus-el,nimbus-el-rest")
