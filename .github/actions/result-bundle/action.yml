@@ -1,0 +1,87 @@
+name: Upload a workload result bundle
+description: Copy a workload's results into result-bundle/, write and validate its result manifest against dataset/dataset.json, and upload it.
+
+inputs:
+  kind:
+    description: hive or zkevm.
+    required: true
+  client-id:
+    description: EL client descriptor ID for hive, or EL guest ID for zkevm.
+    required: true
+  zkvm:
+    description: zkVM, for zkevm only.
+    required: false
+    default: ""
+  payload:
+    description: Directory whose contents become the bundle's payload.
+    required: true
+  artifact-name:
+    description: Name of the uploaded artifact.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Build and validate result bundle
+      shell: bash
+      env:
+        KIND: ${{ inputs.kind }}
+        CLIENT_ID: ${{ inputs.client-id }}
+        ZKVM: ${{ inputs.zkvm }}
+        PAYLOAD: ${{ inputs.payload }}
+      run: |
+        set -Eeuo pipefail
+        bundle="$GITHUB_WORKSPACE/result-bundle"
+        config="$RUNNER_TEMP/workload-config.json"
+        rm -rf "$bundle"
+        mkdir -p "$bundle/payload"
+        cp -a "$PAYLOAD"/. "$bundle/payload"/
+
+        zkvm_args=()
+        case "$KIND" in
+          hive)
+            EL_CLIENTS="$CLIENT_ID" scripts/list-el-clients.sh --json | jq '.[0]' > "$config"
+            ;;
+          zkevm)
+            jq --arg client "$CLIENT_ID" --arg zkvm "$ZKVM" \
+              '{execution_client: $client, zkvm: $zkvm, guest: .guests[$client]}' \
+              config/el-guests.json > "$config"
+            zkvm_args=(--zkvm "$ZKVM")
+            ;;
+          *)
+            echo "unknown result kind: $KIND" >&2
+            exit 1
+            ;;
+        esac
+
+        python3 scripts/dashboard-artifacts.py write-result \
+          --output "$bundle/result-manifest.json" \
+          --dataset-manifest dataset/dataset.json \
+          --payload "$bundle/payload" \
+          --kind "$KIND" \
+          --client-id "$CLIENT_ID" \
+          "${zkvm_args[@]}" \
+          --config "$config" \
+          --repository "$GITHUB_REPOSITORY" \
+          --ref "$GITHUB_REF" \
+          --sha "$GITHUB_SHA" \
+          --workflow-ref "$GITHUB_WORKFLOW_REF" \
+          --run-id "$GITHUB_RUN_ID" \
+          --run-attempt "$GITHUB_RUN_ATTEMPT" \
+          --created-at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+        python3 scripts/dashboard-artifacts.py validate-result \
+          --manifest "$bundle/result-manifest.json" \
+          --dataset-manifest dataset/dataset.json \
+          --payload "$bundle/payload" \
+          --kind "$KIND" \
+          --client-id "$CLIENT_ID" \
+          "${zkvm_args[@]}"
+    - name: Upload result bundle
+      uses: actions/upload-artifact@v7
+      with:
+        name: ${{ inputs.artifact-name }}
+        retention-days: 90
+        overwrite: true
+        if-no-files-found: error
+        include-hidden-files: true
+        path: result-bundle

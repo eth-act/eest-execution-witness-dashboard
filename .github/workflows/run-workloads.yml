@@ -204,47 +204,13 @@ jobs:
       - name: Run Hive and consume fixtures
         run: scripts/run-hive-consume-client.sh "${{ matrix.id }}"
 
-      - name: Build and validate Hive result bundle
-        env:
-          RESULT_BUNDLE: ${{ github.workspace }}/result-bundle
-        run: |
-          set -Eeuo pipefail
-          rm -rf "$RESULT_BUNDLE"
-          mkdir -p "$RESULT_BUNDLE/payload"
-          cp -a "$HIVE_CLIENT_RESULTS_DIR"/. "$RESULT_BUNDLE/payload"/
-          scripts/list-el-clients.sh --json | jq '.[0]' > "$RESULT_BUNDLE/workload-config.json"
-          created_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-          python3 scripts/dashboard-artifacts.py write-result \
-            --output "$RESULT_BUNDLE/result-manifest.json" \
-            --dataset-manifest dataset/dataset.json \
-            --payload "$RESULT_BUNDLE/payload" \
-            --kind hive \
-            --client-id "${{ matrix.id }}" \
-            --config "$RESULT_BUNDLE/workload-config.json" \
-            --repository "$GITHUB_REPOSITORY" \
-            --ref "$GITHUB_REF" \
-            --sha "$GITHUB_SHA" \
-            --workflow-ref "$GITHUB_WORKFLOW_REF" \
-            --run-id "$GITHUB_RUN_ID" \
-            --run-attempt "$GITHUB_RUN_ATTEMPT" \
-            --created-at "$created_at"
-          rm "$RESULT_BUNDLE/workload-config.json"
-          python3 scripts/dashboard-artifacts.py validate-result \
-            --manifest "$RESULT_BUNDLE/result-manifest.json" \
-            --dataset-manifest dataset/dataset.json \
-            --payload "$RESULT_BUNDLE/payload" \
-            --kind hive \
-            --client-id "${{ matrix.id }}"
-
-      - name: Upload reusable Hive result
-        uses: actions/upload-artifact@v7
+      - name: Upload Hive result bundle
+        uses: ./.github/actions/result-bundle
         with:
-          name: hive-results-v1-${{ inputs.dataset_run_id }}-${{ matrix.id }}
-          retention-days: 90
-          overwrite: true
-          if-no-files-found: error
-          include-hidden-files: true
-          path: result-bundle
+          kind: hive
+          client-id: ${{ matrix.id }}
+          payload: ${{ env.HIVE_CLIENT_RESULTS_DIR }}
+          artifact-name: hive-results-v1-${{ inputs.dataset_run_id }}-${{ matrix.id }}
 
       - name: Upload Hive debug artifacts
         if: failure()
@@ -309,53 +275,14 @@ jobs:
       - name: Run zkevm-benchmark-workload
         run: scripts/run-zkevm-benchmark-workload.sh
 
-      - name: Build and validate zkEVM result bundle
-        env:
-          RESULT_BUNDLE: ${{ github.workspace }}/result-bundle
-        run: |
-          set -Eeuo pipefail
-          rm -rf "$RESULT_BUNDLE"
-          mkdir -p "$RESULT_BUNDLE/payload"
-          cp -a "$ZKEVM_METRICS_DIR"/. "$RESULT_BUNDLE/payload"/
-          jq \
-            --arg client "${{ matrix.execution_client }}" \
-            --arg zkvm "${{ matrix.zkvm }}" \
-            '{execution_client: $client, zkvm: $zkvm, guest: .guests[$client]}' \
-            config/el-guests.json > "$RESULT_BUNDLE/workload-config.json"
-          created_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-          python3 scripts/dashboard-artifacts.py write-result \
-            --output "$RESULT_BUNDLE/result-manifest.json" \
-            --dataset-manifest dataset/dataset.json \
-            --payload "$RESULT_BUNDLE/payload" \
-            --kind zkevm \
-            --client-id "${{ matrix.execution_client }}" \
-            --zkvm "${{ matrix.zkvm }}" \
-            --config "$RESULT_BUNDLE/workload-config.json" \
-            --repository "$GITHUB_REPOSITORY" \
-            --ref "$GITHUB_REF" \
-            --sha "$GITHUB_SHA" \
-            --workflow-ref "$GITHUB_WORKFLOW_REF" \
-            --run-id "$GITHUB_RUN_ID" \
-            --run-attempt "$GITHUB_RUN_ATTEMPT" \
-            --created-at "$created_at"
-          rm "$RESULT_BUNDLE/workload-config.json"
-          python3 scripts/dashboard-artifacts.py validate-result \
-            --manifest "$RESULT_BUNDLE/result-manifest.json" \
-            --dataset-manifest dataset/dataset.json \
-            --payload "$RESULT_BUNDLE/payload" \
-            --kind zkevm \
-            --client-id "${{ matrix.execution_client }}" \
-            --zkvm "${{ matrix.zkvm }}"
-
-      - name: Upload reusable zkEVM metrics
-        uses: actions/upload-artifact@v7
+      - name: Upload zkEVM result bundle
+        uses: ./.github/actions/result-bundle
         with:
-          name: zkevm-metrics-v1-${{ inputs.dataset_run_id }}-${{ matrix.execution_client }}-${{ matrix.zkvm }}
-          retention-days: 90
-          overwrite: true
-          if-no-files-found: error
-          include-hidden-files: true
-          path: result-bundle
+          kind: zkevm
+          client-id: ${{ matrix.execution_client }}
+          zkvm: ${{ matrix.zkvm }}
+          payload: ${{ env.ZKEVM_METRICS_DIR }}
+          artifact-name: zkevm-metrics-v1-${{ inputs.dataset_run_id }}-${{ matrix.execution_client }}-${{ matrix.zkvm }}
 
       - name: Upload zkEVM debug artifacts
         if: failure()
