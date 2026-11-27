@@ -2,15 +2,11 @@
 
 set -Eeuo pipefail
 
-_list_el_clients_abs_dir() {
-  (CDPATH= cd -- "$1" 2>/dev/null && pwd -P)
-}
+# shellcheck source=scripts/lib/common.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
-_list_el_clients_script_dir="$(_list_el_clients_abs_dir "$(dirname "${BASH_SOURCE[0]}")")"
-if [ -z "$_list_el_clients_script_dir" ]; then
-  printf 'error: unable to resolve scripts directory\n' >&2
-  exit 1
-fi
+_list_el_clients_script_dir="$(eest_abs_dir "$(dirname "${BASH_SOURCE[0]}")")"
+[ -n "$_list_el_clients_script_dir" ] || eest_die "unable to resolve scripts directory"
 
 # shellcheck source=scripts/env.sh
 . "$_list_el_clients_script_dir/env.sh"
@@ -24,22 +20,6 @@ _list_el_clients_usage() {
     'Resolve the selected EL client descriptors from EL_CLIENTS and' \
     'EL_CLIENT_OVERRIDES_JSON without preparing Hive.' \
     'Set EL_CLIENTS to none, skip, or empty to select no Hive clients.'
-}
-
-_list_el_clients_die() {
-  printf 'error: %s\n' "$*" >&2
-  exit 1
-}
-
-_list_el_clients_require_cmd() {
-  local cmd label
-
-  cmd="$1"
-  label="$2"
-
-  if ! command -v "$cmd" >/dev/null 2>&1; then
-    _list_el_clients_die "missing required tool: $label ($cmd not found on PATH)"
-  fi
 }
 
 main() {
@@ -63,13 +43,13 @@ main() {
         ;;
       *)
         _list_el_clients_usage >&2
-        _list_el_clients_die "unknown argument: $1"
+        eest_die "unknown argument: $1"
         ;;
     esac
     shift
   done
 
-  _list_el_clients_require_cmd jq jq
+  eest_require_cmd jq jq
 
   if eest_el_clients_selects_none; then
     case "$mode" in
