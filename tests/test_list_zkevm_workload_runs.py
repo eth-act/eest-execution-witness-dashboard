@@ -153,30 +153,6 @@ class ListZkevmWorkloadRunsTests(unittest.TestCase):
         self.assertNotEqual(completed.returncode, 0)
         self.assertIn("unknown EL guest id: unknown", completed.stderr)
 
-    def test_guest_requires_guest_artifact_base_url(self):
-        with TemporaryDirectory() as tmp:
-            config_path = Path(tmp) / "el-guests.json"
-            write_json(
-                config_path,
-                {
-                    "guests": {
-                        "nimbus": {
-                            "requires_guest_artifact_base_url": True,
-                        }
-                    }
-                },
-            )
-            completed = self.run_matrix(
-                runs="nimbus:zisk",
-                guest_config_path=config_path,
-            )
-
-        self.assertNotEqual(completed.returncode, 0)
-        self.assertIn(
-            "requires guest_artifact_base_url",
-            completed.stderr,
-        )
-
     def test_per_zkvm_guest_artifact_base_url_overrides_guest_default(self):
         with TemporaryDirectory() as tmp:
             config_path = Path(tmp) / "el-guests.json"

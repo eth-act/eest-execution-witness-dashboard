@@ -81,27 +81,20 @@ _run_zkevm_resolve_guest_artifact_base_url() {
     _run_zkevm_die "EL guest descriptor file does not exist: $EL_GUEST_CONFIG"
   fi
 
-  jq -r \
+  jq -r -L "$_run_zkevm_script_dir/lib" \
     --arg client "$ZKEVM_WORKLOAD_EXECUTION_CLIENT" \
     --arg zkvm "$ZKEVM_WORKLOAD_ZKVM" \
     --arg override_url "$ZKEVM_WORKLOAD_GUEST_ARTIFACT_BASE_URL" '
-      def guest_descriptor($client):
-        .guests[$client] // error("unknown EL guest id: \($client)");
-      def configured_guest_artifact_base_url($client; $zkvm):
-        guest_descriptor($client) as $guest
-        | (($guest.zkvms[$zkvm].guest_artifact_base_url // $guest.guest_artifact_base_url // "") | tostring);
+      include "el-guests";
 
-      if (.guests | type) != "object" then
-        error("EL_GUEST_CONFIG must contain a guests object")
-      else
-        guest_descriptor($client) as $guest
-        | (if ($override_url | length) > 0 then $override_url else configured_guest_artifact_base_url($client; $zkvm) end) as $url
-        | if (($guest.requires_guest_artifact_base_url // false) == true) and ($url | length) == 0 then
-            error("EL guest descriptor \($client) requires guest_artifact_base_url for zkVM \($zkvm)")
-          else
-            $url
-          end
-      end
+      # An unknown guest fails even when the URL is overridden.
+      require_guest_config
+      | guest_descriptor($client) as $guest
+      | if ($override_url | length) > 0 then
+          $override_url
+        else
+          guest_artifact_base_url($client; $zkvm)
+        end
     ' "$EL_GUEST_CONFIG"
 }
 

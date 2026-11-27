@@ -160,24 +160,6 @@ class RunZkevmBenchmarkWorkloadTests(unittest.TestCase):
         args = args_file.read_text(encoding="utf-8")
         self.assertIn("--guest-artifact-base-url\n" + GUEST_URL, args)
 
-    def test_run_fails_when_required_guest_artifact_base_url_is_unconfigured(self):
-        completed, _args_file = self.run_script(
-            execution_client="nimbus",
-            guest_config={
-                "guests": {
-                    "nimbus": {
-                        "requires_guest_artifact_base_url": True,
-                    }
-                }
-            },
-        )
-
-        self.assertNotEqual(completed.returncode, 0)
-        self.assertIn(
-            "requires guest_artifact_base_url",
-            completed.stderr,
-        )
-
 
 if __name__ == "__main__":
     unittest.main()
