@@ -45,7 +45,7 @@ diff --git a/src/components/SharedClientsPanel.tsx b/src/components/SharedClient
 diff --git a/src/components/TestDetail.tsx b/src/components/TestDetail.tsx
 --- a/src/components/TestDetail.tsx
 +++ b/src/components/TestDetail.tsx
-@@ -1236,7 +1236,7 @@ const TestDetail = () => {
+@@ -1235,7 +1235,7 @@ const TestDetail = () => {
                          </div>
  
                          {/* View Full Simulator Log button */}
@@ -54,7 +54,7 @@ diff --git a/src/components/TestDetail.tsx b/src/components/TestDetail.tsx
                            <div style={{ fontSize: '0.75rem', ...lightTextStyle, marginBottom: '0.25rem' }}>SIMULATOR LOG</div>
                            <Link
                              to={`/logs/${discoveryName}/${suiteid || ''}/${encodeURIComponent(testDetail.simLog)}`}
-@@ -1260,7 +1260,7 @@ const TestDetail = () => {
+@@ -1259,7 +1259,7 @@ const TestDetail = () => {
                              </svg>
                              View Full Simulator Log
                            </Link>
@@ -186,7 +186,7 @@ diff --git a/src/components/TestDetailsTable.tsx b/src/components/TestDetailsTab
 diff --git a/src/components/TestResultCard.tsx b/src/components/TestResultCard.tsx
 --- a/src/components/TestResultCard.tsx
 +++ b/src/components/TestResultCard.tsx
-@@ -51,9 +51,11 @@ const TestResultCard = ({ run, groupBy, directory, directoryAddress }: TestResul
+@@ -50,9 +50,11 @@ const TestResultCard = ({ run, groupBy, directory, directoryAddress }: TestResul
    const prefetchFixtureReleases = () => {
      if (!isEelsRun(run.name)) return;
      for (const pastRun of pastRuns) {
@@ -199,7 +199,7 @@ diff --git a/src/components/TestResultCard.tsx b/src/components/TestResultCard.t
          staleTime: Infinity,
          retry: false,
        });
-@@ -352,7 +354,7 @@ const TestResultCard = ({ run, groupBy, directory, directoryAddress }: TestResul
+@@ -351,7 +353,7 @@ const TestResultCard = ({ run, groupBy, directory, directoryAddress }: TestResul
                            </span>
                          </div>
                        </div>
@@ -208,7 +208,7 @@ diff --git a/src/components/TestResultCard.tsx b/src/components/TestResultCard.t
                          <EelsFixturesRow address={directoryAddress} fileName={pastRun.fileName} simLog={pastRun.simLog} />
                        )}
                        <Popover.Arrow
-@@ -437,7 +439,7 @@ const TestResultCard = ({ run, groupBy, directory, directoryAddress }: TestResul
+@@ -436,7 +438,7 @@ const TestResultCard = ({ run, groupBy, directory, directoryAddress }: TestResul
                </span>
              )}
            </div>

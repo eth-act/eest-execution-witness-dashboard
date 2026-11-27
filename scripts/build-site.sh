@@ -17,10 +17,10 @@ fi
 
 HIVEVIEW_LIST_LIMIT="${HIVEVIEW_LIST_LIMIT:-200}"
 SITE_INCLUDE_CLIENT_LOGS="${SITE_INCLUDE_CLIENT_LOGS:-0}"
-# hive-ui patches from patches/, applied in order and removed in reverse. The
-# first serves hive-ui from a subpath and sorts the listing by start time. The
-# second hides the log UI, since the site publishes results without logs.
-_build_site_hive_ui_patches=(hive-ui-relative-paths.patch hive-ui-hide-logs.patch)
+# hive-ui patches from patches/, applied in order and removed in reverse.
+# hive-ui-hide-logs.patch hides the log UI, since the site publishes results
+# without logs.
+_build_site_hive_ui_patches=(hive-ui-hide-logs.patch)
 # How many of them, from the front, are applied to HIVE_UI_DIR.
 _build_site_hive_ui_patches_applied=0
 
