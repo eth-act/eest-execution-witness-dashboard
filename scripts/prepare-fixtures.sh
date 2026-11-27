@@ -2,15 +2,11 @@
 
 set -Eeuo pipefail
 
-_prepare_fixtures_abs_dir() {
-  (CDPATH= cd -- "$1" 2>/dev/null && pwd -P)
-}
+# shellcheck source=scripts/lib/common.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
-_prepare_fixtures_script_dir="$(_prepare_fixtures_abs_dir "$(dirname "${BASH_SOURCE[0]}")")"
-if [ -z "$_prepare_fixtures_script_dir" ]; then
-  printf 'error: unable to resolve scripts directory\n' >&2
-  exit 1
-fi
+_prepare_fixtures_script_dir="$(eest_abs_dir "$(dirname "${BASH_SOURCE[0]}")")"
+[ -n "$_prepare_fixtures_script_dir" ] || eest_die "unable to resolve scripts directory"
 
 # shellcheck source=scripts/env.sh
 . "$_prepare_fixtures_script_dir/env.sh"
@@ -30,26 +26,6 @@ _prepare_fixtures_usage() {
     '  EEST_REPO, EEST_REF, EEST_RELEASE_TAG, EEST_DIR, FILLER_PATH, FORK, FIXTURES_DIR'
 }
 
-_prepare_fixtures_log() {
-  printf '==> %s\n' "$*"
-}
-
-_prepare_fixtures_die() {
-  printf 'error: %s\n' "$*" >&2
-  exit 1
-}
-
-_prepare_fixtures_require_cmd() {
-  local cmd label
-
-  cmd="$1"
-  label="$2"
-
-  if ! command -v "$cmd" >/dev/null 2>&1; then
-    _prepare_fixtures_die "missing required tool: $label ($cmd not found on PATH)"
-  fi
-}
-
 _prepare_fixtures_parse_args() {
   while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -59,39 +35,19 @@ _prepare_fixtures_parse_args() {
         ;;
       *)
         _prepare_fixtures_usage >&2
-        _prepare_fixtures_die "unknown argument: $1"
+        eest_die "unknown argument: $1"
         ;;
     esac
     shift
   done
 }
 
-_prepare_fixtures_guard_clean_dir() {
-  local dir label
-
-  label="$1"
-  dir="$2"
-
-  case "$dir" in
-    '' | / | /tmp | /tmp/ | "$ROOT_DIR" | "$EEST_DIR" | "$HIVE_DIR" | "$SITE_DIR")
-      _prepare_fixtures_die "refusing to clean unsafe $label: $dir"
-      ;;
-  esac
-
-  case "$dir" in
-    "$ROOT_DIR"/* | /tmp/*) ;;
-    *)
-      _prepare_fixtures_die "refusing to clean $label outside ROOT_DIR or /tmp: $dir"
-      ;;
-  esac
-}
-
 _prepare_fixtures_reset_dir() {
   local dir
 
   dir="$1"
-  _prepare_fixtures_guard_clean_dir FIXTURES_DIR "$dir"
-  _prepare_fixtures_log "Resetting fixtures directory at $dir"
+  eest_guard_clean_dir FIXTURES_DIR "$dir"
+  eest_log "Resetting fixtures directory at $dir"
   rm -rf "$dir"
   mkdir -p "$dir"
 }
@@ -113,16 +69,16 @@ _prepare_fixtures_normalize_release_output() {
   )"
 
   if [ -z "$index_path" ]; then
-    _prepare_fixtures_die "downloaded release did not contain .meta/index.json under $FIXTURES_DIR"
+    eest_die "downloaded release did not contain .meta/index.json under $FIXTURES_DIR"
   fi
 
   fixture_root="${index_path%/.meta/index.json}"
   normalized_dir="$FIXTURES_DIR.normalized.$$"
-  _prepare_fixtures_guard_clean_dir normalized-fixtures "$normalized_dir"
+  eest_guard_clean_dir normalized-fixtures "$normalized_dir"
   rm -rf "$normalized_dir"
   mkdir -p "$normalized_dir"
 
-  _prepare_fixtures_log "Normalizing downloaded fixture root from $fixture_root"
+  eest_log "Normalizing downloaded fixture root from $fixture_root"
   cp -a "$fixture_root"/. "$normalized_dir"/
   rm -rf "$FIXTURES_DIR"
   mv "$normalized_dir" "$FIXTURES_DIR"
@@ -132,11 +88,11 @@ _prepare_fixtures_download_release() {
   local archive asset_count asset_name asset_url encoded_tag release_api_url release_json token
   local -a api_args
 
-  _prepare_fixtures_require_cmd uv uv
-  _prepare_fixtures_require_cmd curl curl
-  _prepare_fixtures_require_cmd jq jq
+  eest_require_cmd uv uv
+  eest_require_cmd curl curl
+  eest_require_cmd jq jq
 
-  _prepare_fixtures_log "Preparing EEST release checkout for $EEST_RELEASE_TAG"
+  eest_log "Preparing EEST release checkout for $EEST_RELEASE_TAG"
   "$_prepare_fixtures_script_dir/setup-eest.sh"
 
   _prepare_fixtures_reset_dir "$FIXTURES_DIR"
@@ -155,7 +111,7 @@ _prepare_fixtures_download_release() {
     api_args+=(--header "Authorization: Bearer $token")
   fi
 
-  _prepare_fixtures_log "Resolving EEST release asset for $EEST_RELEASE_TAG"
+  eest_log "Resolving EEST release asset for $EEST_RELEASE_TAG"
   release_json="$(
     curl --fail --silent --show-error --location \
       --connect-timeout 30 --max-time 120 --retry 5 \
@@ -168,14 +124,14 @@ _prepare_fixtures_download_release() {
 
   case "$asset_count" in
     0)
-      _prepare_fixtures_die "release $EEST_RELEASE_TAG does not have a .tar.gz asset"
+      eest_die "release $EEST_RELEASE_TAG does not have a .tar.gz asset"
       ;;
     1)
       ;;
     *)
       printf 'matching .tar.gz assets for %s:\n' "$EEST_RELEASE_TAG" >&2
       jq -r '.assets[]? | select(.name | endswith(".tar.gz")) | .name' <<< "$release_json" >&2
-      _prepare_fixtures_die "release $EEST_RELEASE_TAG has more than one .tar.gz asset"
+      eest_die "release $EEST_RELEASE_TAG has more than one .tar.gz asset"
       ;;
   esac
 
@@ -186,7 +142,7 @@ _prepare_fixtures_download_release() {
     jq -r '.assets[]? | select(.name | endswith(".tar.gz")) | .browser_download_url' <<< "$release_json"
   )"
 
-  _prepare_fixtures_log "Downloading $asset_name into $FIXTURES_DIR"
+  eest_log "Downloading $asset_name into $FIXTURES_DIR"
   curl --fail --show-error --location --connect-timeout 30 --retry 5 \
     --output "$archive" "$asset_url"
   tar -xzf "$archive" -C "$FIXTURES_DIR"
@@ -208,7 +164,7 @@ main() {
       _prepare_fixtures_download_release
       ;;
     *)
-      _prepare_fixtures_die "unsupported EEST source mode: $(eest_dashboard_eest_source_mode)"
+      eest_die "unsupported EEST source mode: $(eest_dashboard_eest_source_mode)"
       ;;
   esac
 }
