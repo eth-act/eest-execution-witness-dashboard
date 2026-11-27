@@ -2,6 +2,9 @@
 
 set -Eeuo pipefail
 
+# shellcheck source=scripts/lib/common.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
+
 _download_run_artifact_usage() {
   printf '%s\n' \
     'Usage: scripts/download-run-artifact.sh RUN_ID ARTIFACT_NAME DEST_DIR' \
@@ -23,29 +26,6 @@ _download_run_artifact_usage() {
     '                                  seconds is aborted and resumed' \
     '                                  (default: 262144)' \
     '  ARTIFACT_DOWNLOAD_SPEED_TIME    default: 60'
-}
-
-_download_run_artifact_log() {
-  printf '==> %s\n' "$*"
-}
-
-_download_run_artifact_die() {
-  printf 'error: %s\n' "$*" >&2
-  exit 1
-}
-
-_download_run_artifact_require_cmd() {
-  if ! command -v "$1" >/dev/null 2>&1; then
-    _download_run_artifact_die "missing required tool: $1"
-  fi
-}
-
-_download_run_artifact_require_uint() {
-  case "$2" in
-    '' | *[!0-9]*)
-      _download_run_artifact_die "$1 must be a non-negative integer: $2"
-      ;;
-  esac
 }
 
 _download_run_artifact_api() {
@@ -84,7 +64,7 @@ _download_run_artifact_verify() {
 
   expected="$1"
   if [ -z "$expected" ]; then
-    _download_run_artifact_log "Artifact has no digest; checking zip CRCs instead"
+    eest_log "Artifact has no digest; checking zip CRCs instead"
     python3 -c '
 import sys
 import zipfile
@@ -122,7 +102,7 @@ _download_run_artifact_main() {
 
   if [ "$#" -ne 3 ]; then
     _download_run_artifact_usage >&2
-    _download_run_artifact_die "expected RUN_ID, ARTIFACT_NAME, and DEST_DIR"
+    eest_die "expected RUN_ID, ARTIFACT_NAME, and DEST_DIR"
   fi
 
   run_id="$1"
@@ -138,21 +118,21 @@ _download_run_artifact_main() {
 
   case "$run_id" in
     '' | *[!0-9]* | 0)
-      _download_run_artifact_die "RUN_ID must be a positive numeric workflow run ID: $run_id"
+      eest_die "RUN_ID must be a positive numeric workflow run ID: $run_id"
       ;;
   esac
-  [ -n "$artifact_name" ] || _download_run_artifact_die "ARTIFACT_NAME must not be empty"
-  [ -n "$repo" ] || _download_run_artifact_die "GITHUB_REPOSITORY must be set"
-  [ -n "$_download_run_artifact_token" ] || _download_run_artifact_die "GH_TOKEN or GITHUB_TOKEN must be set"
-  _download_run_artifact_require_uint ARTIFACT_DOWNLOAD_ATTEMPTS "$attempts"
-  _download_run_artifact_require_uint ARTIFACT_DOWNLOAD_RETRY_DELAY "$delay"
-  _download_run_artifact_require_uint ARTIFACT_DOWNLOAD_SPEED_LIMIT "$speed_limit"
-  _download_run_artifact_require_uint ARTIFACT_DOWNLOAD_SPEED_TIME "$speed_time"
-  [ "$attempts" -gt 0 ] || _download_run_artifact_die "ARTIFACT_DOWNLOAD_ATTEMPTS must be at least 1"
+  [ -n "$artifact_name" ] || eest_die "ARTIFACT_NAME must not be empty"
+  [ -n "$repo" ] || eest_die "GITHUB_REPOSITORY must be set"
+  [ -n "$_download_run_artifact_token" ] || eest_die "GH_TOKEN or GITHUB_TOKEN must be set"
+  eest_require_uint ARTIFACT_DOWNLOAD_ATTEMPTS "$attempts"
+  eest_require_uint ARTIFACT_DOWNLOAD_RETRY_DELAY "$delay"
+  eest_require_uint ARTIFACT_DOWNLOAD_SPEED_LIMIT "$speed_limit"
+  eest_require_uint ARTIFACT_DOWNLOAD_SPEED_TIME "$speed_time"
+  [ "$attempts" -gt 0 ] || eest_die "ARTIFACT_DOWNLOAD_ATTEMPTS must be at least 1"
 
-  _download_run_artifact_require_cmd curl
-  _download_run_artifact_require_cmd jq
-  _download_run_artifact_require_cmd python3
+  eest_require_cmd curl
+  eest_require_cmd jq
+  eest_require_cmd python3
 
   encoded_name="$(jq -rn --arg value "$artifact_name" '$value | @uri')"
   artifact_json="$(
@@ -165,8 +145,8 @@ _download_run_artifact_main() {
   )"
   case "$(jq 'length' <<< "$matches")" in
     1) ;;
-    0) _download_run_artifact_die "run $run_id has no unexpired artifact named $artifact_name" ;;
-    *) _download_run_artifact_die "run $run_id has more than one artifact named $artifact_name" ;;
+    0) eest_die "run $run_id has no unexpired artifact named $artifact_name" ;;
+    *) eest_die "run $run_id has more than one artifact named $artifact_name" ;;
   esac
   artifact_id="$(jq -r '.[0].id' <<< "$matches")"
   size="$(jq -r '.[0].size_in_bytes' <<< "$matches")"
@@ -194,7 +174,7 @@ _download_run_artifact_main() {
     fi
 
     have="$(_download_run_artifact_file_size "$_download_run_artifact_zip")"
-    _download_run_artifact_log "Attempt $attempt/$attempts: downloading $artifact_name ($artifact_id) from byte $have of $size"
+    eest_log "Attempt $attempt/$attempts: downloading $artifact_name ($artifact_id) from byte $have of $size"
     status=0
     http_code="$(
       curl --fail --silent --show-error --location \
@@ -209,7 +189,7 @@ _download_run_artifact_main() {
     # 416 means the zip on disk already covers the whole range.
     if [ "$status" -eq 0 ] || [ "$http_code" = 416 ]; then
       if _download_run_artifact_verify "$digest"; then
-        _download_run_artifact_log "Extracting $artifact_name into $dest_dir"
+        eest_log "Extracting $artifact_name into $dest_dir"
         python3 -m zipfile -e "$_download_run_artifact_zip" "$dest_dir"
         return 0
       fi
@@ -226,7 +206,7 @@ _download_run_artifact_main() {
       "$(_download_run_artifact_file_size "$_download_run_artifact_zip")" >&2
   done
 
-  _download_run_artifact_die "could not download $artifact_name from run $run_id after $attempts attempts"
+  eest_die "could not download $artifact_name from run $run_id after $attempts attempts"
 }
 
 _download_run_artifact_main "$@"
