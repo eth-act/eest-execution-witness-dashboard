@@ -10,6 +10,10 @@ the main README. This file lists what each script does and the details the
 main README leaves out.
 
 - `env.sh`: shared defaults and prerequisite checks.
+- `lib/common.sh`: helpers the scripts share: logging, tool and value checks,
+  path normalisation, the guard that refuses to clean unsafe directories, and
+  the git checkout of a repo at a ref. `lib/el-clients.sh` and
+  `lib/el-guests.jq` read the client and guest descriptors.
 - `prepare-fixtures.sh`: fills fixtures (fill mode) or downloads a release's
   prefilled fixtures (release mode) into `FIXTURES_DIR`, then validates them.
 - `fill-fixtures.sh`: clones or updates `execution-specs`, runs `uv sync`,
