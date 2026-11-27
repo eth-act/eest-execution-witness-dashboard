@@ -17,8 +17,12 @@ fi
 
 HIVEVIEW_LIST_LIMIT="${HIVEVIEW_LIST_LIMIT:-200}"
 SITE_INCLUDE_CLIENT_LOGS="${SITE_INCLUDE_CLIENT_LOGS:-0}"
-_build_site_hive_ui_patch="$ROOT_DIR/patches/hive-ui-relative-paths.patch"
-_build_site_hive_ui_patch_applied=0
+# hive-ui patches from patches/, applied in order and removed in reverse. The
+# first serves hive-ui from a subpath and sorts the listing by start time. The
+# second hides the log UI, since the site publishes results without logs.
+_build_site_hive_ui_patches=(hive-ui-relative-paths.patch hive-ui-hide-logs.patch)
+# How many of them, from the front, are applied to HIVE_UI_DIR.
+_build_site_hive_ui_patches_applied=0
 
 _build_site_usage() {
   printf '%s\n' \
@@ -44,11 +48,19 @@ _build_site_die() {
   exit 1
 }
 
+_build_site_hive_ui_patch_path() {
+  printf '%s/patches/%s\n' "$ROOT_DIR" "$1"
+}
+
 _build_site_cleanup() {
   local status=$?
+  local index
 
-  if [ "$_build_site_hive_ui_patch_applied" -eq 1 ] && [ -d "$HIVE_UI_DIR/.git" ]; then
-    git -C "$HIVE_UI_DIR" apply --reverse "$_build_site_hive_ui_patch" >/dev/null 2>&1 || true
+  if [ -d "$HIVE_UI_DIR/.git" ]; then
+    for ((index = _build_site_hive_ui_patches_applied - 1; index >= 0; index--)); do
+      git -C "$HIVE_UI_DIR" apply --reverse \
+        "$(_build_site_hive_ui_patch_path "${_build_site_hive_ui_patches[$index]}")" >/dev/null 2>&1 || true
+    done
   fi
 
   exit "$status"
@@ -261,7 +273,7 @@ _build_site_has_listable_results() {
 }
 
 _build_site_prepare_git_checkout() {
-  local checkout_dir label ref repo
+  local checkout_dir index label patch ref repo
 
   label="$1"
   repo="$2"
@@ -281,10 +293,13 @@ _build_site_prepare_git_checkout() {
       git -C "$checkout_dir" remote add origin "$repo"
     fi
 
-    if git -C "$checkout_dir" apply --reverse --check "$_build_site_hive_ui_patch" >/dev/null 2>&1; then
-      _build_site_log "Reverting previous hive-ui Pages patch"
-      git -C "$checkout_dir" apply --reverse "$_build_site_hive_ui_patch"
-    fi
+    for ((index = ${#_build_site_hive_ui_patches[@]} - 1; index >= 0; index--)); do
+      patch="$(_build_site_hive_ui_patch_path "${_build_site_hive_ui_patches[$index]}")"
+      if git -C "$checkout_dir" apply --reverse --check "$patch" >/dev/null 2>&1; then
+        _build_site_log "Reverting previous hive-ui patch ${_build_site_hive_ui_patches[$index]}"
+        git -C "$checkout_dir" apply --reverse "$patch"
+      fi
+    done
 
     if ! git -C "$checkout_dir" diff --quiet -- . || ! git -C "$checkout_dir" diff --cached --quiet -- .; then
       _build_site_die "$label checkout has local tracked changes: $checkout_dir"
@@ -304,6 +319,8 @@ _build_site_prepare_git_checkout() {
 }
 
 _build_site_validate_inputs() {
+  local patch
+
   _build_site_require_positive_int HIVEVIEW_LIST_LIMIT "$HIVEVIEW_LIST_LIMIT"
   _build_site_require_positive_int SITE_MAX_SIZE_MB "$SITE_MAX_SIZE_MB"
   _build_site_require_bool SITE_INCLUDE_CLIENT_LOGS "$SITE_INCLUDE_CLIENT_LOGS"
@@ -317,7 +334,6 @@ _build_site_validate_inputs() {
   FIXTURES_DIR="$(_build_site_normalize_path "$FIXTURES_DIR")"
   HIVE_RESULTS_DIR="$(_build_site_normalize_path "$HIVE_RESULTS_DIR")"
   SITE_DIR="$(_build_site_normalize_path "$SITE_DIR")"
-  _build_site_hive_ui_patch="$ROOT_DIR/patches/hive-ui-relative-paths.patch"
   _build_site_guard_hive_ui_dir
 
   if _build_site_path_contains "$SITE_DIR" "$HIVE_RESULTS_DIR"; then
@@ -328,9 +344,11 @@ _build_site_validate_inputs() {
     _build_site_die "SITE_DIR must not be inside HIVE_RESULTS_DIR because result copying would mix generated site files into Hive results: $SITE_DIR"
   fi
 
-  if [ ! -f "$_build_site_hive_ui_patch" ]; then
-    _build_site_die "hive-ui Pages patch does not exist: $_build_site_hive_ui_patch"
-  fi
+  for patch in "${_build_site_hive_ui_patches[@]}"; do
+    if [ ! -f "$(_build_site_hive_ui_patch_path "$patch")" ]; then
+      _build_site_die "hive-ui patch does not exist: $(_build_site_hive_ui_patch_path "$patch")"
+    fi
+  done
 
   if [ ! -d "$HIVE_DIR/cmd/hiveview" ]; then
     _build_site_die "Hiveview listing command does not exist; run scripts/setup-hive.sh first: $HIVE_DIR/cmd/hiveview"
@@ -352,38 +370,41 @@ _build_site_reset_site_dir() {
   mkdir -p "$SITE_DIR"
 }
 
-_build_site_apply_hive_ui_patch() {
-  if git -C "$HIVE_UI_DIR" apply --check "$_build_site_hive_ui_patch" >/dev/null 2>&1; then
-    git -C "$HIVE_UI_DIR" apply "$_build_site_hive_ui_patch"
-    _build_site_hive_ui_patch_applied=1
-    return
-  fi
+_build_site_apply_hive_ui_patches() {
+  local name patch
 
-  if git -C "$HIVE_UI_DIR" apply --reverse --check "$_build_site_hive_ui_patch" >/dev/null 2>&1; then
-    _build_site_log "hive-ui Pages patch is already applied"
-    _build_site_hive_ui_patch_applied=1
-    return
-  fi
-
-  _build_site_die "hive-ui Pages patch does not apply to $HIVE_UI_REF"
+  for name in "${_build_site_hive_ui_patches[@]}"; do
+    patch="$(_build_site_hive_ui_patch_path "$name")"
+    if git -C "$HIVE_UI_DIR" apply --check "$patch" >/dev/null 2>&1; then
+      git -C "$HIVE_UI_DIR" apply "$patch"
+    elif git -C "$HIVE_UI_DIR" apply --reverse --check "$patch" >/dev/null 2>&1; then
+      _build_site_log "hive-ui patch $name is already applied"
+    else
+      _build_site_die "hive-ui patch $name does not apply to $HIVE_UI_REF"
+    fi
+    _build_site_hive_ui_patches_applied=$((_build_site_hive_ui_patches_applied + 1))
+  done
 }
 
-_build_site_restore_hive_ui_patch() {
-  if [ "$_build_site_hive_ui_patch_applied" -eq 1 ]; then
-    git -C "$HIVE_UI_DIR" apply --reverse "$_build_site_hive_ui_patch"
-    _build_site_hive_ui_patch_applied=0
-  fi
+_build_site_restore_hive_ui_patches() {
+  local index
+
+  for ((index = _build_site_hive_ui_patches_applied - 1; index >= 0; index--)); do
+    git -C "$HIVE_UI_DIR" apply --reverse \
+      "$(_build_site_hive_ui_patch_path "${_build_site_hive_ui_patches[$index]}")"
+    _build_site_hive_ui_patches_applied=$index
+  done
 }
 
 _build_site_build_hive_ui_assets() {
   _build_site_log "Building hive-ui static assets"
-  _build_site_apply_hive_ui_patch
+  _build_site_apply_hive_ui_patches
   (
     cd "$HIVE_UI_DIR"
     npm ci
     npm run build -- --base=./
   )
-  _build_site_restore_hive_ui_patch
+  _build_site_restore_hive_ui_patches
 
   if [ ! -f "$HIVE_UI_DIR/dist/index.html" ]; then
     _build_site_die "hive-ui build did not create dist/index.html"
