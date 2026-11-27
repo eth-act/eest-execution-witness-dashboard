@@ -27,7 +27,7 @@ HIVE_REPO=https://github.com/ethereum/hive.git
 HIVE_REF=master
 
 HIVE_UI_REPO=https://github.com/ethpandaops/hive-ui.git
-HIVE_UI_REF=d496740bcbe68bb452ed6ead3542bf79d9b4ecec
+HIVE_UI_REF=86148f218418d0ee5d444cd5b72404e54b8605f8
 HIVE_UI_DISCOVERY_NAME=zkEVM
 
 ZKEVM_BENCHMARK_WORKLOAD_REPO=https://github.com/eth-act/zkevm-benchmark-workload.git
@@ -339,9 +339,7 @@ scripts/build-site.sh
 hive-ui license and source notices. It fails if a listing entry names more than
 one client or the site exceeds `SITE_MAX_SIZE_MB`.
 
-Before building, it applies two patches from `patches/` to hive-ui, in order.
-`hive-ui-relative-paths.patch` lets hive-ui run from a subpath, as GitHub Pages
-serves it, and sorts the listing by start time. `hive-ui-hide-logs.patch`
+Before building, it applies `patches/hive-ui-hide-logs.patch` to hive-ui, which
 hides the log UI, since the published results have no logs.
 
 To fit GitHub Pages, the build drops per-test descriptions and all logs. The
