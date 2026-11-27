@@ -211,6 +211,15 @@ class SetupHiveTests(unittest.TestCase):
                 self.assertNotIn("engine_api_rest", clients)
                 self.assertEqual(self.git(self.checkout, "status", "--porcelain", "clients"), changed)
 
+    def test_github_override_changes_the_clone_source(self):
+        self.setup_hive(
+            EL_CLIENTS="ethrex",
+            EL_CLIENT_OVERRIDES_JSON='{"ethrex":{"github":"me/ethrex","ref":"my-branch"}}',
+        )
+        clients = (self.checkout / "clients-local.yaml").read_text()
+        self.assertIn("github: 'me/ethrex'", clients)
+        self.assertIn("tag: 'my-branch'", clients)
+
     def test_reth_patch_swaps_portable_feature_once(self):
         self.setup_hive(EL_CLIENTS="reth-rest")
         first = (self.checkout / RETH_DOCKERFILE).read_text()

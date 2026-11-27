@@ -55,15 +55,12 @@ eest_el_clients_resolve_descriptors_for() {
           $ids[] as $id
           | (.clients[$id] // error("unknown EL client id: \($id)")) as $base
           | override_for($id; $overrides) as $override
-          | (
-              $base
-              + $override
-              + {
-                id: $id,
-                _override_repo: ($override | has("repo")),
-                _override_github: ($override | has("github"))
-              }
-            )
+          | if ($base + $override | has("repo")) then
+              error("EL client \($id) sets repo, which is no longer read; set github to the OWNER/NAME slug instead")
+            else
+              .
+            end
+          | $base + $override + {id: $id}
         ]
     ' "$EL_CLIENT_CONFIG"
 }

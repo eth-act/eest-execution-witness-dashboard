@@ -60,42 +60,6 @@ _eest_dashboard_root_path() {
   esac
 }
 
-_eest_dashboard_github_slug() {
-  local owner repo repo_name slug
-
-  repo="$1"
-  case "$repo" in
-    https://github.com/*)
-      slug="${repo#https://github.com/}"
-      ;;
-    git@github.com:*)
-      slug="${repo#git@github.com:}"
-      ;;
-    github.com:*)
-      slug="${repo#github.com:}"
-      ;;
-    github.com/*)
-      slug="${repo#github.com/}"
-      ;;
-    *)
-      return 1
-      ;;
-  esac
-
-  slug="${slug%%#*}"
-  slug="${slug%%\?*}"
-  owner="${slug%%/*}"
-  repo_name="${slug#*/}"
-  repo_name="${repo_name%%/*}"
-  repo_name="${repo_name%.git}"
-
-  if [ -z "$owner" ] || [ -z "$repo_name" ] || [ "$owner" = "$repo_name" ]; then
-    return 1
-  fi
-
-  printf '%s/%s\n' "$owner" "$repo_name"
-}
-
 if [ -z "${EEST_RELEASE_TAG+x}" ]; then
   EEST_RELEASE_TAG=""
 fi

@@ -321,7 +321,7 @@ _setup_hive_apply_descriptor_setup() {
 }
 
 _setup_hive_append_client_yaml() {
-  local build_arg_key build_arg_value descriptor dockerfile_ext github hive_client nametag repo target tmp_build_args
+  local build_arg_key build_arg_value descriptor dockerfile_ext github hive_client nametag target tmp_build_args
 
   descriptor="$1"
   target="$2"
@@ -350,12 +350,7 @@ _setup_hive_append_client_yaml() {
     printf '%s\n' '  build_args:'
   } >> "$target"
 
-  repo="$(eest_el_clients_descriptor_field "$descriptor" '.repo')"
   github="$(eest_el_clients_descriptor_field "$descriptor" '.github')"
-  if [ "$(eest_el_clients_descriptor_field "$descriptor" '._override_repo')" = true ] &&
-    [ "$(eest_el_clients_descriptor_field "$descriptor" '._override_github')" != true ]; then
-    github="$(_eest_dashboard_github_slug "$repo" 2>/dev/null || printf '%s\n' "$github")"
-  fi
   tmp_build_args="${target}.build-args.$$"
   jq -c \
     --arg github "$github" \
