@@ -80,5 +80,5 @@ jobs:
       el_clients: ${{ needs.configure.outputs.el_clients }}
       zkevm_workload_runs: ${{ needs.configure.outputs.zkevm_workload_runs }}
       hive_ui_repo: https://github.com/ethpandaops/hive-ui.git
-      hive_ui_ref: b5441f735366a4f7d13575a020ccd6517d7ecaf3
+      hive_ui_ref: d496740bcbe68bb452ed6ead3542bf79d9b4ecec
       max_site_size_mb: "900"

@@ -119,7 +119,7 @@ HIVE_REPO="${HIVE_REPO:-https://github.com/ethereum/hive.git}"
 HIVE_REF="${HIVE_REF:-master}"
 HIVE_DIR="$(_eest_dashboard_root_path "${HIVE_DIR:-hive}")"
 HIVE_UI_REPO="${HIVE_UI_REPO:-https://github.com/ethpandaops/hive-ui.git}"
-HIVE_UI_REF="${HIVE_UI_REF:-b5441f735366a4f7d13575a020ccd6517d7ecaf3}"
+HIVE_UI_REF="${HIVE_UI_REF:-d496740bcbe68bb452ed6ead3542bf79d9b4ecec}"
 HIVE_UI_DIR="$(_eest_dashboard_root_path "${HIVE_UI_DIR:-hive-ui}")"
 HIVE_UI_DISCOVERY_NAME="${HIVE_UI_DISCOVERY_NAME:-zkEVM}"
 
