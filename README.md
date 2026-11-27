@@ -275,6 +275,7 @@ config:
 
 ```bash
 EL_CLIENT_OVERRIDES_JSON='{"ethrex":{"ref":"other-branch"}}' scripts/setup-hive.sh
+EL_CLIENT_OVERRIDES_JSON='{"ethrex":{"github":"me/ethrex","ref":"my-branch"}}' scripts/setup-hive.sh
 EL_CLIENT_OVERRIDES_JSON='{"ethrex":{"hive_parallelism":4}}' scripts/run-hive-consume.sh
 ```
 

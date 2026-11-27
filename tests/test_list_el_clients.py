@@ -140,6 +140,15 @@ class ListElClientsTests(unittest.TestCase):
             self.assertNotEqual(completed.returncode, 0)
             self.assertIn("invalid EL client id: bad id", completed.stderr)
 
+    def test_repo_override_is_rejected(self):
+        completed = self.run_matrix(
+            overrides='{"ethrex":{"repo":"https://github.com/me/ethrex.git"}}'
+        )
+
+        self.assertNotEqual(completed.returncode, 0)
+        self.assertIn("EL client ethrex sets repo", completed.stderr)
+        self.assertIn("set github", completed.stderr)
+
     def test_none_produces_empty_matrix(self):
         completed = self.run_matrix(clients="none")
 
