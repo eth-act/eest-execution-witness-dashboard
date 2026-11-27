@@ -9,6 +9,7 @@ import json
 import re
 import shutil
 import sys
+import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -60,11 +61,24 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Convert zkevm-benchmark-workload metrics into HiveUI results."
     )
-    parser.add_argument(
+    inputs = parser.add_mutually_exclusive_group(required=True)
+    inputs.add_argument(
         "--input",
-        required=True,
         type=Path,
         help="Path to the zkevm-metrics directory.",
+    )
+    inputs.add_argument(
+        "--metrics-roots",
+        type=Path,
+        help=(
+            "Directory whose subdirectories are each a zkevm-metrics directory, such as "
+            "one downloaded workload artifact each. Requires --expected-roots."
+        ),
+    )
+    parser.add_argument(
+        "--expected-roots",
+        type=int,
+        help="Number of subdirectories --metrics-roots must have. Zero writes an empty output.",
     )
     parser.add_argument(
         "--output",
@@ -82,7 +96,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=DEFAULT_SUITE_NAME,
         help=f"Hive suite name to write into result files. Default: {DEFAULT_SUITE_NAME}",
     )
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    if args.metrics_roots is not None and args.expected_roots is None:
+        parser.error("--metrics-roots requires --expected-roots")
+    if args.metrics_roots is None and args.expected_roots is not None:
+        parser.error("--expected-roots requires --metrics-roots")
+    if args.expected_roots is not None and args.expected_roots < 0:
+        parser.error("--expected-roots must not be negative")
+    return args
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -535,10 +556,67 @@ def convert(input_dir: Path, output_dir: Path, suite_name: str, clean_output: bo
     return result_files
 
 
+def convert_roots(
+    roots_dir: Path,
+    output_dir: Path,
+    suite_name: str,
+    clean_output: bool,
+    expected_roots: int,
+) -> list[str]:
+    """Convert each subdirectory of roots_dir as its own metrics root into one output.
+
+    Each root keeps its own hardware.json and paths relative to it, as if it were
+    converted alone. Two roots that would write the same file fail the conversion.
+    """
+    roots_dir = roots_dir.resolve()
+    output_dir = output_dir.resolve()
+
+    if not roots_dir.is_dir():
+        raise ConversionError(f"metrics roots directory does not exist: {roots_dir}")
+    roots = sorted(
+        path for path in roots_dir.iterdir() if path.is_dir() and not path.name.startswith(".")
+    )
+    if len(roots) != expected_roots:
+        raise ConversionError(
+            f"expected {expected_roots} metrics roots in {roots_dir}, found {len(roots)}"
+        )
+
+    prepare_output_dir(roots_dir, output_dir, clean_output)
+    result_files: list[str] = []
+    # Stage next to the output, so moving the files stays on one filesystem.
+    with tempfile.TemporaryDirectory(prefix=f".{output_dir.name}-", dir=output_dir.parent) as staging:
+        for root in roots:
+            root_output = Path(staging) / root.name
+            root_files = convert(root, root_output, suite_name, clean_output=False)
+            for path in sorted(root_output.rglob("*")):
+                if path.is_dir():
+                    continue
+                relative = path.relative_to(root_output)
+                target = output_dir / relative
+                if target.exists():
+                    raise ConversionError(
+                        f"metrics root {root.name} would overwrite {relative}, "
+                        "which an earlier root already wrote"
+                    )
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.move(path, target)
+            result_files.extend(root_files)
+    return result_files
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     try:
-        result_files = convert(args.input, args.output, args.suite_name, args.clean_output)
+        if args.metrics_roots is not None:
+            result_files = convert_roots(
+                args.metrics_roots,
+                args.output,
+                args.suite_name,
+                args.clean_output,
+                args.expected_roots,
+            )
+        else:
+            result_files = convert(args.input, args.output, args.suite_name, args.clean_output)
     except ConversionError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1

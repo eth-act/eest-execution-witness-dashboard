@@ -40,8 +40,6 @@ main README leaves out.
   `zkevm-benchmark-workload` and checks out `ZKEVM_BENCHMARK_WORKLOAD_REF`.
 - `run-zkevm-benchmark-workload.sh`: runs one stateless-validator benchmark
   against `FIXTURES_DIR/blockchain_tests_engine`.
-- `list-zkevm-metrics-roots.sh`: finds downloaded zkEVM metrics roots in either
-  GitHub Actions download layout.
 - `convert-zkevm-metrics-to-hive-results.py`: converts `zkevm-metrics/` output
   into Hive-shaped result files.
 - `merge-hive-results.sh`: validates and merges the per-client Hive results and
@@ -129,13 +127,16 @@ fixtures. It fails unless that produces at least one metrics JSON.
 
 ## Merging results
 
-In CI, `list-zkevm-metrics-roots.sh` runs after the metrics artifacts download.
-It prints the directories that contain `<execution-client>/<zkvm>/*.json`,
-whether GitHub Actions kept each artifact in its own directory or flattened a
-single artifact into the download path:
+In CI, each downloaded metrics artifact is its own metrics root, with its own
+`hardware.json`. `--metrics-roots` converts every subdirectory of a directory
+as a separate root into one output, and fails if the count differs from
+`--expected-roots` or two roots would write the same file. Zero expected roots
+give an empty output:
 
 ```bash
-scripts/list-zkevm-metrics-roots.sh zkevm-metrics-artifacts
+python3 scripts/convert-zkevm-metrics-to-hive-results.py \
+  --metrics-roots zkevm-metrics-artifacts --expected-roots 15 \
+  --output hive/workspace/zkevm-converted-results --clean-output
 ```
 
 The converter writes one result JSON per execution-client/zkVM pair and a

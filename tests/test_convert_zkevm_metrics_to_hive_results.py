@@ -30,7 +30,96 @@ def write_json(path: Path, data: dict) -> None:
     path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 
 
+def write_metrics_root(root: Path, *, client: str, zkvm: str, cpu: str) -> None:
+    write_json(root / "hardware.json", {"cpu_model": cpu})
+    write_json(root / client / zkvm / "case.json", {
+        "name": "eest__header__block0",
+        "timestamp_completed": "2026-09-10T12:00:02Z",
+        "metadata": {"block_used_gas": 100},
+        "execution": {"success": {
+            "output_matched": True,
+            "execution_duration": {"secs": 2, "nanos": 0},
+        }},
+    })
+
+
 class ConvertZkEvmMetricsTests(unittest.TestCase):
+    def test_metrics_roots_convert_each_root_into_one_output(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            roots = root / "artifacts"
+            output = root / "converted"
+            write_metrics_root(
+                roots / "zkevm-metrics-v1-1-ethrex-zisk",
+                client="ethrex-26.0.0", zkvm="zisk-v1.1.0", cpu="CPU A",
+            )
+            write_metrics_root(
+                roots / "zkevm-metrics-v1-1-reth-sp1",
+                client="reth-2.7.0", zkvm="sp1-v6.0.0", cpu="CPU B",
+            )
+
+            written = converter.convert_roots(
+                roots, output, converter.DEFAULT_SUITE_NAME, clean_output=True, expected_roots=2
+            )
+
+            self.assertEqual(len(written), 2)
+            descriptions = {}
+            for name in written:
+                suite = json.loads((output / name).read_text())
+                self.assertTrue((output / suite["testDetailsLog"]).is_file())
+                descriptions[next(iter(suite["clientVersions"]))] = suite["description"]
+            # Each root keeps its own hardware and name.
+            self.assertIn("CPU A", descriptions["ethrex_zisk-v1.1.0"])
+            self.assertIn("Input root: zkevm-metrics-v1-1-ethrex-zisk\n", descriptions["ethrex_zisk-v1.1.0"])
+            self.assertIn("CPU B", descriptions["reth_sp1-v6.0.0"])
+            self.assertIn("Input root: zkevm-metrics-v1-1-reth-sp1\n", descriptions["reth_sp1-v6.0.0"])
+            self.assertEqual(sorted(path.name for path in root.iterdir()), ["artifacts", "converted"])
+
+    def test_metrics_roots_must_match_the_expected_count(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_metrics_root(root / "artifacts" / "one", client="ethrex-26.0.0", zkvm="zisk-v1.1.0", cpu="CPU")
+
+            with self.assertRaisesRegex(converter.ConversionError, "expected 2 metrics roots .* found 1"):
+                converter.convert_roots(
+                    root / "artifacts", root / "converted", converter.DEFAULT_SUITE_NAME,
+                    clean_output=True, expected_roots=2,
+                )
+
+    def test_zero_metrics_roots_write_an_empty_output(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "artifacts").mkdir()
+
+            self.assertEqual(
+                converter.main([
+                    "--metrics-roots", str(root / "artifacts"), "--expected-roots", "0",
+                    "--output", str(root / "converted"), "--clean-output",
+                ]),
+                0,
+            )
+            self.assertEqual(list((root / "converted").iterdir()), [])
+
+    def test_metrics_roots_writing_the_same_file_fail(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for name in ("first", "second"):
+                write_metrics_root(
+                    root / "artifacts" / name, client="ethrex-26.0.0", zkvm="zisk-v1.1.0", cpu="CPU"
+                )
+
+            with self.assertRaisesRegex(converter.ConversionError, "metrics root second would overwrite"):
+                converter.convert_roots(
+                    root / "artifacts", root / "converted", converter.DEFAULT_SUITE_NAME,
+                    clean_output=True, expected_roots=2,
+                )
+
+    def test_expected_roots_requires_metrics_roots(self):
+        with self.assertRaises(SystemExit):
+            converter.parse_args(["--input", "metrics", "--expected-roots", "1", "--output", "out"])
+        with self.assertRaises(SystemExit):
+            converter.parse_args(["--metrics-roots", "artifacts", "--output", "out"])
+
     def test_execution_metrics_preserve_outcome_and_duration(self):
         for matched in (True, False):
             with self.subTest(matched=matched), TemporaryDirectory() as tmp:

@@ -287,23 +287,12 @@ jobs:
       - name: Convert zkEVM metrics and merge all results
         run: |
           set -Eeuo pipefail
-          merge_args=()
-          converted_count=0
-          while IFS= read -r -d '' metrics_dir; do
-            output_dir="$ZKEVM_CONVERTED_RESULTS_DIR/$(basename "$metrics_dir")"
-            python3 scripts/convert-zkevm-metrics-to-hive-results.py \
-              --input "$metrics_dir" \
-              --output "$output_dir" \
-              --clean-output
-            merge_args+=(--source "$output_dir")
-            converted_count=$((converted_count + 1))
-          done < <(scripts/list-zkevm-metrics-roots.sh --null "$ZKEVM_METRICS_ARTIFACTS_DIR")
-
-          if [ "$converted_count" -ne "$ZKEVM_COUNT" ]; then
-            echo "Expected $ZKEVM_COUNT zkEVM metrics roots, found $converted_count" >&2
-            exit 1
-          fi
-          scripts/merge-hive-results.sh "${merge_args[@]}"
+          python3 scripts/convert-zkevm-metrics-to-hive-results.py \
+            --metrics-roots "$ZKEVM_METRICS_ARTIFACTS_DIR" \
+            --expected-roots "$ZKEVM_COUNT" \
+            --output "$ZKEVM_CONVERTED_RESULTS_DIR" \
+            --clean-output
+          scripts/merge-hive-results.sh --source "$ZKEVM_CONVERTED_RESULTS_DIR"
       - name: Build static hive-ui site
         run: scripts/build-site.sh
       - name: Smoke test generated site
