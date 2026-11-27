@@ -2,15 +2,11 @@
 
 set -Eeuo pipefail
 
-_merge_hive_results_abs_dir() {
-  (CDPATH= cd -- "$1" 2>/dev/null && pwd -P)
-}
+# shellcheck source=scripts/lib/common.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
-_merge_hive_results_script_dir="$(_merge_hive_results_abs_dir "$(dirname "${BASH_SOURCE[0]}")")"
-if [ -z "$_merge_hive_results_script_dir" ]; then
-  printf 'error: unable to resolve scripts directory\n' >&2
-  exit 1
-fi
+_merge_hive_results_script_dir="$(eest_abs_dir "$(dirname "${BASH_SOURCE[0]}")")"
+[ -n "$_merge_hive_results_script_dir" ] || eest_die "unable to resolve scripts directory"
 
 # shellcheck source=scripts/env.sh
 . "$_merge_hive_results_script_dir/env.sh"
@@ -39,27 +35,12 @@ _merge_hive_results_usage() {
     '  HIVE_RESULTS_SOURCE_DIR     Root containing CLIENT_ID/ directories.'
 }
 
-_merge_hive_results_die() {
-  printf 'error: %s\n' "$*" >&2
-  exit 1
-}
-
-_merge_hive_results_require_cmd() {
-  local cmd label
-
-  cmd="$1"
-  label="$2"
-  if ! command -v "$cmd" >/dev/null 2>&1; then
-    _merge_hive_results_die "missing required tool: $label ($cmd not found on PATH)"
-  fi
-}
-
 _merge_hive_results_parse_args() {
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --source)
         if [ "$#" -lt 2 ]; then
-          _merge_hive_results_die "--source requires a directory"
+          eest_die "--source requires a directory"
         fi
         _merge_hive_results_sources+=("$2")
         shift 2
@@ -70,7 +51,7 @@ _merge_hive_results_parse_args() {
         ;;
       *)
         _merge_hive_results_usage >&2
-        _merge_hive_results_die "unknown argument: $1"
+        eest_die "unknown argument: $1"
         ;;
     esac
   done
@@ -93,8 +74,8 @@ main() {
   local -a merge_args
 
   _merge_hive_results_parse_args "$@"
-  _merge_hive_results_require_cmd jq jq
-  _merge_hive_results_require_cmd python3 Python
+  eest_require_cmd jq jq
+  eest_require_cmd python3 Python
 
   source_root="$HIVE_RESULTS_SOURCE_DIR"
   case "$source_root" in
@@ -105,7 +86,7 @@ main() {
   if eest_el_clients_selects_none; then
     resolved='[]'
   elif ! resolved="$(eest_el_clients_resolve_descriptors)"; then
-    _merge_hive_results_die "failed to resolve EL client descriptors"
+    eest_die "failed to resolve EL client descriptors"
   fi
 
   merge_args=(--output "$HIVE_RESULTS_DIR" --clean-output)
@@ -114,7 +95,7 @@ main() {
     eest_el_clients_validate_safe_id "$id" || exit 1
     full_name="$(eest_el_clients_full_client_name "$descriptor")"
     if ! client_dir="$(_merge_hive_results_source_dir_for "$source_root" "$id")"; then
-      _merge_hive_results_die "missing isolated result directory for $id under $source_root"
+      eest_die "missing isolated result directory for $id under $source_root"
     fi
     merge_args+=(--client-source "$id" "$full_name" "$client_dir")
   done < <(jq -c '.[]' <<< "$resolved")
