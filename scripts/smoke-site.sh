@@ -2,15 +2,11 @@
 
 set -Eeuo pipefail
 
-_smoke_site_abs_dir() {
-  (CDPATH= cd -- "$1" 2>/dev/null && pwd -P)
-}
+# shellcheck source=scripts/lib/common.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
-_smoke_site_script_dir="$(_smoke_site_abs_dir "$(dirname "${BASH_SOURCE[0]}")")"
-if [ -z "$_smoke_site_script_dir" ]; then
-  printf 'error: unable to resolve scripts directory\n' >&2
-  exit 1
-fi
+_smoke_site_script_dir="$(eest_abs_dir "$(dirname "${BASH_SOURCE[0]}")")"
+[ -n "$_smoke_site_script_dir" ] || eest_die "unable to resolve scripts directory"
 
 # shellcheck source=scripts/env.sh
 . "$_smoke_site_script_dir/env.sh"
@@ -49,10 +45,6 @@ _smoke_site_usage() {
     '  --url URL                    Same as SITE_SMOKE_URL.'
 }
 
-_smoke_site_log() {
-  printf '==> %s\n' "$*"
-}
-
 _smoke_site_die() {
   printf 'error: %s\n' "$*" >&2
   if [ -n "$_smoke_site_server_log" ] && [ -s "$_smoke_site_server_log" ]; then
@@ -75,17 +67,6 @@ _smoke_site_cleanup() {
 
 trap _smoke_site_cleanup EXIT
 
-_smoke_site_require_cmd() {
-  local cmd label
-
-  cmd="$1"
-  label="$2"
-
-  if ! command -v "$cmd" >/dev/null 2>&1; then
-    _smoke_site_die "missing required tool: $label ($cmd not found on PATH)"
-  fi
-}
-
 _smoke_site_python_cmd() {
   if command -v python3 >/dev/null 2>&1; then
     printf '%s\n' python3
@@ -98,22 +79,6 @@ _smoke_site_python_cmd() {
   fi
 
   return 1
-}
-
-_smoke_site_require_positive_int() {
-  local name value
-
-  name="$1"
-  value="$2"
-
-  case "$value" in
-    '' | *[!0-9]*)
-      _smoke_site_die "$name must be a positive integer: $value"
-      ;;
-    0)
-      _smoke_site_die "$name must be greater than zero"
-      ;;
-  esac
 }
 
 _smoke_site_parse_args() {
@@ -203,8 +168,8 @@ _smoke_site_validate_relative_path() {
 _smoke_site_validate_inputs() {
   local first_copied_result
 
-  _smoke_site_require_positive_int SITE_SMOKE_PORT "$SITE_SMOKE_PORT"
-  _smoke_site_require_positive_int SITE_SECRET_SCAN_MAX_MATCHES "$SITE_SECRET_SCAN_MAX_MATCHES"
+  eest_require_positive_int SITE_SMOKE_PORT "$SITE_SMOKE_PORT"
+  eest_require_positive_int SITE_SECRET_SCAN_MAX_MATCHES "$SITE_SECRET_SCAN_MAX_MATCHES"
   SITE_SMOKE_BASE_PATH="$(_smoke_site_normalize_base_path "$SITE_SMOKE_BASE_PATH")"
 
   if [ ! -d "$SITE_DIR" ]; then
@@ -310,8 +275,6 @@ _smoke_site_check_listing_paths() {
       _smoke_site_die "result entry references a file that was not copied: results/$referenced_result"
     fi
   fi
-
-  printf '%s\n' "$first_result"
 }
 
 _smoke_site_check_relative_sources() {
@@ -330,19 +293,20 @@ _smoke_site_check_relative_sources() {
     _smoke_site_die "generated site contains root-relative asset or fetch paths; GitHub Pages project URLs need relative paths"
   fi
 
-  _smoke_site_log "Static assets and fetch paths are relative"
+  eest_log "Static assets and fetch paths are relative"
 }
 
 _smoke_site_check_public_logs() {
   local matches
 
   if [ "$SITE_SECRET_SCAN" = "0" ]; then
-    _smoke_site_log "Skipping public-log secret scan because SITE_SECRET_SCAN=0"
+    eest_log "Skipping public-log secret scan because SITE_SECRET_SCAN=0"
     return
   fi
 
   matches="$(
-    LC_ALL=C grep -RInEI --exclude-dir=.git "$SITE_SECRET_SCAN_PATTERN" "$SITE_DIR/results" \
+    # -i: headers such as "Authorization: Bearer" are capitalised. -I skips binaries.
+    LC_ALL=C grep -RInEIi --exclude-dir=.git "$SITE_SECRET_SCAN_PATTERN" "$SITE_DIR/results" \
       | sed -n "1,${SITE_SECRET_SCAN_MAX_MATCHES}p" || true
   )"
 
@@ -351,7 +315,7 @@ _smoke_site_check_public_logs() {
     _smoke_site_die "possible secret, credential, private RPC URL, or private test data found in public results"
   fi
 
-  _smoke_site_log "No suspicious public-log strings found"
+  eest_log "No suspicious public-log strings found"
 }
 
 _smoke_site_start_server() {
@@ -409,20 +373,22 @@ _smoke_site_head() {
   curl --fail --silent --show-error --location --head --output /dev/null "$url"
 }
 
-_smoke_site_check_remote() {
-  local base_url discovery_http first_result listing_http referenced_result result_http
+# Fetches the site over HTTP the way a browser does: the page, discovery.json,
+# listing.jsonl, the first listed result, and the first file that result
+# references.
+_smoke_site_check_over_http() {
+  local base_url discovery_http first_result listing_http referenced_result result_http where
 
-  base_url="$(_smoke_site_normalize_url "$SITE_SMOKE_URL")"
-  _smoke_site_tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/hive-ui-site-smoke.XXXXXX")"
+  base_url="$1"
+  where="$2"
   discovery_http="$_smoke_site_tmp_dir/discovery.json"
   listing_http="$_smoke_site_tmp_dir/listing.jsonl"
   result_http="$_smoke_site_tmp_dir/result.json"
 
-  _smoke_site_log "Testing deployed site at $base_url/"
   _smoke_site_fetch "$base_url/" "$_smoke_site_tmp_dir/index.html"
   _smoke_site_fetch "$base_url/discovery.json" "$discovery_http"
   _smoke_site_check_discovery_file_from "$discovery_http" >/dev/null
-  _smoke_site_log "Fetched discovery.json from deployed site"
+  eest_log "Fetched discovery.json from $where"
 
   _smoke_site_fetch "$base_url/listing.jsonl" "$listing_http"
   if ! jq -e . "$listing_http" >/dev/null; then
@@ -432,69 +398,48 @@ _smoke_site_check_remote() {
 
   first_result="$(_smoke_site_first_listing_file_from "$listing_http")"
   if [ -z "$first_result" ]; then
-    _smoke_site_die "deployed listing.jsonl does not contain any entries with fileName"
+    _smoke_site_die "listing.jsonl from $where does not contain any entries with fileName"
   fi
-
   _smoke_site_validate_relative_path "listing fileName" "$first_result"
   _smoke_site_fetch "$base_url/results/$first_result" "$result_http"
   if ! jq -e . "$result_http" >/dev/null; then
     _smoke_site_die "result entry fetched over HTTP is not valid JSON: $base_url/results/$first_result"
   fi
-  _smoke_site_log "Fetched listing.jsonl and results/$first_result from deployed site"
+  eest_log "Fetched listing.jsonl and results/$first_result from $where"
 
   referenced_result="$(_smoke_site_first_referenced_result_file_from "$result_http")"
   if [ -n "$referenced_result" ]; then
     _smoke_site_validate_relative_path "referenced result asset" "$referenced_result"
     _smoke_site_head "$base_url/results/$referenced_result"
-    _smoke_site_log "Verified deployed referenced result asset results/$referenced_result"
+    eest_log "Verified referenced result asset results/$referenced_result from $where"
   fi
-
-  _smoke_site_log "Deployed Pages smoke test passed"
 }
 
-_smoke_site_check_http() {
-  local base_url discovery_http first_result listing_http referenced_result result_http
+_smoke_site_check_remote() {
+  local base_url
 
-  first_result="$1"
+  base_url="$(_smoke_site_normalize_url "$SITE_SMOKE_URL")"
+  _smoke_site_tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/hive-ui-site-smoke.XXXXXX")"
+  eest_log "Testing deployed site at $base_url/"
+  _smoke_site_check_over_http "$base_url" "the deployed site"
+  eest_log "Deployed Pages smoke test passed"
+}
+
+_smoke_site_check_local() {
+  local base_url
+
   base_url="http://$SITE_SMOKE_HOST:$SITE_SMOKE_PORT/$SITE_SMOKE_BASE_PATH"
-  discovery_http="$_smoke_site_tmp_dir/discovery.json"
-  listing_http="$_smoke_site_tmp_dir/listing.jsonl"
-  result_http="$_smoke_site_tmp_dir/result.json"
-
-  _smoke_site_log "Serving $SITE_DIR at $base_url/"
+  eest_log "Serving $SITE_DIR at $base_url/"
   _smoke_site_wait_for_server "$base_url"
-
-  _smoke_site_fetch "$base_url/index.html" "$_smoke_site_tmp_dir/index.html"
-  _smoke_site_fetch "$base_url/discovery.json" "$discovery_http"
-  _smoke_site_check_discovery_file_from "$discovery_http" >/dev/null
-  _smoke_site_log "Fetched discovery.json over HTTP"
-
-  _smoke_site_fetch "$base_url/listing.jsonl" "$listing_http"
-  if ! jq -e . "$listing_http" >/dev/null; then
-    _smoke_site_die "listing.jsonl fetched over HTTP is not valid JSON lines: $base_url/listing.jsonl"
-  fi
-  _smoke_site_check_single_client_listing_file_from "$listing_http"
-  _smoke_site_log "Fetched listing.jsonl over HTTP"
-
-  _smoke_site_fetch "$base_url/results/$first_result" "$result_http"
-  if ! jq -e . "$result_http" >/dev/null; then
-    _smoke_site_die "result entry fetched over HTTP is not valid JSON: $base_url/results/$first_result"
-  fi
-  _smoke_site_log "Fetched results/$first_result over HTTP"
-
-  referenced_result="$(_smoke_site_first_referenced_result_file "$first_result")"
-  if [ -n "$referenced_result" ]; then
-    _smoke_site_head "$base_url/results/$referenced_result"
-    _smoke_site_log "Verified referenced result asset results/$referenced_result over HTTP"
-  fi
+  _smoke_site_check_over_http "$base_url" "the local server"
 }
 
 main() {
-  local first_result python_cmd
+  local python_cmd
 
   _smoke_site_parse_args "$@"
-  _smoke_site_require_cmd curl curl
-  _smoke_site_require_cmd jq jq
+  eest_require_cmd curl curl
+  eest_require_cmd jq jq
   if [ -n "$SITE_SMOKE_URL" ]; then
     _smoke_site_check_remote
     return
@@ -505,12 +450,12 @@ main() {
   fi
 
   _smoke_site_validate_inputs
-  first_result="$(_smoke_site_check_listing_paths)"
+  _smoke_site_check_listing_paths
   _smoke_site_check_relative_sources
   _smoke_site_check_public_logs
   _smoke_site_start_server "$python_cmd"
-  _smoke_site_check_http "$first_result"
-  _smoke_site_log "Static site smoke test passed"
+  _smoke_site_check_local
+  eest_log "Static site smoke test passed"
 }
 
 main "$@"
