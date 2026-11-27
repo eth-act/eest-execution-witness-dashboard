@@ -44,12 +44,8 @@ jobs:
     uses: ./.github/workflows/prepare-dataset.yml
     with:
       # Consume the prefilled release asset without generating or filtering fixtures.
+      # The other pins are the callee's defaults.
       eest_release_tag: tests-zkevm@v21.0.7
-      hive_repo: https://github.com/ethereum/hive.git
-      hive_ref: master
-      zkevm_benchmark_workload_repo: https://github.com/eth-act/zkevm-benchmark-workload.git
-      zkevm_benchmark_workload_ref: v0.20.0
-      zkevm_rayon_threads: "10"
 
   workloads:
     name: Run all workloads
@@ -63,7 +59,6 @@ jobs:
       # Reusable workflows share the caller's run ID and artifact namespace.
       dataset_run_id: ${{ format('{0}', github.run_id) }}
       el_clients: ${{ needs.configure.outputs.el_clients }}
-      el_client_overrides_json: "{}"
       zkevm_workload_runs: ${{ needs.configure.outputs.zkevm_workload_runs }}
 
   publish:
@@ -79,6 +74,3 @@ jobs:
       dataset_run_id: ${{ format('{0}', github.run_id) }}
       el_clients: ${{ needs.configure.outputs.el_clients }}
       zkevm_workload_runs: ${{ needs.configure.outputs.zkevm_workload_runs }}
-      hive_ui_repo: https://github.com/ethpandaops/hive-ui.git
-      hive_ui_ref: d496740bcbe68bb452ed6ead3542bf79d9b4ecec
-      max_site_size_mb: "900"
