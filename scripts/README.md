@@ -25,7 +25,8 @@ main README leaves out.
   fixtures.
 - `setup-hive.sh`: clones or updates Hive, builds `./hive`, applies the
   managed patches, and generates `clients-local.yaml` from the selected client
-  descriptors.
+  descriptors. `--checkout-only` stops after the checkout, for jobs that only
+  run hiveview.
 - `list-el-clients.sh`: resolves the selected client descriptors and prints a
   table, JSON, IDs, or a GitHub Actions matrix.
 - `run-hive-consume-client.sh`: runs `consume engine-witness` for one client

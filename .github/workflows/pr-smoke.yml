@@ -282,7 +282,7 @@ jobs:
           path: smoke-inputs/zkevm
           merge-multiple: true
       - name: Prepare Hive checkout for hiveview
-        run: scripts/setup-hive.sh
+        run: scripts/setup-hive.sh --checkout-only
       # Mirrors the conversion and merge in publish.yml.
       - name: Convert zkEVM metrics and merge all results
         run: |

@@ -157,19 +157,7 @@ jobs:
           } >> "$GITHUB_ENV"
 
       - name: Prepare pinned Hive checkout for hiveview
-        run: |
-          set -Eeuo pipefail
-          hive_setup_clients="$EL_CLIENTS"
-          case "$(printf '%s' "$hive_setup_clients" | tr '[:upper:]' '[:lower:]')" in
-            none|skip|empty)
-              hive_setup_clients="$(jq -r '.clients | keys[0] // empty' config/el-clients.json)"
-              if [ -z "$hive_setup_clients" ]; then
-                echo "config/el-clients.json must contain at least one descriptor to prepare Hive" >&2
-                exit 1
-              fi
-              ;;
-          esac
-          EL_CLIENTS="$hive_setup_clients" scripts/setup-hive.sh
+        run: scripts/setup-hive.sh --checkout-only
 
       - name: Resolve newest workload artifacts
         run: |
