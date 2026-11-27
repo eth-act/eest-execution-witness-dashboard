@@ -297,30 +297,14 @@ jobs:
       - name: Checkout dashboard repository
         uses: actions/checkout@v7
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install OS prerequisites
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential clang jq libclang-dev libssl-dev pkg-config \
-            cmake libbenchmark-dev libgmp-dev libomp-dev libopenmpi-dev \
-            libsodium-dev nasm nlohmann-json3-dev openmpi-bin openmpi-common
+      - name: Set up the benchmark runner
+        uses: ./.github/actions/zkevm-runner-setup
 
       # Needs jq, installed above.
       - name: Fetch dataset
         uses: ./.github/actions/fetch-dataset
         with:
           dataset-run-id: ${{ inputs.dataset_run_id }}
-
-      - name: Prepare zkevm-benchmark-workload checkout
-        run: scripts/setup-zkevm-benchmark-workload.sh
-
-      - name: Cache Rust build outputs
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: ${{ env.ZKEVM_BENCHMARK_WORKLOAD_DIR }} -> target
-          shared-key: zkevm-benchmark-workload-${{ needs.resolve.outputs.zkevm_commit }}
 
       - name: Run zkevm-benchmark-workload
         run: scripts/run-zkevm-benchmark-workload.sh

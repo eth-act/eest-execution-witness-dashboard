@@ -189,27 +189,14 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: ./.github/actions/smoke-setup
+      # Installs jq too, so smoke-setup skips apt.
+      - name: Set up the benchmark runner
+        id: runner
+        uses: ./.github/actions/zkevm-runner-setup
         with:
-          apt-packages: >-
-            build-essential clang libclang-dev libssl-dev pkg-config cmake libbenchmark-dev
-            libgmp-dev libomp-dev libopenmpi-dev libsodium-dev nasm nlohmann-json3-dev
-            openmpi-bin openmpi-common
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Prepare benchmark checkout
-        id: workload
-        run: |
-          scripts/setup-zkevm-benchmark-workload.sh
-          echo "commit=$(git -C "$ZKEVM_BENCHMARK_WORKLOAD_DIR" rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-      - name: Cache Rust build outputs
-        id: rust-cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          # Same key and paths as run-workloads.yml, so refreshes and smoke runs share it.
-          workspaces: ${{ env.ZKEVM_BENCHMARK_WORKLOAD_DIR }} -> target
-          shared-key: zkevm-benchmark-workload-${{ steps.workload.outputs.commit }}
           # Every zkVM job builds the same binary, so one job saves it.
-          save-if: ${{ matrix.zkvm == 'zisk' }}
+          save-cache: ${{ matrix.zkvm == 'zisk' }}
+      - uses: ./.github/actions/smoke-setup
       - name: Build the benchmark runner
         working-directory: ${{ env.ZKEVM_BENCHMARK_WORKLOAD_DIR }}
         run: cargo build --locked --release -p ere-hosts
@@ -217,7 +204,7 @@ jobs:
         env:
           ZKVM: ${{ matrix.zkvm }}
           CLIENTS: ${{ matrix.clients }}
-          CACHE_HIT: ${{ steps.rust-cache.outputs.cache-hit }}
+          CACHE_HIT: ${{ steps.runner.outputs.cache-hit }}
         run: |
           set -Eeuo pipefail
           printf '%s' "$GITHUB_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
@@ -350,23 +337,8 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - name: Install native prerequisites
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential clang jq libclang-dev libssl-dev pkg-config \
-            cmake libbenchmark-dev libgmp-dev libomp-dev libopenmpi-dev libsodium-dev \
-            nasm nlohmann-json3-dev openmpi-bin openmpi-common
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Prepare benchmark checkout
-        id: workload
-        run: |
-          scripts/setup-zkevm-benchmark-workload.sh
-          echo "commit=$(git -C "$ZKEVM_BENCHMARK_WORKLOAD_DIR" rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-      - name: Cache Rust build outputs
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: ${{ env.ZKEVM_BENCHMARK_WORKLOAD_DIR }} -> target
-          shared-key: zkevm-benchmark-workload-${{ steps.workload.outputs.commit }}
+      - name: Set up the benchmark runner
+        uses: ./.github/actions/zkevm-runner-setup
       - name: Build the benchmark runner
         working-directory: ${{ env.ZKEVM_BENCHMARK_WORKLOAD_DIR }}
         run: cargo build --locked --release -p ere-hosts

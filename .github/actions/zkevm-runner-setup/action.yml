@@ -1,0 +1,43 @@
+name: Set up a zkEVM benchmark runner
+description: Install the native packages and Rust, check out zkevm-benchmark-workload into ZKEVM_BENCHMARK_WORKLOAD_DIR, and restore its Rust build cache.
+
+inputs:
+  save-cache:
+    description: Save the Rust build cache after the job. Set it to "false" on all but one of several jobs that build the same binary.
+    required: false
+    default: "true"
+
+outputs:
+  commit:
+    description: The zkevm-benchmark-workload commit that was checked out.
+    value: ${{ steps.workload.outputs.commit }}
+  cache-hit:
+    description: Whether the Rust build cache had an exact match.
+    value: ${{ steps.rust-cache.outputs.cache-hit }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install native packages
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential clang jq libclang-dev libssl-dev pkg-config \
+          cmake libbenchmark-dev libgmp-dev libomp-dev libopenmpi-dev libsodium-dev \
+          nasm nlohmann-json3-dev openmpi-bin openmpi-common
+    - uses: dtolnay/rust-toolchain@stable
+    - name: Prepare benchmark checkout
+      id: workload
+      shell: bash
+      run: |
+        set -Eeuo pipefail
+        scripts/setup-zkevm-benchmark-workload.sh
+        echo "commit=$(git -C "$ZKEVM_BENCHMARK_WORKLOAD_DIR" rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+    - name: Cache Rust build outputs
+      id: rust-cache
+      uses: Swatinem/rust-cache@v2
+      with:
+        # The refresh and PR smoke share the key, so either one warms it.
+        workspaces: ${{ env.ZKEVM_BENCHMARK_WORKLOAD_DIR }} -> target
+        shared-key: zkevm-benchmark-workload-${{ steps.workload.outputs.commit }}
+        save-if: ${{ inputs.save-cache }}
