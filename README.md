@@ -338,6 +338,11 @@ scripts/build-site.sh
 hive-ui license and source notices. It fails if a listing entry names more than
 one client or the site exceeds `SITE_MAX_SIZE_MB`.
 
+Before building, it applies two patches from `patches/` to hive-ui, in order.
+`hive-ui-relative-paths.patch` lets hive-ui run from a subpath, as GitHub Pages
+serves it, and sorts the listing by start time. `hive-ui-hide-logs.patch`
+hides the log UI, since the published results have no logs.
+
 To fit GitHub Pages, the build drops per-test descriptions and all logs. The
 site keeps summary pages, test names, results, timings, comparisons, and client
 metadata, but rows no longer expand and log links are hidden. The source
