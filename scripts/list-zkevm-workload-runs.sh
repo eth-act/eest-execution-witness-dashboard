@@ -47,8 +47,9 @@ _list_zkevm_runs_json() {
     _list_zkevm_die "EL guest descriptor file does not exist: $EL_GUEST_CONFIG"
   fi
 
-  jq -c \
+  jq -c -L "$_list_zkevm_script_dir/lib" \
     --arg runs "$ZKEVM_WORKLOAD_RUNS" '
+      include "el-guests";
       def trim: gsub("^\\s+|\\s+$"; "");
       def parse_runs($value):
         ($value | trim) as $trimmed
@@ -99,26 +100,6 @@ _list_zkevm_runs_json() {
           else
             $runs
           end;
-      def require_guest_config:
-        if (.guests | type) != "object" then
-          error("EL_GUEST_CONFIG must contain a guests object")
-        else
-          .
-        end;
-      def guest_descriptor($client):
-        .guests[$client] // error("unknown EL guest id: \($client)");
-      def guest_artifact_base_url($client; $zkvm):
-        guest_descriptor($client) as $guest
-        | (($guest.zkvms[$zkvm].guest_artifact_base_url // $guest.guest_artifact_base_url // "") | tostring);
-      def require_guest_artifact_base_url($client; $zkvm):
-        guest_descriptor($client) as $guest
-        | guest_artifact_base_url($client; $zkvm) as $url
-        | if (($guest.requires_guest_artifact_base_url // false) == true) and ($url | length) == 0 then
-            error("EL guest descriptor \($client) requires guest_artifact_base_url for zkVM \($zkvm)")
-          else
-            $url
-          end;
-
       require_guest_config as $config
       | (parse_runs($runs) | require_unique_runs(.)) as $runs
       | [
@@ -128,7 +109,7 @@ _list_zkevm_runs_json() {
           | {
               execution_client: $client,
               zkvm: $zkvm,
-              guest_artifact_base_url: ($config | require_guest_artifact_base_url($client; $zkvm))
+              guest_artifact_base_url: ($config | guest_artifact_base_url($client; $zkvm))
             }
         ]
     ' "$EL_GUEST_CONFIG"
