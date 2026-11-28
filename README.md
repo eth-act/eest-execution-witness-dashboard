@@ -31,7 +31,7 @@ HIVE_UI_REF=86148f218418d0ee5d444cd5b72404e54b8605f8
 HIVE_UI_DISCOVERY_NAME=zkEVM
 
 ZKEVM_BENCHMARK_WORKLOAD_REPO=https://github.com/eth-act/zkevm-benchmark-workload.git
-ZKEVM_BENCHMARK_WORKLOAD_REF=v0.20.0
+ZKEVM_BENCHMARK_WORKLOAD_REF=v0.20.1
 ZKEVM_WORKLOAD_RUNS=ethrex:zisk,reth:zisk
 ZKEVM_RAYON_THREADS=10
 
@@ -96,7 +96,7 @@ Hive builds each client from its `Dockerfile.git`, which clones the descriptor
 
 ### zkEVM guests
 
-Workload `v0.20.0` downloads guests from the `ere-guests` `v0.20.0` release.
+Workload `v0.20.1` downloads guests from the `ere-guests` `v0.20.2` release.
 It provides Reth on SP1, ZisK, OpenVM, and Pico, Ethrex and Zesu on SP1, ZisK,
 and OpenVM, Nimbus and Nethermind on SP1 and ZisK, and Zilkworm on SP1 only.
 The Nimbus guest ID is `nimbus`, and its Hive client ID is `nimbus-el`.
